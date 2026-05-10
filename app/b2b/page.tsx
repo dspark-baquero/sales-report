@@ -23,7 +23,7 @@ import {
   b2bBrandRevenue,
 } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL, BRAND_COLOR } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
@@ -85,7 +85,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const kPrevQ = kpi(b2bRows(prevQRows));
 
   // B2B 전체 목표 (병원+피부관리실+대리점, 모든 브랜드)
-  const ta = buildTargetActuals(targets, cur, ym);
+  const ta = targetsForMonthWithProspective(targets, ym);
   const b2bTarget = ta
     .filter((t) => ["병원", "피부관리실", "대리점"].includes(t.customerKey) && !t.prospective)
     .reduce((s, t) => s + t.target, 0);
@@ -187,7 +187,8 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           label="활성 거래처 수"
           current={activeCustomers}
           unit="raw"
-          hint="본월 매출 발생"
+          unitSuffix="곳"
+          hint="이번달 매출 발생"
           comparisons={[{ label: COMPARE_LABEL.prevMonth, prev: activeCustomersPrev }]}
         />
         <MetricCard
@@ -219,13 +220,13 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         contribs={dealerContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="어느 영업사원이 본월 B2B 증감을 만들었는지"
+        hint="어느 영업사원이 이번달 B2B 증감을 만들었는지"
       />
 
       {/* 영업사원 보드 */}
       <Card>
         <CardHeader>
-          <CardTitle>영업사원별 실적 (본월 0원 제외)</CardTitle>
+          <CardTitle>영업사원별 실적 (이번달 0원 제외)</CardTitle>
           <div className="text-[11px] text-muted-foreground">{byDealerCur.length}명 · 분기 누적/전월/전년 동월 비교</div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -233,7 +234,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
             categories={byDealerCur.map((d) => d.dealer)}
             series={[
               {
-                name: "본월 실매출",
+                name: "이번달 실매출",
                 values: byDealerCur.map((d) => d.revenue),
                 color: "#6366f1",
               },
@@ -250,7 +251,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">영업사원</th>
                   <th className="py-2 text-right">담당 거래처</th>
-                  <th className="py-2 text-right">본월 실매출</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">전월</th>
                   <th className="py-2 text-right">전월 대비</th>
                   <th className="py-2 text-right">분기 누적</th>
@@ -355,10 +356,10 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
               <thead>
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">유형</th>
-                  <th className="py-2 text-right">본월 실매출</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">전월</th>
                   <th className="py-2 text-right">전월 대비</th>
-                  <th className="py-2 text-right">본월 목표</th>
+                  <th className="py-2 text-right">이번달 목표</th>
                   <th className="py-2 text-right">달성률</th>
                 </tr>
               </thead>
@@ -413,7 +414,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
       {matrix.dealers.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>영업사원 × 거래처 유형 매트릭스 (본월 실매출)</CardTitle>
+            <CardTitle>영업사원 × 거래처 유형 매트릭스 (이번달 실매출)</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="px-4 pb-4 overflow-x-auto">
@@ -468,7 +469,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>신규 거래처 (직전 6개월 무매출 → 본월)</CardTitle>
+              <CardTitle>신규 거래처 (직전 6개월 무매출 → 이번달)</CardTitle>
               <Badge variant="info">{newOnes.length}곳</Badge>
             </div>
           </CardHeader>
@@ -481,7 +482,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                   <thead>
                     <tr className="text-left text-[11px] text-muted-foreground border-b">
                       <th className="py-2">거래처</th>
-                      <th className="py-2 text-right">본월 매출</th>
+                      <th className="py-2 text-right">이번달 매출</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -500,7 +501,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>이탈 거래처 (직전 3개월 매출 → 본월 0)</CardTitle>
+              <CardTitle>이탈 거래처 (직전 3개월 매출 → 이번달 0)</CardTitle>
               <Badge variant="negative">{lost.length}곳</Badge>
             </div>
           </CardHeader>

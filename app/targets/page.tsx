@@ -28,10 +28,10 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
   const { qStart } = quarterOf(ym);
   const curQ = filterRange(all, qStart, ym);
 
-  // 본월 매트릭스
+  // 이번달 매트릭스
   const monthRows = buildTargetActuals(targets, cur, ym);
 
-  // 본분기 누적 — 분기 시작월~본월의 모든 target/actual 누적
+  // 이번분기 누적 — 분기 시작월~이번달의 모든 target/actual 누적
   const quarterMonths: string[] = [];
   {
     const [y, m] = ym.split("-").map(Number);
@@ -65,7 +65,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
     }
   }
 
-  // 본월 종합
+  // 이번달 종합
   const monthTargetTotal = monthRows.reduce((s, t) => s + t.target, 0);
   const monthActualTotal = monthRows.reduce((s, t) => s + t.actual, 0);
   const quarterTargetTotal = [...qMatrix.values()].reduce((s, t) => s + t.target, 0);
@@ -126,20 +126,20 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
       <div>
         <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 목표 달성 보고</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          target.csv 기반 (브랜드 × 구분 × 거래처 × 월) 목표 대비 본월/분기 누적 달성률
+          target.csv 기반 (브랜드 × 구분 × 거래처 × 월) 목표 대비 이번달/분기 누적 달성률
         </p>
       </div>
 
       {/* 종합 게이지 4개 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <TargetGauge
-          title="본월 종합"
+          title="이번달 종합"
           actual={monthActualTotal}
           target={monthTargetTotal}
           hint="모든 (브랜드 × 거래처) 합계"
         />
         <TargetGauge
-          title="본분기 누적"
+          title="이번분기 누적"
           actual={quarterActualTotal}
           target={quarterTargetTotal}
           hint={`${quarterMonths[0]}~${ym}, ${quarterMonths.length}개월 누적`}
@@ -262,7 +262,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">브랜드</th>
                     <th className="py-2">거래처</th>
-                    <th className="py-2 text-right">본월 목표</th>
+                    <th className="py-2 text-right">이번달 목표</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -285,7 +285,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
         <CardHeader>
           <CardTitle>거래처별 목표 vs 실적</CardTitle>
           <div className="text-[11px] text-muted-foreground">
-            본월 (브랜드 합계) — 막대: 목표(연한) / 실적(진한)
+            이번달 (브랜드 합계) — 막대: 목표(연한) / 실적(진한)
           </div>
         </CardHeader>
         <CardContent>
@@ -314,7 +314,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
       {/* 브랜드별 게이지 그리드 */}
       <Card>
         <CardHeader>
-          <CardTitle>브랜드별 본월 달성률</CardTitle>
+          <CardTitle>브랜드별 이번달 달성률</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -334,7 +334,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
       {/* 전체 매트릭스 표 (정렬 가능) */}
       <Card>
         <CardHeader>
-          <CardTitle>본월 전체 (브랜드 × 거래처) 목표/실적 표</CardTitle>
+          <CardTitle>이번달 전체 (브랜드 × 거래처) 목표/실적 표</CardTitle>
           <div className="text-[11px] text-muted-foreground">
             정렬·검색 가능 ({monthRows.length}건). 신규 추진 항목은 목표만 표시.
           </div>

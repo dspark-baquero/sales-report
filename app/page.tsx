@@ -20,7 +20,7 @@ import {
   quarterProgress,
 } from "@/lib/compare";
 import { attributeChange } from "@/lib/changeAttribution";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets } from "@/lib/targets";
 import { COMPARE_LABEL, CATEGORY_COLOR } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
@@ -64,9 +64,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const catPrevMo = categoryRevenue(prevMo);
   const catPrevYr = categoryRevenue(prevYr);
 
-  // 본월 종합 목표
-  const targetActuals = buildTargetActuals(targets, cur, ym);
-  const totalTarget = targetActuals.reduce((s, t) => s + t.target, 0);
+  // 이번달 종합 목표 — 합계만 필요하므로 타겟 매칭 안 돌리고 단순 합산
+  const totalTarget = targets
+    .filter((t) => t.yearMonth === ym)
+    .reduce((s, t) => s + t.target, 0);
 
   // 12개월 카테고리 스택
   const fromYM = ymMinusMonths(ym, 11);
@@ -123,7 +124,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 종합 매출 보고서</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            본월 실매출 {formatKRWLong(k.revenue)} · {qNumber}분기 진행률 {qProg}/3개월
+            이번달 실매출 {formatKRWLong(k.revenue)} · {qNumber}분기 진행률 {qProg}/3개월
           </p>
         </div>
         <Badge variant="outline" className="font-normal">
@@ -144,7 +145,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             },
             { label: COMPARE_LABEL.prevYear, prev: kPrevYr.revenue },
           ]}
-          target={{ value: totalTarget, label: "본월 목표 합계" }}
+          target={{ value: totalTarget, label: "이번달 목표 합계" }}
           highlight
         />
         <MetricCard
@@ -202,16 +203,16 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
       <Card>
         <CardHeader>
-          <CardTitle>본월 일별 매출 누적</CardTitle>
+          <CardTitle>이번달 일별 매출 누적</CardTitle>
           <div className="text-[11px] text-muted-foreground">
-            본월(굵은 선) · 전월 동일 일자(얇은 선) · 전년 동월(점선) — 일자별 누적치 비교
+            이번달(굵은 선) · 전월 동일 일자(얇은 선) · 전년 동월(점선) — 일자별 누적치 비교
           </div>
         </CardHeader>
         <CardContent>
           <LineChart
             categories={allDays.map((d) => `${d}일`)}
             series={[
-              { name: "본월 누적", values: buildDayLine(cumCur), color: "#0f172a" },
+              { name: "이번달 누적", values: buildDayLine(cumCur), color: "#0f172a" },
               { name: COMPARE_LABEL.prevMonth, values: buildDayLine(cumPrev), color: "#94a3b8" },
               {
                 name: COMPARE_LABEL.prevYear,
@@ -249,7 +250,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
         <Card>
           <CardHeader>
-            <CardTitle>본월 카테고리 분포</CardTitle>
+            <CardTitle>이번달 카테고리 분포</CardTitle>
           </CardHeader>
           <CardContent>
             <DonutChart
@@ -260,7 +261,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
               }))}
               height={300}
               showCenter={{
-                label: "본월 합계",
+                label: "이번달 합계",
                 value: formatKRWShort(k.revenue),
               }}
             />
@@ -271,7 +272,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>본월 상위 10 거래처 (전월 비교)</CardTitle>
+            <CardTitle>이번달 상위 10 거래처 (전월 비교)</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="px-4 pb-4 overflow-x-auto">
@@ -279,7 +280,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
                 <thead>
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">거래처</th>
-                    <th className="py-2 text-right">본월 실매출</th>
+                    <th className="py-2 text-right">이번달 실매출</th>
                     <th className="py-2 text-right">전월 실매출</th>
                     <th className="py-2 text-right">차이</th>
                     <th className="py-2 text-right">변화율</th>
@@ -317,7 +318,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
         <Card>
           <CardHeader>
-            <CardTitle>본월 상위 10 제품 (전월 비교)</CardTitle>
+            <CardTitle>이번달 상위 10 제품 (전월 비교)</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="px-4 pb-4 overflow-x-auto">
@@ -326,7 +327,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">제품</th>
                     <th className="py-2 text-right">수량</th>
-                    <th className="py-2 text-right">본월</th>
+                    <th className="py-2 text-right">이번달</th>
                     <th className="py-2 text-right">전월</th>
                     <th className="py-2 text-right">변화</th>
                   </tr>
@@ -370,7 +371,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         <CardHeader>
           <CardTitle>비매출 출고 (증정·임직원·테스트 등)</CardTitle>
           <div className="text-[11px] text-muted-foreground">
-            본월 {formatInt(nrCur.totalRows)}건 · {formatInt(nrCur.totalQty)}개 · 원가 합계{" "}
+            이번달 {formatInt(nrCur.totalRows)}건 · {formatInt(nrCur.totalQty)}개 · 원가 합계{" "}
             {formatKRWLong(nrCur.totalCost)} (전월 {formatInt(nrPrev.totalRows)}건 ·{" "}
             {formatKRWLong(nrPrev.totalCost)})
           </div>

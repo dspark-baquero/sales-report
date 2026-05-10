@@ -60,7 +60,7 @@ export function WaterfallChart({ steps, height = 360 }: WaterfallChartProps) {
             const idx = (Array.isArray(params) ? params[0] : params).dataIndex as number;
             const s = steps[idx];
             const sign = s.type === "loss" || s.value < 0 ? "" : (s.type === "gain" ? "+" : "");
-            const prefix = s.type === "start" ? "전월 합계" : s.type === "end" ? "본월 합계" : s.value >= 0 ? "기여" : "감소";
+            const prefix = s.type === "start" ? "전월 합계" : s.type === "end" ? "이번달 합계" : s.value >= 0 ? "기여" : "감소";
             return `<div style="font-weight:600;margin-bottom:4px">${s.name}</div><div>${prefix}: <span style="font-variant-numeric:tabular-nums">${sign}${formatKRWLong(Math.abs(s.value))}</span></div>`;
           },
         },

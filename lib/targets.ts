@@ -229,8 +229,18 @@ export const TARGET_MATCH_RULES: MatchRule[] = [
   },
 ];
 
-// 해외(수출) 매칭 — customerKey가 국가명. 동남아는 묶음.
-const SOUTHEAST_ASIA = new Set(["베트남", "태국", "말레이시아", "인도네시아", "싱가포르", "필리핀"]);
+// 해외(수출) 매칭 — customerKey가 국가명. 동남아는 묶음(단, 베트남은 별도 키로 분리되어 제외).
+const SOUTHEAST_ASIA_EXCL_VN = new Set([
+  "태국",
+  "말레이시아",
+  "인도네시아",
+  "싱가포르",
+  "필리핀",
+  "캄보디아",
+  "라오스",
+  "미얀마",
+  "브루나이",
+]);
 
 export function exportMatchRule(customerKey: string): MatchRule {
   if (customerKey === "동남아") {
@@ -240,9 +250,9 @@ export function exportMatchRule(customerKey: string): MatchRule {
       match: (brand) => (r) =>
         r.brand === brand &&
         r.category === "수출" &&
-        SOUTHEAST_ASIA.has(r.country ?? ""),
+        SOUTHEAST_ASIA_EXCL_VN.has(r.country ?? ""),
       prospective: false,
-      description: "동남아시아 (베트남, 태국, 말레이시아 등)",
+      description: "동남아시아 (베트남 제외 — 태국·말레이시아·인도네시아 등)",
     };
   }
   if (customerKey === "기타") {
@@ -296,7 +306,7 @@ export function actualForTarget(t: TargetRow, rows: SalesRow[]): number {
 }
 
 // 다중 target 한꺼번에 (월 기준) 빠르게 계산.
-// 본월 sales rows를 한 번 순회하면서 누적.
+// 이번달 sales rows를 한 번 순회하면서 누적.
 export function actualByTargetForMonth(
   targets: TargetRow[],
   monthRows: SalesRow[],
@@ -331,7 +341,27 @@ export function actualByTargetForMonth(
   return out;
 }
 
-// 본월 모든 target × 실적 묶음 (테이블/매트릭스 만들 때 사용)
+// ── 가벼운 헬퍼 (목표 합계만 필요한 페이지용) ──────────
+export function targetsForMonth(targets: TargetRow[], ym: string): TargetRow[] {
+  return targets.filter((t) => t.yearMonth === ym);
+}
+
+export function isProspectiveKey(division: Division, customerKey: string): boolean {
+  return findMatchRule(customerKey, division).prospective;
+}
+
+export type TargetRowWithProspective = TargetRow & { prospective: boolean };
+
+export function targetsForMonthWithProspective(
+  targets: TargetRow[],
+  ym: string,
+): TargetRowWithProspective[] {
+  return targets
+    .filter((t) => t.yearMonth === ym)
+    .map((t) => ({ ...t, prospective: findMatchRule(t.customerKey, t.division).prospective }));
+}
+
+// ── 풀 매트릭스 (이번달 모든 target × 실적). 비용 높음 — 목표달성 탭에만 사용 권장 ──
 export type TargetRowWithActual = TargetRow & {
   actual: number;
   rate: number | null;

@@ -5,7 +5,7 @@ export const COMPARE_LABEL = {
   prevQuarter: "전분기 동기간",
   prevYear: "전년 동월",
   prevYearQuarter: "전년 동분기",
-  curQuarter: "본분기 누적",
+  curQuarter: "이번분기 누적",
 } as const;
 
 export const METRIC_LABEL = {

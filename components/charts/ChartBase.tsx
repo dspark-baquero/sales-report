@@ -2,7 +2,8 @@
 import dynamic from "next/dynamic";
 import type { EChartsOption } from "echarts";
 
-const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
+// 다이나믹 청크 — 페이지 hydration 후 lazy-load. ECharts/core + 사용 차트들이 이 청크에만 포함.
+const ChartImpl = dynamic(() => import("./ChartImpl"), { ssr: false });
 
 export type ChartProps = {
   option: EChartsOption;
@@ -41,14 +42,12 @@ function deepMergeOption(base: Partial<EChartsOption>, user: EChartsOption): ECh
 export function Chart({ option, height = 300, className, notMerge, onEvents }: ChartProps) {
   const merged = deepMergeOption(BASE_OPTION, option);
   return (
-    <ReactECharts
+    <ChartImpl
       option={merged}
-      style={{ height, width: "100%" }}
+      height={height}
       className={className}
       notMerge={notMerge}
-      lazyUpdate
       onEvents={onEvents}
-      opts={{ renderer: "canvas" }}
     />
   );
 }

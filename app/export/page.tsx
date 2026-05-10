@@ -21,7 +21,7 @@ import {
   exportCustomers,
 } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
@@ -68,8 +68,8 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
   const kCurQ = kpi(curQExp);
   const kPrevQ = kpi(prevQExp);
 
-  // 수출 목표 합산 (구분=해외인 모든 target)
-  const ta = buildTargetActuals(targets, cur, ym);
+  // 수출 목표 합산 (구분=해외인 모든 target). actual 매칭은 불필요 — 페이지가 별도 집계로 처리.
+  const ta = targetsForMonthWithProspective(targets, ym);
   const exportTargetTotal = ta.filter((t) => t.division === "해외").reduce((s, t) => s + t.target, 0);
 
   // 국가별
@@ -114,7 +114,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 수출</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {byCountry.length}개국 · {customers.length}개 거래처 · 본월 실매출 {formatKRWLong(k.revenue)}
+            {byCountry.length}개국 · {customers.length}개 거래처 · 이번달 실매출 {formatKRWLong(k.revenue)}
           </p>
         </div>
       </div>
@@ -144,7 +144,8 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
           label="활성 국가"
           current={byCountry.filter((c) => c.revenue > 0).length}
           unit="raw"
-          hint="본월 매출 발생 국가 수"
+          unitSuffix="개국"
+          hint="이번달 매출 발생 국가 수"
           comparisons={[
             {
               label: COMPARE_LABEL.prevMonth,
@@ -172,7 +173,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
         contribs={countryContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="어느 국가가 본월 수출 증감을 만들었는지"
+        hint="어느 국가가 이번달 수출 증감을 만들었는지"
       />
 
       {/* 국가별 매출 + 목표 비교 표 */}
@@ -180,7 +181,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
         <CardHeader>
           <CardTitle>국가별 매출 + 목표 달성률</CardTitle>
           <div className="text-[11px] text-muted-foreground">
-            본월 실매출 막대 + 목표 라인 (목표 미설정 국가는 — 표시)
+            이번달 실매출 막대 + 목표 라인 (목표 미설정 국가는 — 표시)
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -188,12 +189,12 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
             categories={byCountry.map((c) => c.country)}
             series={[
               {
-                name: "본월 실매출",
+                name: "이번달 실매출",
                 values: byCountry.map((c) => c.revenue),
                 color: "#0ea5e9",
               },
               {
-                name: "본월 목표",
+                name: "이번달 목표",
                 values: byCountry.map((c) => countryTargets.get(c.country) ?? 0),
                 color: "#cbd5e1",
               },
@@ -209,12 +210,12 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
               <thead>
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">국가</th>
-                  <th className="py-2 text-right">본월 실매출</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">전월 실매출</th>
                   <th className="py-2 text-right">전월 대비</th>
                   <th className="py-2 text-right">전년 동월</th>
                   <th className="py-2 text-right">전년 대비</th>
-                  <th className="py-2 text-right">본월 목표</th>
+                  <th className="py-2 text-right">이번달 목표</th>
                   <th className="py-2 text-right">달성률</th>
                 </tr>
               </thead>
@@ -299,7 +300,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
       {heatmap.brands.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>국가 × 브랜드 매출 (본월)</CardTitle>
+            <CardTitle>국가 × 브랜드 매출 (이번달)</CardTitle>
           </CardHeader>
           <CardContent>
             <HeatmapChart
@@ -320,13 +321,13 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
         contribs={customerContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="어느 거래처가 본월 수출 증감을 만들었는지"
+        hint="어느 거래처가 이번달 수출 증감을 만들었는지"
       />
 
       {/* 거래처별 표 */}
       <Card>
         <CardHeader>
-          <CardTitle>거래처별 매출 (본월)</CardTitle>
+          <CardTitle>거래처별 매출 (이번달)</CardTitle>
           <div className="text-[11px] text-muted-foreground">{customers.length}개 거래처 · 전월 비교 포함</div>
         </CardHeader>
         <CardContent className="p-0">
@@ -336,7 +337,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">거래처</th>
                   <th className="py-2">국가</th>
-                  <th className="py-2 text-right">본월 실매출</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">전월 실매출</th>
                   <th className="py-2 text-right">변화</th>
                   <th className="py-2 text-right">수량</th>

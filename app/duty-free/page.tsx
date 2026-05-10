@@ -23,7 +23,7 @@ import {
   dutyFreeBrandRevenue,
 } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL, BRAND_COLOR } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
@@ -63,7 +63,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
   const kPrevQ = kpi(dutyFreeRows(prevQRows));
 
   // 면세점 목표 합산
-  const ta = buildTargetActuals(targets, cur, ym);
+  const ta = targetsForMonthWithProspective(targets, ym);
   const dutyTarget = ta
     .filter((t) => t.division === "국내" && t.customerKey === "면세점")
     .reduce((s, t) => s + t.target, 0);
@@ -124,7 +124,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 면세점</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {customers.length}곳 거래처 · 본월 출고 {formatInt(k.qty)}개
+            {customers.length}곳 거래처 · 이번달 출고 {formatInt(k.qty)}개
           </p>
         </div>
       </div>
@@ -168,7 +168,8 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
           label="활성 거래처"
           current={customers.filter((c) => c.revenue > 0).length}
           unit="raw"
-          hint="본월 매출 발생"
+          unitSuffix="곳"
+          hint="이번달 매출 발생"
           comparisons={[
             {
               label: COMPARE_LABEL.prevMonth,
@@ -186,7 +187,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         contribs={customerContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="어느 면세점 거래처가 본월 증감을 만들었는지"
+        hint="어느 면세점 거래처가 이번달 증감을 만들었는지"
       />
 
       {/* 12개월 추이 + 전년 점선 */}
@@ -199,7 +200,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
             categories={trendMonths.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
             series={[
               {
-                name: "본 12개월",
+                name: "이번 12개월",
                 values: monthly.map((m) => m.revenue),
                 color: "#f59e0b",
               },
@@ -219,7 +220,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>면세 거래처별 (본월)</CardTitle>
+            <CardTitle>면세 거래처별 (이번달)</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="px-4 pb-4 overflow-x-auto">
@@ -227,7 +228,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
                 <thead>
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">거래처</th>
-                    <th className="py-2 text-right">본월 실매출</th>
+                    <th className="py-2 text-right">이번달 실매출</th>
                     <th className="py-2 text-right">전월 매출</th>
                     <th className="py-2 text-right">변화</th>
                     <th className="py-2 text-right">수량</th>
@@ -275,7 +276,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
                     <th className="py-2">브랜드</th>
                     <th className="py-2 text-right">실매출</th>
                     <th className="py-2 text-right">비중</th>
-                    <th className="py-2 text-right">본월 목표</th>
+                    <th className="py-2 text-right">이번달 목표</th>
                     <th className="py-2 text-right">달성률</th>
                   </tr>
                 </thead>
@@ -342,7 +343,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
           <LineChart
             categories={allDays.map((d) => `${d}일`)}
             series={[
-              { name: "본월 누적", values: buildDayLine(cumulative), color: "#0f172a" },
+              { name: "이번달 누적", values: buildDayLine(cumulative), color: "#0f172a" },
               {
                 name: "전월 누적",
                 values: buildDayLine(cumulativePrev),

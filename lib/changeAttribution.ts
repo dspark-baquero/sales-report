@@ -1,4 +1,4 @@
-// "왜 늘었나/줄었나" — 본월 vs 비교월의 임의 그룹키별 분해.
+// "왜 늘었나/줄었나" — 이번달 vs 비교월의 임의 그룹키별 분해.
 // 거래처/브랜드/채널/제품 등에 공통 사용.
 
 import type { SalesRow } from "./load";
@@ -86,7 +86,7 @@ export type WaterfallStep = {
   type: "start" | "gain" | "loss" | "end" | "other";
 };
 
-// 워터폴: 전월 합 → +상위 N → -하위 N → 기타 → 본월 합
+// 워터폴: 전월 합 → +상위 N → -하위 N → 기타 → 이번달 합
 export function buildWaterfall(
   prevTotal: number,
   curTotal: number,
@@ -110,7 +110,7 @@ export function buildWaterfall(
   if (Math.abs(otherDiff) > 0) {
     steps.push({ name: `기타 (${others.length}건)`, value: otherDiff, type: "other" });
   }
-  steps.push({ name: "본월 합계", value: curTotal, type: "end" });
+  steps.push({ name: "이번달 합계", value: curTotal, type: "end" });
   return steps;
 }
 

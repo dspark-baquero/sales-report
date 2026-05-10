@@ -130,7 +130,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>본월 상승 채널그룹 (전월 대비)</CardTitle>
+              <CardTitle>이번달 상승 채널그룹 (전월 대비)</CardTitle>
               <Badge variant="positive">상승 Top 3</Badge>
             </div>
           </CardHeader>
@@ -140,7 +140,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
                 <thead>
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">채널그룹</th>
-                    <th className="py-2 text-right">본월</th>
+                    <th className="py-2 text-right">이번달</th>
                     <th className="py-2 text-right">전월</th>
                     <th className="py-2 text-right">증가</th>
                   </tr>
@@ -170,7 +170,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>본월 하락 채널그룹 (전월 대비)</CardTitle>
+              <CardTitle>이번달 하락 채널그룹 (전월 대비)</CardTitle>
               <Badge variant="negative">하락 Top 3</Badge>
             </div>
           </CardHeader>
@@ -180,7 +180,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
                 <thead>
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">채널그룹</th>
-                    <th className="py-2 text-right">본월</th>
+                    <th className="py-2 text-right">이번달</th>
                     <th className="py-2 text-right">전월</th>
                     <th className="py-2 text-right">감소</th>
                   </tr>
@@ -214,7 +214,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>신제품 (직전 13개월 무매출 → 본월)</CardTitle>
+              <CardTitle>신제품 (직전 13개월 무매출 → 이번달)</CardTitle>
               <Badge variant="info">{np.length}개</Badge>
             </div>
           </CardHeader>
@@ -265,7 +265,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
                     <tr className="text-left text-[11px] text-muted-foreground border-b">
                       <th className="py-2">제품</th>
                       <th className="py-2 text-right">직전 평균</th>
-                      <th className="py-2 text-right">본월</th>
+                      <th className="py-2 text-right">이번달</th>
                       <th className="py-2 text-right">변화</th>
                     </tr>
                   </thead>
@@ -354,7 +354,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
       {heat.brands.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>브랜드 × 채널그룹 히트맵 (본월 실매출)</CardTitle>
+            <CardTitle>브랜드 × 채널그룹 히트맵 (이번달 실매출)</CardTitle>
           </CardHeader>
           <CardContent>
             <HeatmapChart

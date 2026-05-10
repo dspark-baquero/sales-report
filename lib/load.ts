@@ -79,15 +79,41 @@ function ym(d: Date): string {
   return `${y}-${m}`;
 }
 
-let cached: { rows: SalesRow[]; loadedAt: number; mtime: number } | null = null;
+type Cached = {
+  rows: SalesRow[];
+  byMonth: Map<string, SalesRow[]>;     // 월 → 행 (월별 인덱스, O(1) 룩업)
+  byMonthRevenue: Map<string, SalesRow[]>; // 월 → 매출행 (비매출 제외, hot path)
+  loadedAt: number;
+  mtime: number;
+};
+
+let cached: Cached | null = null;
 
 export function loadSalesRows(): SalesRow[] {
+  return loadCached().rows;
+}
+
+// 월별 인덱스 직접 노출 — aggregate.ts hot path에서 사용
+export function loadByMonth(): Map<string, SalesRow[]> {
+  return loadCached().byMonth;
+}
+
+export function loadByMonthRevenue(): Map<string, SalesRow[]> {
+  return loadCached().byMonthRevenue;
+}
+
+// rows가 캐시된 풀 세트인지 확인 — filterMonth/filterRange의 fast path 게이트
+export function isCachedFullSet(rows: SalesRow[]): boolean {
+  return cached !== null && rows === cached.rows;
+}
+
+function loadCached(): Cached {
   const csvPath = path.join(process.cwd(), "sales.csv");
   const stat = fs.statSync(csvPath);
   const mtime = stat.mtimeMs;
 
   if (cached && cached.mtime === mtime) {
-    return cached.rows;
+    return cached;
   }
 
   const text = fs.readFileSync(csvPath, "utf8");
@@ -148,8 +174,22 @@ export function loadSalesRows(): SalesRow[] {
     rows.push(row);
   }
 
-  cached = { rows, loadedAt: Date.now(), mtime };
-  return rows;
+  // 월별 인덱스 빌드 (한 번만)
+  const byMonth = new Map<string, SalesRow[]>();
+  const byMonthRevenue = new Map<string, SalesRow[]>();
+  for (const r of rows) {
+    const arr = byMonth.get(r.yearMonth);
+    if (arr) arr.push(r);
+    else byMonth.set(r.yearMonth, [r]);
+    if (!r.isNonRevenue) {
+      const rev = byMonthRevenue.get(r.yearMonth);
+      if (rev) rev.push(r);
+      else byMonthRevenue.set(r.yearMonth, [r]);
+    }
+  }
+
+  cached = { rows, byMonth, byMonthRevenue, loadedAt: Date.now(), mtime };
+  return cached;
 }
 
 // 테스트/스크립트용

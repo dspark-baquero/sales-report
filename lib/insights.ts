@@ -4,7 +4,7 @@ import { revenueRows, filterMonth, filterRange, enumerateMonths } from "./aggreg
 import { ymMinusMonths } from "./aggregate";
 import type { ChannelGroup } from "@/config/mappings";
 
-// 신제품: 본월에 첫 매출 발생 SKU (이전 13개월 무매출 → 본월 ≥1)
+// 신제품: 이번달에 첫 매출 발생 SKU (이전 13개월 무매출 → 이번달 ≥1)
 export function newProducts(rows: SalesRow[], ym: string) {
   const cur = revenueRows(filterMonth(rows, ym));
   const past13Start = ymMinusMonths(ym, 13);
@@ -28,7 +28,7 @@ export function newProducts(rows: SalesRow[], ym: string) {
     .slice(0, 10);
 }
 
-// 이탈 위험 SKU: 직전 3개월 평균 대비 본월 -50% 이상
+// 이탈 위험 SKU: 직전 3개월 평균 대비 이번달 -50% 이상
 export function decliningProducts(rows: SalesRow[], ym: string) {
   const cur = revenueRows(filterMonth(rows, ym));
   const prevYM = ymMinusMonths(ym, 1);
@@ -150,7 +150,7 @@ export function discountFeeByChannelGroup(rows: SalesRow[], ym: string) {
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-// 본월 베스트/워스트 채널그룹 (전월 대비 매출 변화액)
+// 이번달 베스트/워스트 채널그룹 (전월 대비 매출 변화액)
 export function bestWorstChannelGroups(rows: SalesRow[], ym: string) {
   const cur = revenueRows(filterMonth(rows, ym));
   const prevYM = ymMinusMonths(ym, 1);

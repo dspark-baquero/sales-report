@@ -22,7 +22,7 @@ import {
   generalMallChannels,
 } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL, BRAND_COLOR, CHANNEL_GROUP_COLOR } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
@@ -62,7 +62,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const kPrevQ = kpi(b2cRows(prevQRows));
 
   // B2C 목표 합계 (공식몰+종합몰+소호몰+바크로하우스+올리브영(추진)+링커(추진))
-  const ta = buildTargetActuals(targets, cur, ym);
+  const ta = targetsForMonthWithProspective(targets, ym);
   const b2cKeys = ["공식몰", "종합몰", "소호몰", "바크로하우스", "올리브영", "링커"];
   const b2cTarget = ta
     .filter((t) => t.division === "국내" && b2cKeys.includes(t.customerKey))
@@ -197,10 +197,10 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
               <thead>
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">채널그룹</th>
-                  <th className="py-2 text-right">본월 실매출</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">전월</th>
                   <th className="py-2 text-right">전월 대비</th>
-                  <th className="py-2 text-right">본월 목표</th>
+                  <th className="py-2 text-right">이번달 목표</th>
                   <th className="py-2 text-right">달성률</th>
                 </tr>
               </thead>
@@ -280,7 +280,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
             categories={brandRev.map((b) => b.brand)}
             series={[
               {
-                name: "본월",
+                name: "이번달",
                 values: brandRev.map((b) => b.revenue),
                 color: "#0f172a",
               },
@@ -301,7 +301,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       {/* 브랜드 × 채널그룹 스택 */}
       <Card>
         <CardHeader>
-          <CardTitle>브랜드별 채널그룹 분해 (본월)</CardTitle>
+          <CardTitle>브랜드별 채널그룹 분해 (이번달)</CardTitle>
         </CardHeader>
         <CardContent>
           <BarChart
@@ -340,7 +340,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       {/* 종합몰 채널별 표 */}
       <Card>
         <CardHeader>
-          <CardTitle>종합몰 채널별 (본월)</CardTitle>
+          <CardTitle>종합몰 채널별 (이번달)</CardTitle>
           <div className="text-[11px] text-muted-foreground">
             매출/정산매출/수수료율/할인율/전월 비교 — 수수료 인상 추세 감지에 활용
           </div>
@@ -351,7 +351,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
               <thead>
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">채널</th>
-                  <th className="py-2 text-right">본월 실매출</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">정산매출</th>
                   <th className="py-2 text-right">수량</th>
                   <th className="py-2 text-right">수수료율</th>
@@ -395,7 +395,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       {/* Top 20 제품 */}
       <Card>
         <CardHeader>
-          <CardTitle>본월 상위 20 제품 (B2C 전체, 전월 비교)</CardTitle>
+          <CardTitle>이번달 상위 20 제품 (B2C 전체, 전월 비교)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="px-4 pb-4 overflow-x-auto">
@@ -405,7 +405,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
                   <th className="py-2">#</th>
                   <th className="py-2">제품</th>
                   <th className="py-2 text-right">수량</th>
-                  <th className="py-2 text-right">본월</th>
+                  <th className="py-2 text-right">이번달</th>
                   <th className="py-2 text-right">전월</th>
                   <th className="py-2 text-right">변화</th>
                 </tr>

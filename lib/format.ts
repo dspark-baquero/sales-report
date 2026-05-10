@@ -89,6 +89,11 @@ export function formatInt(n: number): string {
   return NF.format(Math.round(n));
 }
 
+// 수량/개수 표기: "1,234개" / "1,234곳" 등
+export function formatCount(n: number, suffix = "개"): string {
+  return `${formatInt(n)}${suffix}`;
+}
+
 export function formatYM(yearMonth: string): string {
   const [y, m] = yearMonth.split("-");
   return `${y}년 ${Number(m)}월`;
@@ -120,14 +125,21 @@ export function buildChange(
   current: number,
   prev: number,
   prevLabel: string,
-  flatThreshold = 0.02,
+  options: {
+    flatThreshold?: number;
+    formatValue?: (n: number) => string;   // diff 표시용 (짧은 형태)
+    formatPrev?: (n: number) => string;    // 전월 절대값 표시용
+  } = {},
 ): ChangeView {
+  const flatThreshold = options.flatThreshold ?? 0.02;
+  const fmtValue = options.formatValue ?? formatKRWShort;
+  const fmtPrev = options.formatPrev ?? formatKRWLong;
   const diff = current - prev;
   const isNew = prev === 0 && current !== 0;
   const isLost = prev !== 0 && current === 0;
   const pct = prev === 0 ? null : diff / Math.abs(prev);
-  const sign = diff > 0 ? "+" : diff < 0 ? "" : "";
-  const diffText = `${sign}${formatKRWShort(diff)}`;
+  const sign = diff > 0 ? "+" : "";
+  const diffText = `${sign}${fmtValue(diff)}`;
   let pctText: string;
   let direction: ChangeDirection;
   if (isNew) {
@@ -146,7 +158,7 @@ export function buildChange(
     pctText = formatPct(pct);
     direction = pct > 0 ? "up" : "down";
   }
-  const prevText = `${prevLabel} ${formatKRWLong(prev)}`;
+  const prevText = `${prevLabel} ${fmtPrev(prev)}`;
   return {
     current,
     prev,

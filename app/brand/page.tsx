@@ -17,7 +17,7 @@ import {
   quarterProgress,
 } from "@/lib/compare";
 import { attributeChange } from "@/lib/changeAttribution";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL, CATEGORY_COLOR, BRAND_COLOR } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
@@ -80,7 +80,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const stack = monthlyByCategory(all.filter(isBrand), fromYM, ym);
   const categories: ("수출" | "B2B" | "B2C" | "면세점")[] = ["수출", "B2B", "B2C", "면세점"];
 
-  // 카테고리 분포 (본월)
+  // 카테고리 분포 (이번달)
   const catDistribution = (() => {
     const out: Record<string, number> = { 수출: 0, B2B: 0, B2C: 0, 면세점: 0 };
     for (const r of cur) {
@@ -110,7 +110,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   // SKU 분석
   const topSkus = topNProductsWithPrev(cur, prevMo, 15);
 
-  // 신규 SKU (본월 첫 출고)
+  // 신규 SKU (이번달 첫 출고)
   const past6FromYM = ymMinusMonths(ym, 6);
   const past6FromExclusive = filterRange(all, past6FromYM, prevMonth(ym)).filter(isBrand);
   const past6Skus = new Set(past6FromExclusive.map((r) => r.productName));
@@ -165,9 +165,11 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   });
   const skuContribs = attributeChange(cur, prevMo, (r) => r.productName || null);
 
-  // 본월 목표 합계 (해당 브랜드)
-  const ta = buildTargetActuals(targets, filterMonth(all, ym), ym);
-  const brandTarget = ta.filter((t) => t.brand === brand && !t.prospective).reduce((s, t) => s + t.target, 0);
+  // 이번달 목표 합계 (해당 브랜드). 페이지가 actual을 별도로 산출하므로 가벼운 변형 사용.
+  const ta = targetsForMonthWithProspective(targets, ym);
+  const brandTarget = ta
+    .filter((t) => t.brand === brand && !t.prospective)
+    .reduce((s, t) => s + t.target, 0);
 
   return (
     <div className="space-y-6">
@@ -193,7 +195,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
             { label: COMPARE_LABEL.curQuarter, prev: prevQRev, note: `${qProg}/3개월` },
             { label: COMPARE_LABEL.prevYear, prev: prevYrRev },
           ]}
-          target={{ value: brandTarget, label: "브랜드 본월 목표 합계" }}
+          target={{ value: brandTarget, label: "브랜드 이번달 목표 합계" }}
           highlight
         />
         <MetricCard
@@ -206,13 +208,13 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
           label="활성 SKU 수"
           current={curSkuMap.size}
           unit="raw"
-          hint="본월 매출 발생 제품"
+          hint="이번달 매출 발생 제품"
         />
         <MetricCard
           label="신규 SKU"
           current={newSkus.length}
           unit="raw"
-          hint="직전 6개월 무매출 → 본월 첫 출고"
+          hint="직전 6개월 무매출 → 이번달 첫 출고"
         />
       </div>
 
@@ -240,7 +242,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>본월 카테고리 분포</CardTitle>
+            <CardTitle>이번달 카테고리 분포</CardTitle>
           </CardHeader>
           <CardContent>
             <DonutChart
@@ -251,7 +253,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
               }))}
               height={300}
               showCenter={{
-                label: "본월 합계",
+                label: "이번달 합계",
                 value: formatKRWShort(curRev),
               }}
             />
@@ -259,7 +261,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>본월 채널/거래처 분포 (트리맵)</CardTitle>
+            <CardTitle>이번달 채널/거래처 분포 (트리맵)</CardTitle>
           </CardHeader>
           <CardContent>
             <Treemap data={segments.slice(0, 30)} height={320} />
@@ -292,7 +294,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
       {/* Top SKU + 신규 SKU + 단종 위험 */}
       <Card>
         <CardHeader>
-          <CardTitle>본월 상위 15 SKU (전월 비교)</CardTitle>
+          <CardTitle>이번달 상위 15 SKU (전월 비교)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="px-4 pb-4 overflow-x-auto">
@@ -302,7 +304,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
                   <th className="py-2">#</th>
                   <th className="py-2">제품</th>
                   <th className="py-2 text-right">수량</th>
-                  <th className="py-2 text-right">본월</th>
+                  <th className="py-2 text-right">이번달</th>
                   <th className="py-2 text-right">전월</th>
                   <th className="py-2 text-right">변화</th>
                 </tr>
@@ -342,7 +344,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>신규 SKU (직전 6개월 무매출 → 본월)</CardTitle>
+              <CardTitle>신규 SKU (직전 6개월 무매출 → 이번달)</CardTitle>
               <Badge variant="info">{newSkus.length}개</Badge>
             </div>
           </CardHeader>
@@ -379,7 +381,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
               <CardTitle>단종 위험 SKU (-70% 이상 하락)</CardTitle>
               <Badge variant="negative">{declining.length}개</Badge>
             </div>
-            <div className="text-[11px] text-muted-foreground">직전 6개월 평균 대비 본월 매출 비교</div>
+            <div className="text-[11px] text-muted-foreground">직전 6개월 평균 대비 이번달 매출 비교</div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="px-4 pb-4 overflow-x-auto">
@@ -391,7 +393,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
                     <tr className="text-left text-[11px] text-muted-foreground border-b">
                       <th className="py-2">제품</th>
                       <th className="py-2 text-right">직전 평균</th>
-                      <th className="py-2 text-right">본월</th>
+                      <th className="py-2 text-right">이번달</th>
                       <th className="py-2 text-right">변화</th>
                     </tr>
                   </thead>

@@ -114,7 +114,7 @@ export function revenueByCustomerType(rows: SalesRow[]) {
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-// 영업사원별 (B2B 본월). 0원 사원은 호출자가 필터링.
+// 영업사원별 (B2B 이번달). 0원 사원은 호출자가 필터링.
 export function revenueByDealer(rows: SalesRow[]): { dealer: string; revenue: number; customers: number }[] {
   const m = new Map<string, { revenue: number; customers: Set<string> }>();
   for (const r of revenueRows(b2bRows(rows))) {
@@ -157,8 +157,8 @@ export function dealerCustomerTypeMatrix(rows: SalesRow[]): {
 }
 
 // B2B 신규/이탈 거래처
-// 신규: 본월에 매출 발생, 직전 6개월(본월 제외) 매출 0
-// 이탈: 직전 3개월 평균 매출 X, 본월 매출 0
+// 신규: 이번달에 매출 발생, 직전 6개월(이번달 제외) 매출 0
+// 이탈: 직전 3개월 평균 매출 X, 이번달 매출 0
 export function b2bNewLost(
   rows: SalesRow[],
   ym: string,

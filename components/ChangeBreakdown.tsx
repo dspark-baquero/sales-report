@@ -58,7 +58,7 @@ export function ChangeBreakdown({
           {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
         </div>
         <div className="text-xs text-muted-foreground">
-          {prevLabel} {formatKRWLong(prevTotal)} → 본월 {formatKRWLong(curTotal)} ({formatPct((curTotal - prevTotal) / Math.max(1, Math.abs(prevTotal)))})
+          {prevLabel} {formatKRWLong(prevTotal)} → 이번달 {formatKRWLong(curTotal)} ({formatPct((curTotal - prevTotal) / Math.max(1, Math.abs(prevTotal)))})
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

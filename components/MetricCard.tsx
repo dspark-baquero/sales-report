@@ -4,7 +4,9 @@ import { Separator } from "@/components/ui/separator";
 import {
   formatKRW,
   formatKRWLong,
+  formatKRWShort,
   formatInt,
+  formatCount,
   buildChange,
   buildAchievement,
   formatPctAbs,
@@ -15,28 +17,39 @@ import { ArrowUp, ArrowDown, Minus, Sparkles } from "lucide-react";
 type ComparisonInput = {
   label: string;       // "전월" / "전분기 동기간" / "전년 동월"
   prev: number;
-  note?: string;       // "분기 진행률 33%" 등 옵션
+  note?: string;
 };
 
 type Target = {
   value: number;
-  label?: string;       // "본월 목표"
+  label?: string;
 };
+
+type Unit = "won" | "qty" | "raw";
 
 type MetricCardProps = {
   label: string;
   current: number;
-  unit?: "won" | "qty" | "raw";
+  unit?: Unit;
+  unitSuffix?: string;       // qty/raw 에서 단위 (기본 "개", "곳"/"건"/"명" 등)
   comparisons?: ComparisonInput[];
   target?: Target;
   hint?: string;
   highlight?: boolean;
 };
 
-function fmtValue(n: number, unit: "won" | "qty" | "raw"): { primary: string; secondary?: string } {
-  if (unit === "won") return { primary: formatKRWLong(n), secondary: formatKRW(n) };
-  if (unit === "qty") return { primary: `${formatInt(n)}개`, secondary: undefined };
-  return { primary: formatInt(n), secondary: undefined };
+function pickFormatters(unit: Unit, suffix?: string) {
+  if (unit === "won") {
+    return {
+      primary: formatKRWLong,
+      secondary: formatKRW,
+      short: formatKRWShort,
+    };
+  }
+  // qty/raw 동일 처리: 정수 + 단위 접미사
+  const s = suffix ?? "개";
+  const fn = (n: number) => formatCount(n, s);
+  return { primary: fn, secondary: null, short: fn };
 }
 
 function DirectionIcon({ direction }: { direction: ReturnType<typeof buildChange>["direction"] }) {
@@ -58,12 +71,13 @@ export function MetricCard({
   label,
   current,
   unit = "won",
+  unitSuffix,
   comparisons = [],
   target,
   hint,
   highlight,
 }: MetricCardProps) {
-  const { primary, secondary } = fmtValue(current, unit);
+  const fmt = pickFormatters(unit, unitSuffix);
   const ach = target ? buildAchievement(current, target.value) : null;
 
   return (
@@ -76,9 +90,11 @@ export function MetricCard({
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
         <div>
-          <div className="text-2xl font-bold tabular-nums leading-tight">{primary}</div>
-          {secondary && unit === "won" && (
-            <div className="text-[11px] text-muted-foreground tabular-nums">{secondary}</div>
+          <div className="text-2xl font-bold tabular-nums leading-tight">{fmt.primary(current)}</div>
+          {fmt.secondary && (
+            <div className="text-[11px] text-muted-foreground tabular-nums">
+              {fmt.secondary(current)}
+            </div>
           )}
         </div>
 
@@ -87,7 +103,10 @@ export function MetricCard({
             <Separator />
             <div className="space-y-1">
               {comparisons.map((c) => {
-                const change = buildChange(current, c.prev, c.label);
+                const change = buildChange(current, c.prev, c.label, {
+                  formatValue: fmt.short,
+                  formatPrev: fmt.primary,
+                });
                 return (
                   <div key={c.label} className="flex items-start justify-between text-[11px]">
                     <div className="text-muted-foreground">
@@ -96,7 +115,7 @@ export function MetricCard({
                     </div>
                     <div className="text-right">
                       <div className="tabular-nums text-foreground">
-                        {change.prev > 0 ? formatKRWLong(change.prev) : "—"}
+                        {change.prev > 0 ? fmt.primary(change.prev) : "—"}
                       </div>
                       <div
                         className={cn(
@@ -122,9 +141,9 @@ export function MetricCard({
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[11px] text-muted-foreground">
-                  {target.label ?? "본월 목표"}
+                  {target.label ?? "이번달 목표"}
                 </div>
-                <div className="text-xs font-medium tabular-nums">{formatKRWLong(target.value)}</div>
+                <div className="text-xs font-medium tabular-nums">{fmt.primary(target.value)}</div>
               </div>
               <div className="text-right">
                 {ach.status === "no-target" ? (

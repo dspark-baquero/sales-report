@@ -82,7 +82,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
     (r) => r.customer || null,
   );
 
-  // 신제품 효과 (직전 13개월 무매출 → 본월)
+  // 신제품 효과 (직전 13개월 무매출 → 이번달)
   const past13 = filterRange(all, ymMinusMonths(ym, 13), prevMonth(ym));
   const { newOnes: newProducts } = newAndLostEntities(
     cur,
@@ -174,7 +174,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 변동 분석</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            본월 {formatKRWLong(curTotal)} · 전월 {formatKRWLong(prevTotal)} (
+            이번달 {formatKRWLong(curTotal)} · 전월 {formatKRWLong(prevTotal)} (
             {formatPct((curTotal - prevTotal) / Math.max(1, Math.abs(prevTotal)))}) · 전년 동월{" "}
             {formatKRWLong(prevYrTotal)}
           </p>
@@ -185,7 +185,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
         </div>
       </div>
 
-      {/* 본월 vs 전월 워터폴 */}
+      {/* 이번달 vs 전월 워터폴 */}
       <ChangeBreakdown
         title={`전월 대비 ${DIM_LABEL[dim]} 변화 요인`}
         prevTotal={prevTotal}
@@ -196,7 +196,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
         hint={`상단 셀렉터로 차원 변경 가능 (현재: ${DIM_LABEL[dim]})`}
       />
 
-      {/* 본월 vs 전년 동월 워터폴 */}
+      {/* 이번달 vs 전년 동월 워터폴 */}
       <ChangeBreakdown
         title={`전년 동월 대비 ${DIM_LABEL[dim]} 변화 요인`}
         prevTotal={prevYrTotal}
@@ -216,7 +216,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
               <Badge variant="info">{newCustomers.length}곳</Badge>
             </div>
             <div className="text-[11px] text-muted-foreground">
-              본월 매출 발생 + 직전 3개월 매출 0
+              이번달 매출 발생 + 직전 3개월 매출 0
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -228,7 +228,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
                   <thead>
                     <tr className="text-left text-[11px] text-muted-foreground border-b">
                       <th className="py-2">거래처</th>
-                      <th className="py-2 text-right">본월 매출</th>
+                      <th className="py-2 text-right">이번달 매출</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -247,7 +247,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>이탈 거래처 (직전 3개월 거래 → 본월 0)</CardTitle>
+              <CardTitle>이탈 거래처 (직전 3개월 거래 → 이번달 0)</CardTitle>
               <Badge variant="negative">{lostCustomers.length}곳</Badge>
             </div>
           </CardHeader>
@@ -283,7 +283,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>신제품 효과 (직전 13개월 무매출 → 본월)</CardTitle>
+              <CardTitle>신제품 효과 (직전 13개월 무매출 → 이번달)</CardTitle>
               <Badge variant="info">{newProducts.length}개 SKU</Badge>
             </div>
             <div className="text-[11px] text-muted-foreground">
@@ -300,7 +300,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
                   <thead>
                     <tr className="text-left text-[11px] text-muted-foreground border-b">
                       <th className="py-2">제품</th>
-                      <th className="py-2 text-right">본월 매출</th>
+                      <th className="py-2 text-right">이번달 매출</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -333,7 +333,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
                     <tr className="text-left text-[11px] text-muted-foreground border-b">
                       <th className="py-2">제품</th>
                       <th className="py-2 text-right">직전 평균</th>
-                      <th className="py-2 text-right">본월</th>
+                      <th className="py-2 text-right">이번달</th>
                       <th className="py-2 text-right">변화</th>
                     </tr>
                   </thead>
@@ -373,7 +373,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
                   <th className="py-2">채널그룹</th>
                   <th className="py-2 text-right">전월 할인율</th>
-                  <th className="py-2 text-right">본월 할인율</th>
+                  <th className="py-2 text-right">이번달 할인율</th>
                   <th className="py-2 text-right">차이</th>
                 </tr>
               </thead>
@@ -408,13 +408,13 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
       {/* 요일별 패턴 비교 */}
       <Card>
         <CardHeader>
-          <CardTitle>요일별 매출 패턴 (본월 vs 직전 3개월 평균)</CardTitle>
+          <CardTitle>요일별 매출 패턴 (이번달 vs 직전 3개월 평균)</CardTitle>
         </CardHeader>
         <CardContent>
           <BarChart
             categories={dayLabels.map((d) => `${d}요일`)}
             series={[
-              { name: "본월", values: weekdayThis, color: "#0f172a" },
+              { name: "이번달", values: weekdayThis, color: "#0f172a" },
               { name: "직전 3개월 평균", values: weekdayPast, color: "#cbd5e1" },
             ]}
             height={240}
