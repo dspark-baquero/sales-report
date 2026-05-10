@@ -1,14 +1,14 @@
 import { loadSalesRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
-import { filterMonth, filterRange } from "@/lib/aggregate";
+import { filterMonth, filterRange, enumerateMonths } from "@/lib/aggregate";
 import { quarterOf } from "@/lib/compare";
-import { loadTargets, buildTargetActuals } from "@/lib/targets";
+import { loadTargets, buildTargetActuals, isProspectiveKey } from "@/lib/targets";
 import { TargetGauge } from "@/components/TargetGauge";
+import { AnnualProgressCard } from "@/components/AnnualProgressCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
 import {
-  formatKRW,
   formatKRWLong,
   formatPctAbs,
   formatYM,
@@ -71,6 +71,34 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
   const quarterTargetTotal = [...qMatrix.values()].reduce((s, t) => s + t.target, 0);
   const quarterActualTotal = [...qMatrix.values()].reduce((s, t) => s + t.actual, 0);
 
+  // ── 연간 / 연 누적(YTD) ─────────────────────────────────
+  const [yearStr, monthStr] = ym.split("-");
+  const monthNum = Number(monthStr);
+  const annualStart = `${yearStr}-01`;
+  const annualEnd = `${yearStr}-12`;
+  const ytdMonths = enumerateMonths(annualStart, ym);     // 1월~이번달
+  const ytdMonthSet = new Set(ytdMonths);
+  const annualMonthSet = new Set(enumerateMonths(annualStart, annualEnd));
+
+  // YTD 실적 (1월~이번달, 비매출 제외)
+  const ytdActual = filterRange(all, annualStart, ym)
+    .filter((r) => !r.isNonRevenue)
+    .reduce((s, r) => s + r.realRevenue, 0);
+
+  // 연 목표 / YTD 목표 (신규 추진 제외 — 매칭되는 sales가 없는 키는 페이스 평가에서 빠짐)
+  const annualTarget = targets
+    .filter(
+      (t) =>
+        annualMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey),
+    )
+    .reduce((s, t) => s + t.target, 0);
+  const ytdTarget = targets
+    .filter(
+      (t) =>
+        ytdMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey),
+    )
+    .reduce((s, t) => s + t.target, 0);
+
   // 국내/해외 분리
   const domestic = monthRows.filter((t) => t.division === "국내" && !t.prospective);
   const overseas = monthRows.filter((t) => t.division === "해외" && !t.prospective);
@@ -130,13 +158,20 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
         </p>
       </div>
 
-      {/* 종합 게이지 4개 */}
+      {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <AnnualProgressCard
+          title={`${yearStr}년 연 목표 진도`}
+          ytdActual={ytdActual}
+          annualTarget={annualTarget}
+          monthsElapsed={monthNum}
+          hint={`연 목표 ${formatKRWLong(annualTarget)} 중 ${monthNum}/12개월 진행`}
+        />
         <TargetGauge
-          title="이번달 종합"
-          actual={monthActualTotal}
-          target={monthTargetTotal}
-          hint="모든 (브랜드 × 거래처) 합계"
+          title={`연 누적 (YTD) 달성률`}
+          actual={ytdActual}
+          target={ytdTarget}
+          hint={`${yearStr}년 1~${monthNum}월 누적 (시점 기준 페이스 평가)`}
         />
         <TargetGauge
           title="이번분기 누적"
@@ -144,8 +179,18 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
           target={quarterTargetTotal}
           hint={`${quarterMonths[0]}~${ym}, ${quarterMonths.length}개월 누적`}
         />
-        <TargetGauge title="국내" actual={domActual} target={domTarget} />
-        <TargetGauge title="해외 (수출)" actual={ovrActual} target={ovrTarget} />
+        <TargetGauge
+          title="이번달 종합"
+          actual={monthActualTotal}
+          target={monthTargetTotal}
+          hint="이번달 (브랜드 × 거래처) 합계"
+        />
+      </div>
+
+      {/* 이번달 국내/해외 분리 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <TargetGauge title="이번달 국내" actual={domActual} target={domTarget} />
+        <TargetGauge title="이번달 해외 (수출)" actual={ovrActual} target={ovrTarget} />
       </div>
 
       {/* 미달 워닝 */}
