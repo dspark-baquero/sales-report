@@ -11,8 +11,9 @@ const TABS = [
   { href: "/b2c", label: "B2C" },
   { href: "/duty-free", label: "면세점" },
   { href: "/brand", label: "브랜드 분석" },
+  { href: "/accounts", label: "거래처 분석" },
   { href: "/changes", label: "변동 분석" },
-  { href: "/insights", label: "인사이트" },
+  { href: "/insights", label: "심층 분석" },
 ];
 
 export function TabNav() {
@@ -24,7 +25,10 @@ export function TabNav() {
   return (
     <nav className="flex gap-0.5 overflow-x-auto border-b border-border">
       {TABS.map((tab) => {
-        const active = pathname === tab.href || (tab.href === "/brand" && pathname.startsWith("/brand"));
+        const active =
+          pathname === tab.href ||
+          (tab.href === "/brand" && pathname.startsWith("/brand")) ||
+          (tab.href === "/accounts" && pathname.startsWith("/accounts"));
         return (
           <Link
             key={tab.href}

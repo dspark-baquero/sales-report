@@ -1,5 +1,7 @@
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
+import { computeChangesInsights } from "@/lib/tabInsights";
+import { TabInsights } from "@/components/TabInsights";
 import {
   filterMonth,
   filterRange,
@@ -61,6 +63,8 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
   const ym = resolveMonth(sp.month);
   const dim = sp.dim && KEY_FN[sp.dim] ? sp.dim : "customer";
   const all = loadSalesRows();
+  const cube = loadFactCube();
+  const insights = computeChangesInsights(cube, ym);
 
   const cur = filterMonth(all, ym);
   const prevMo = filterMonth(all, prevMonth(ym));
@@ -184,6 +188,8 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
           <DimSelect current={dim} />
         </div>
       </div>
+
+      <TabInsights bullets={insights} />
 
       {/* 이번달 vs 전월 워터폴 */}
       <ChangeBreakdown

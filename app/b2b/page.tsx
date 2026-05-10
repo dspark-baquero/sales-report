@@ -1,4 +1,4 @@
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   kpi,
@@ -7,6 +7,10 @@ import {
   ymMinusMonths,
   monthlyRevenueOf,
 } from "@/lib/aggregate";
+import { computeB2BInsights } from "@/lib/tabInsights";
+import { TabInsights } from "@/components/TabInsights";
+import { dealerBoard, dealerCustomerChurn, dealerQuarterCompare } from "@/lib/dealerAnalysis";
+import Link from "next/link";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -67,7 +71,12 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const sp = await searchParams;
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
+  const cube = loadFactCube();
   const targets = loadTargets();
+  const insights = computeB2BInsights(cube, ym);
+  const dealerBoardRows = dealerBoard(cube, ym, 6);
+  const dealerChurnRows = dealerCustomerChurn(cube, ym, 3);
+  const dealerQRows = dealerQuarterCompare(cube, ym);
 
   const cur = filterMonth(all, ym);
   const prevMo = filterMonth(all, prevMonth(ym));
@@ -170,6 +179,8 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           </p>
         </div>
       </div>
+
+      <TabInsights bullets={insights} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -303,6 +314,171 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           </div>
         </CardContent>
       </Card>
+
+      {/* 영업사원 6개월 추이 + 분기 비교 + 거래처 churn */}
+      <Card>
+        <CardHeader>
+          <CardTitle>영업사원 심층 — 6개월 추이 + 분기 누적 + 거래처 회전</CardTitle>
+          <div className="text-[11px] text-muted-foreground">
+            각 영업사원의 최근 6개월 막대 / 활성 거래처 수 / 이번 분기 누적 vs 전년 동분기 동기간 / 신규·이탈 거래처
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="px-4 pb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] text-muted-foreground border-b">
+                  <th className="py-2">영업사원</th>
+                  <th className="py-2">6개월 추이</th>
+                  <th className="py-2 text-right">활성 거래처</th>
+                  <th className="py-2 text-right">분기 누적</th>
+                  <th className="py-2 text-right">전년 동분기</th>
+                  <th className="py-2 text-right">분기 변화</th>
+                  <th className="py-2 text-right">신규/이탈</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dealerBoardRows.map((d) => {
+                  const max = Math.max(...d.series6m.map((s) => s.revenue), 1);
+                  const qRow = dealerQRows.find((q) => q.dealer === d.dealer);
+                  const churn = dealerChurnRows.find((c) => c.dealer === d.dealer);
+                  const qDiffCls =
+                    qRow && qRow.diff > 0
+                      ? "text-emerald-700"
+                      : qRow && qRow.diff < 0
+                        ? "text-rose-700"
+                        : "text-muted-foreground";
+                  return (
+                    <tr key={d.dealer} className="border-b last:border-0 align-top">
+                      <td className="py-2 font-medium">{d.dealer}</td>
+                      <td className="py-2">
+                        <div className="flex items-end gap-0.5 h-7">
+                          {d.series6m.map((s) => (
+                            <div
+                              key={s.yearMonth}
+                              className={s.yearMonth === ym ? "bg-indigo-600 w-2" : "bg-indigo-200 w-2"}
+                              style={{ height: `${Math.max(2, (s.revenue / max) * 100)}%` }}
+                              title={`${s.yearMonth}: ${formatKRWShort(s.revenue)}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          {d.series6m[0]?.yearMonth.slice(2)} ~ {d.series6m[d.series6m.length - 1]?.yearMonth.slice(2)}
+                        </div>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{formatInt(d.curActiveCustomers)}곳</td>
+                      <td className="py-2 text-right tabular-nums">
+                        {qRow ? formatKRWShort(qRow.currentQAccum) : "—"}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {qRow && qRow.prevYearQAccum > 0 ? formatKRWShort(qRow.prevYearQAccum) : "—"}
+                      </td>
+                      <td className={`py-2 text-right tabular-nums ${qDiffCls}`}>
+                        {qRow && qRow.pct !== null ? formatPctAbs(qRow.pct, 0).replace("%", "") + (qRow.pct > 0 ? "%↑" : "%↓") : "—"}
+                      </td>
+                      <td className="py-2 text-right tabular-nums">
+                        {churn ? (
+                          <div className="text-xs">
+                            <span className="text-emerald-700">+{churn.newCustomers.length}</span>
+                            <span className="text-muted-foreground"> / </span>
+                            <span className="text-rose-700">-{churn.lostCustomers.length}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 딜러별 신규/이탈 거래처 상세 */}
+      {dealerChurnRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>영업사원별 신규·이탈 거래처 (3개월 윈도우)</CardTitle>
+            <div className="text-[11px] text-muted-foreground">
+              각 영업사원이 이번달 새로 잡은 거래처 / 이번달 사라진 거래처. 거래처명 클릭 시 거래처 분석 탭으로 이동.
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {dealerChurnRows
+                .filter((d) => d.newCustomers.length > 0 || d.lostCustomers.length > 0)
+                .slice(0, 8)
+                .map((d) => (
+                  <div key={d.dealer} className="rounded border p-3">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <h4 className="font-medium text-sm">{d.dealer}</h4>
+                      <div className="text-[11px] text-muted-foreground">
+                        활성 {d.currentActive}곳 · 순증감 {d.netChange > 0 ? "+" : ""}
+                        {d.netChange}곳
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[11px] text-emerald-700 mb-1">
+                          신규 ({d.newCustomers.length}곳)
+                        </div>
+                        {d.newCustomers.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">—</div>
+                        ) : (
+                          <ul className="text-xs space-y-0.5">
+                            {d.newCustomers.slice(0, 5).map((c) => (
+                              <li key={c.customer} className="flex justify-between gap-2">
+                                <Link
+                                  href={`/accounts?customer=${encodeURIComponent(c.customer)}&month=${ym}`}
+                                  className="truncate hover:underline"
+                                >
+                                  {c.customer}
+                                </Link>
+                                <span className="tabular-nums shrink-0">{formatKRWShort(c.revenue)}</span>
+                              </li>
+                            ))}
+                            {d.newCustomers.length > 5 && (
+                              <li className="text-[10px] text-muted-foreground">+{d.newCustomers.length - 5}곳 더</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-rose-700 mb-1">
+                          이탈 ({d.lostCustomers.length}곳)
+                        </div>
+                        {d.lostCustomers.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">—</div>
+                        ) : (
+                          <ul className="text-xs space-y-0.5">
+                            {d.lostCustomers.slice(0, 5).map((c) => (
+                              <li key={c.customer} className="flex justify-between gap-2">
+                                <Link
+                                  href={`/accounts?customer=${encodeURIComponent(c.customer)}&month=${ym}`}
+                                  className="truncate hover:underline"
+                                >
+                                  {c.customer}
+                                </Link>
+                                <span className="tabular-nums shrink-0 text-muted-foreground">
+                                  최근 {c.lastSeenMonth}
+                                </span>
+                              </li>
+                            ))}
+                            {d.lostCustomers.length > 5 && (
+                              <li className="text-[10px] text-muted-foreground">+{d.lostCustomers.length - 5}곳 더</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 거래처 유형별 + 12개월 추이 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

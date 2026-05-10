@@ -1,5 +1,7 @@
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
+import { computeBrandInsights } from "@/lib/tabInsights";
+import { TabInsights } from "@/components/TabInsights";
 import {
   filterMonth,
   filterRange,
@@ -44,11 +46,13 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const sp = await searchParams;
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
+  const cube = loadFactCube();
   const targets = loadTargets();
 
   const brands = Object.keys(BRAND_TO_HOUSE).filter((b) => b !== "기타");
   const brand = sp.brand && brands.includes(sp.brand) ? sp.brand : brands[0];
   const house = BRAND_TO_HOUSE[brand] ?? "기타";
+  const insights = computeBrandInsights(cube, ym, brand);
 
   const isBrand = (r: SalesRow) => r.brand === brand;
 
@@ -185,6 +189,8 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         </div>
         <BrandSelect brands={brands} current={brand} />
       </div>
+
+      <TabInsights bullets={insights} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard

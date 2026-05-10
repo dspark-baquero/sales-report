@@ -1,5 +1,7 @@
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
+import { computeB2CInsights } from "@/lib/tabInsights";
+import { TabInsights } from "@/components/TabInsights";
 import {
   kpi,
   filterMonth,
@@ -44,7 +46,9 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const sp = await searchParams;
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
+  const cube = loadFactCube();
   const targets = loadTargets();
+  const insights = computeB2CInsights(cube, ym);
 
   const cur = filterMonth(all, ym);
   const prevMo = filterMonth(all, prevMonth(ym));
@@ -140,6 +144,8 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           </p>
         </div>
       </div>
+
+      <TabInsights bullets={insights} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard

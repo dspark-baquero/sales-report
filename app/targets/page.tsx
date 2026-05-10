@@ -3,6 +3,8 @@ import { resolveMonth } from "@/lib/months";
 import { filterMonth, filterRange, enumerateMonths } from "@/lib/aggregate";
 import { quarterOf } from "@/lib/compare";
 import { loadTargets, buildTargetActuals, isProspectiveKey } from "@/lib/targets";
+import { computeTargetsInsights } from "@/lib/tabInsights";
+import { TabInsights } from "@/components/TabInsights";
 import { TargetGauge } from "@/components/TargetGauge";
 import { AnnualProgressCard } from "@/components/AnnualProgressCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +32,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
 
   // 이번달 매트릭스
   const monthRows = buildTargetActuals(targets, cur, ym);
+  const insights = computeTargetsInsights(monthRows, ym);
 
   // 이번분기 누적 — 분기 시작월~이번달의 모든 target/actual 누적
   const quarterMonths: string[] = [];
@@ -157,6 +160,8 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
           target.csv 기반 (브랜드 × 구분 × 거래처 × 월) 목표 대비 이번달/분기 누적 달성률
         </p>
       </div>
+
+      <TabInsights bullets={insights} />
 
       {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

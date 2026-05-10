@@ -12,6 +12,7 @@ import {
   type ChannelGroup,
   type BrandHouse,
 } from "@/config/mappings";
+import { buildFactCube, type FactCube } from "./facts";
 
 export type SalesRow = {
   // 원본
@@ -83,6 +84,7 @@ type Cached = {
   rows: SalesRow[];
   byMonth: Map<string, SalesRow[]>;     // 월 → 행 (월별 인덱스, O(1) 룩업)
   byMonthRevenue: Map<string, SalesRow[]>; // 월 → 매출행 (비매출 제외, hot path)
+  cube: FactCube;                       // 사전 집계된 차원별 큐브
   loadedAt: number;
   mtime: number;
 };
@@ -100,6 +102,11 @@ export function loadByMonth(): Map<string, SalesRow[]> {
 
 export function loadByMonthRevenue(): Map<string, SalesRow[]> {
   return loadCached().byMonthRevenue;
+}
+
+// 팩트 큐브 — 모든 페이지가 공유하는 사전 집계 인덱스
+export function loadFactCube(): FactCube {
+  return loadCached().cube;
 }
 
 // rows가 캐시된 풀 세트인지 확인 — filterMonth/filterRange의 fast path 게이트
@@ -188,7 +195,10 @@ function loadCached(): Cached {
     }
   }
 
-  cached = { rows, byMonth, byMonthRevenue, loadedAt: Date.now(), mtime };
+  // 팩트 큐브 빌드 — 모든 차원 사전 집계
+  const cube = buildFactCube(rows);
+
+  cached = { rows, byMonth, byMonthRevenue, cube, loadedAt: Date.now(), mtime };
   return cached;
 }
 

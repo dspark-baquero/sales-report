@@ -1,4 +1,4 @@
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   kpi,
@@ -12,6 +12,9 @@ import {
   nonRevenueSummary,
   categoryRevenue,
 } from "@/lib/aggregate";
+import { computeOverviewInsights } from "@/lib/tabInsights";
+import { TabInsights } from "@/components/TabInsights";
+import { AccountHighlights } from "@/components/AccountHighlights";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -43,7 +46,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const sp = await searchParams;
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
+  const cube = loadFactCube();
   const targets = loadTargets();
+  const insights = computeOverviewInsights(cube, ym);
 
   const cur = filterMonth(all, ym);
   const prevMo = filterMonth(all, prevMonth(ym));
@@ -131,6 +136,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           비매출 출고 {nrCur.totalRows.toLocaleString("ko-KR")}건 별도 집계
         </Badge>
       </div>
+
+      <TabInsights bullets={insights} />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -366,6 +373,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           </CardContent>
         </Card>
       </div>
+
+      <AccountHighlights cube={cube} ym={ym} />
 
       <Card>
         <CardHeader>

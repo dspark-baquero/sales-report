@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
+import Link from "next/link";
 import { marked } from "marked";
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   newProducts,
@@ -12,14 +13,22 @@ import {
   discountFeeByChannelGroup,
   bestWorstChannelGroups,
 } from "@/lib/insights";
+import {
+  quarterlyCliff,
+  sleepingReturned,
+  lostKeyAccounts,
+  newAccounts,
+} from "@/lib/accountAnalysis";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
 import { HeatmapChart } from "@/components/charts/HeatmapChart";
 import {
   formatKRWLong,
+  formatKRWShort,
   formatInt,
   formatYM,
+  formatPct,
   formatPctAbs,
   buildChange,
 } from "@/lib/format";
@@ -30,6 +39,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
   const sp = await searchParams;
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
+  const cube = loadFactCube();
 
   // 사람 코멘트
   const insightsPath = path.join(process.cwd(), "insights", `${ym}.md`);
@@ -47,6 +57,12 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
   const heat = brandChannelGroupHeatmap(all, ym);
   const df = discountFeeByChannelGroup(all, ym);
 
+  // 거래처 심층 자동 분석 (큐브 기반)
+  const cliff = quarterlyCliff(cube, ym);
+  const sleeping = sleepingReturned(cube, ym, { minRevenue: 1_000_000 });
+  const lostKey = lostKeyAccounts(cube, ym, { lookback: "quarter", topN: 10 });
+  const newAcc = newAccounts(cube, ym, 6);
+
   // 데이터 품질
   const monthRows = all.filter((r) => r.yearMonth === ym);
   const revRows = monthRows.filter((r) => !r.isNonRevenue);
@@ -60,37 +76,200 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 인사이트</h2>
+        <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 심층 자동 분석</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          사람이 작성한 코멘트 + 자동 통계 카드
+          헤더 / 거래처 변동 / SKU / 채널 / 데이터 품질 — 휴리스틱 기반 자동 통계 (각 탭 상단의 인사이트보다 깊은 표 형태)
         </p>
       </div>
 
-      {humanComment ? (
-        <Card>
+      {/* 거래처 심층 — 분기 절벽 / 동면 복귀 / 핵심 이탈 / 신규 진입 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className={cliff.length > 0 ? "border-rose-200" : undefined}>
           <CardHeader>
-            <CardTitle>이번 달 코멘트 (사람 작성)</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>분기 절벽 거래처 (지난 분기 상위 → 이번 분기 -40%↓)</CardTitle>
+              <Badge variant={cliff.length > 0 ? "negative" : "muted"}>{cliff.length}곳</Badge>
+            </div>
           </CardHeader>
-          <CardContent>
-            <article
-              className="prose prose-sm max-w-none [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:mt-4 [&_h2]:mt-4 [&_h3]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-3 [&_blockquote]:text-neutral-500"
-              dangerouslySetInnerHTML={{ __html: humanComment }}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-sm text-muted-foreground">
-              <p className="font-medium mb-1 text-foreground">코멘트 파일이 없습니다.</p>
-              <p>
-                <code className="text-xs bg-muted px-1.5 py-0.5 rounded">insights/{ym}.md</code>
-                를 만들어 이번 달 코멘트를 마크다운으로 작성하세요.
-              </p>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              {cliff.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">해당 없음 — 안정적</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-muted-foreground border-b">
+                      <th className="py-2">#</th>
+                      <th className="py-2">거래처</th>
+                      <th className="py-2 text-right">지난 분기</th>
+                      <th className="py-2 text-right">이번 분기 누적</th>
+                      <th className="py-2 text-right">변화율</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cliff.slice(0, 15).map((c) => (
+                      <tr key={c.customer} className="border-b last:border-0">
+                        <td className="py-2 text-muted-foreground tabular-nums">#{c.prevRank}</td>
+                        <td className="py-2">
+                          <Link
+                            href={`/accounts?customer=${encodeURIComponent(c.customer)}&month=${ym}`}
+                            className="hover:underline"
+                          >
+                            {c.customer}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-muted-foreground">
+                          {formatKRWShort(c.prevQuarterRevenue)}
+                        </td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWShort(c.curQuarterAccum)}</td>
+                        <td className="py-2 text-right tabular-nums text-rose-700">{formatPct(c.pct)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>동면 거래처 복귀 (직전 3개월 무거래 → 이번달)</CardTitle>
+              <Badge variant="info">{sleeping.length}곳</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              {sleeping.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">해당 없음</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-muted-foreground border-b">
+                      <th className="py-2">거래처</th>
+                      <th className="py-2 text-right">이번달</th>
+                      <th className="py-2 text-right">동면</th>
+                      <th className="py-2">마지막 활성</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sleeping.slice(0, 15).map((s) => (
+                      <tr key={s.customer} className="border-b last:border-0">
+                        <td className="py-2">
+                          <Link
+                            href={`/accounts?customer=${encodeURIComponent(s.customer)}&month=${ym}`}
+                            className="hover:underline"
+                          >
+                            {s.customer}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWShort(s.returnedRevenue)}</td>
+                        <td className="py-2 text-right tabular-nums text-violet-700">{s.silentMonths}개월</td>
+                        <td className="py-2 text-muted-foreground tabular-nums text-xs">
+                          {s.lastActiveMonth ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className={lostKey.length > 0 ? "border-rose-200" : undefined}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>상실된 핵심 거래처 (지난 분기 상위 10 → 이번달 0)</CardTitle>
+              <Badge variant={lostKey.length > 0 ? "negative" : "muted"}>{lostKey.length}곳</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              {lostKey.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">해당 없음</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-muted-foreground border-b">
+                      <th className="py-2">#</th>
+                      <th className="py-2">거래처</th>
+                      <th className="py-2 text-right">지난 분기 매출</th>
+                      <th className="py-2">마지막</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lostKey.map((l) => (
+                      <tr key={l.customer} className="border-b last:border-0">
+                        <td className="py-2 text-muted-foreground tabular-nums">#{l.baselineRank}</td>
+                        <td className="py-2">
+                          <Link
+                            href={`/accounts?customer=${encodeURIComponent(l.customer)}&month=${ym}`}
+                            className="hover:underline"
+                          >
+                            {l.customer}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(l.baselineRevenue)}</td>
+                        <td className="py-2 text-muted-foreground tabular-nums text-xs">
+                          {l.lastSeenMonth ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>신규 진입 거래처 (직전 6개월 무거래 → 이번달 첫 매출)</CardTitle>
+              <Badge variant="info">{newAcc.length}곳</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              {newAcc.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">해당 없음</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-muted-foreground border-b">
+                      <th className="py-2">거래처</th>
+                      <th className="py-2">카테고리</th>
+                      <th className="py-2">브랜드</th>
+                      <th className="py-2 text-right">이번달</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {newAcc.slice(0, 15).map((n) => (
+                      <tr key={n.customer} className="border-b last:border-0">
+                        <td className="py-2">
+                          <Link
+                            href={`/accounts?customer=${encodeURIComponent(n.customer)}&month=${ym}`}
+                            className="hover:underline"
+                          >
+                            {n.customer}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-xs text-muted-foreground">{n.category ?? "—"}</td>
+                        <td className="py-2 text-xs text-muted-foreground">{n.brand ?? "—"}</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWShort(n.currentRevenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 데이터 품질 */}
       <Card>
@@ -405,6 +584,24 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
           </div>
         </CardContent>
       </Card>
+
+      {/* 사람 코멘트 — 옵션. insights/{ym}.md 가 있을 때만 노출 */}
+      {humanComment && (
+        <Card>
+          <CardHeader>
+            <CardTitle>이번 달 사람 코멘트 (수기 작성)</CardTitle>
+            <div className="text-[11px] text-muted-foreground">
+              insights/{ym}.md 파일 — 자동 분석으로 잡히지 않는 맥락(특이 발주, 영업 액션포인트 등)을 기록
+            </div>
+          </CardHeader>
+          <CardContent>
+            <article
+              className="prose prose-sm max-w-none [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:mt-4 [&_h2]:mt-4 [&_h3]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-3 [&_blockquote]:text-neutral-500"
+              dangerouslySetInnerHTML={{ __html: humanComment }}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
