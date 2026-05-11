@@ -95,7 +95,7 @@ export function CustomerSelect({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="거래처 검색..."
-                className="w-full px-2 py-1 text-sm rounded border border-input bg-background outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-2 py-1 text-sm rounded border border-input bg-background outline-hidden focus:ring-2 focus:ring-ring"
               />
               <div className="text-[10px] text-muted-foreground mt-1">
                 {filtered.length === 100 ? "상위 100건만 표시 — 검색어로 좁혀주세요" : `${filtered.length}건`}

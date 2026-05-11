@@ -6,7 +6,6 @@ import {
   channelGroup,
   brandHouse,
   isNonRevenueBiz,
-  extractCountry,
   b2bCustomerType,
   type Category,
   type ChannelGroup,
@@ -170,7 +169,7 @@ function loadCached(): Cached {
       channelGroup: channelGroup(channel),
       brandHouse: brandHouse(brand),
       isNonRevenue: isNonRev,
-      country: cat === "수출" ? extractCountry(bizType) : null,
+      country: null,
       b2bCustomerType: cat === "B2B" ? b2bCustomerType(bizType) : null,
       gp: 0, // fill below
     };

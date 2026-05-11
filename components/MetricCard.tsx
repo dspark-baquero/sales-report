@@ -81,7 +81,7 @@ export function MetricCard({
   const ach = target ? buildAchievement(current, target.value) : null;
 
   return (
-    <Card className={cn("avoid-break", highlight && "border-primary/40 bg-primary/[0.02]")}>
+    <Card className={cn("avoid-break", highlight && "border-primary/40 bg-primary/2")}>
       <CardHeader className="pb-1">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xs text-muted-foreground font-medium">{label}</CardTitle>
