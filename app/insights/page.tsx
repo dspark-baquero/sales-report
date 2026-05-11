@@ -23,6 +23,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
 import { HeatmapChart } from "@/components/charts/HeatmapChart";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdCategorySeries } from "@/lib/ytd";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -81,6 +83,12 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
           헤더 / 거래처 변동 / SKU / 채널 / 데이터 품질 — 휴리스틱 기반 자동 통계 (각 탭 상단의 인사이트보다 깊은 표 형태)
         </p>
       </div>
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdCategorySeries(cube, ym)}
+        caption="대분류별 (수출 / B2B / B2C / 면세점) — 심층 표 해석의 기준선"
+      />
 
       {/* 거래처 심층 — 분기 절벽 / 동면 복귀 / 핵심 이탈 / 신규 진입 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

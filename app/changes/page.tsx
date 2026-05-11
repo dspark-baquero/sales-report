@@ -2,6 +2,8 @@ import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { computeChangesInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdByDim, type YTDDim } from "@/lib/ytd";
 import {
   filterMonth,
   filterRange,
@@ -190,6 +192,12 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
       </div>
 
       <TabInsights bullets={insights} />
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdByDim(cube, ym, dim as YTDDim, 5)}
+        caption={`${DIM_LABEL[dim]} Top 5 + 기타`}
+      />
 
       {/* 이번달 vs 전월 워터폴 */}
       <ChangeBreakdown

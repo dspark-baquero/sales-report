@@ -10,6 +10,8 @@ import {
 import { computeAccountsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerSelect } from "@/components/CustomerSelect";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdCustomerSeries, ytdBrandForCustomerSeries } from "@/lib/ytd";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -456,6 +458,20 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
       </div>
 
       <TabInsights bullets={insights} />
+
+      {customer ? (
+        <YearToDateChart
+          ym={ym}
+          series={ytdBrandForCustomerSeries(all, ym, customer)}
+          caption={`${customer} 의 브랜드 Top 5 + 기타`}
+        />
+      ) : (
+        <YearToDateChart
+          ym={ym}
+          series={ytdCustomerSeries(cube, ym, 5)}
+          caption="거래처 Top 5 + 기타 — 거래처를 선택하면 그 거래처의 브랜드 분해로 전환"
+        />
+      )}
 
       {!customer ? (
         <EmptyState cube={cube} ym={ym} />

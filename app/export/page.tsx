@@ -8,6 +8,8 @@ import {
 } from "@/lib/aggregate";
 import { computeExportInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdCountrySeries } from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -124,6 +126,12 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
       </div>
 
       <TabInsights bullets={insights} />
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdCountrySeries(cube, ym, 5)}
+        caption="국가 Top 5 + 기타"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard

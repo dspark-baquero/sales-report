@@ -12,6 +12,8 @@ import {
 } from "@/lib/aggregate";
 import { computeDutyFreeInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdCustomerSeries } from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -134,6 +136,12 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
       </div>
 
       <TabInsights bullets={insights} />
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdCustomerSeries(cube, ym, 5, { category: "면세점" })}
+        caption="거래처 Top 5 + 기타"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard

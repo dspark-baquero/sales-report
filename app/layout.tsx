@@ -19,7 +19,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
             <h1 className="text-base font-semibold tracking-tight">
               바크로 매출 보고서
-              <span className="text-xs text-muted-foreground font-normal ml-2">v2 · 임원 대시보드</span>
             </h1>
             <div className="flex items-center gap-2">
               <Suspense fallback={null}>

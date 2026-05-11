@@ -1,10 +1,12 @@
-import { loadSalesRows } from "@/lib/load";
+import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { filterMonth, filterRange, enumerateMonths } from "@/lib/aggregate";
 import { quarterOf } from "@/lib/compare";
 import { loadTargets, buildTargetActuals, isProspectiveKey } from "@/lib/targets";
 import { computeTargetsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdCategorySeries } from "@/lib/ytd";
 import { TargetGauge } from "@/components/TargetGauge";
 import { AnnualProgressCard } from "@/components/AnnualProgressCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +26,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
   const sp = await searchParams;
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
+  const cube = loadFactCube();
   const targets = loadTargets();
 
   const cur = filterMonth(all, ym);
@@ -162,6 +165,12 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
       </div>
 
       <TabInsights bullets={insights} />
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdCategorySeries(cube, ym)}
+        caption="대분류별 매출 흐름 — 목표 진척도 카드와 함께 보세요"
+      />
 
       {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -2,6 +2,8 @@ import { loadSalesRows, loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { computeB2CInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdChannelGroupSeries } from "@/lib/ytd";
 import {
   kpi,
   filterMonth,
@@ -146,6 +148,12 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       </div>
 
       <TabInsights bullets={insights} />
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdChannelGroupSeries(cube, ym)}
+        caption="채널그룹별 (자사 공식몰 / 종합몰 / 소호몰 / 임직원·패밀리 / 기타)"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
