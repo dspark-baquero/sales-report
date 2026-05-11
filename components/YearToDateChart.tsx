@@ -14,7 +14,7 @@ type Props = {
   height?: number;
 };
 
-export function YearToDateChart({ ym, series, title, caption, height = 280 }: Props) {
+export function YearToDateChart({ ym, series, title, caption, height = 320 }: Props) {
   const labels = ytdMonthLabels(ym);
   const year = ym.slice(0, 4);
   const firstMonth = Number(labels[0]?.replace("월", "")) || 1;
@@ -44,6 +44,7 @@ export function YearToDateChart({ ym, series, title, caption, height = 280 }: Pr
             height={height}
             showLegend={series.length > 1}
             showValueLabels={false}
+            showStackTotals
           />
         ) : (
           <div className="text-sm text-muted-foreground py-12 text-center">
