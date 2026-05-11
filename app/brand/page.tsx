@@ -27,7 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BrandSelect } from "@/components/BrandSelect";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategoryForBrandSeries } from "@/lib/ytd";
+import { ytdCategoryForBrandSeries, ytdAchievementForBrand } from "@/lib/ytd";
 import { BarChart } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Treemap } from "@/components/charts/Treemap";
@@ -196,6 +196,8 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         ym={ym}
         series={ytdCategoryForBrandSeries(all, ym, brand)}
         caption={`${brand} 의 대분류 (B2B / B2C / 면세점) 흐름`}
+        achievement={ytdAchievementForBrand(all, targets, ym, brand)}
+        achievementLabel={brand}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

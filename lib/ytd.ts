@@ -5,8 +5,10 @@
 import type { FactCube, FactCell } from "./facts";
 import type { Category, ChannelGroup } from "@/config/mappings";
 import type { SalesRow } from "./load";
-import { filterMonth, enumerateMonths } from "./aggregate";
+import { filterMonth, filterRange, enumerateMonths } from "./aggregate";
 import { CATEGORY_COLOR, CHANNEL_GROUP_COLOR, BRAND_COLOR } from "./labels";
+import type { TargetRow } from "./targets";
+import { isProspectiveKey } from "./targets";
 
 export type YTDSeries = { name: string; values: number[]; color?: string };
 
@@ -223,4 +225,87 @@ export function ytdBrandForCustomerSeries(
     }
   });
   return topNStackSeries(months, monthlyCells, topN, BRAND_COLOR);
+}
+
+// ── YTD 달성도 (목표 vs 실적) ─────────────────────────────
+
+export type YTDAchievement = {
+  ytdActual: number;
+  ytdTarget: number;
+  rate: number | null;    // null when ytdTarget === 0
+  diff: number;           // actual - target
+  monthsElapsed: number;  // 1~12
+};
+
+export function buildYTDAchievement(
+  rows: SalesRow[],
+  targets: TargetRow[],
+  ym: string,
+  opts?: {
+    rowFilter?: (r: SalesRow) => boolean;
+    targetFilter?: (t: TargetRow) => boolean;
+  },
+): YTDAchievement {
+  const year = ym.slice(0, 4);
+  const monthSet = new Set(enumerateMonths(`${year}-01`, ym));
+
+  let ytdTarget = 0;
+  for (const t of targets) {
+    if (!monthSet.has(t.yearMonth)) continue;
+    if (isProspectiveKey(t.division, t.customerKey)) continue;
+    if (opts?.targetFilter && !opts.targetFilter(t)) continue;
+    ytdTarget += t.target;
+  }
+
+  let ytdActual = 0;
+  for (const r of filterRange(rows, `${year}-01`, ym)) {
+    if (r.isNonRevenue) continue;
+    if (opts?.rowFilter && !opts.rowFilter(r)) continue;
+    ytdActual += r.realRevenue;
+  }
+
+  return {
+    ytdActual,
+    ytdTarget,
+    rate: ytdTarget > 0 ? ytdActual / ytdTarget : null,
+    diff: ytdActual - ytdTarget,
+    monthsElapsed: Number(ym.slice(5, 7)),
+  };
+}
+
+// 전체 국내 (필터 없음)
+export function ytdAchievementOverall(
+  rows: SalesRow[],
+  targets: TargetRow[],
+  ym: string,
+): YTDAchievement {
+  return buildYTDAchievement(rows, targets, ym);
+}
+
+// 브랜드 1개 — target 의 brand 필드와 row 의 brand 필드 일치
+export function ytdAchievementForBrand(
+  rows: SalesRow[],
+  targets: TargetRow[],
+  ym: string,
+  brand: string,
+): YTDAchievement {
+  return buildYTDAchievement(rows, targets, ym, {
+    rowFilter: (r) => r.brand === brand,
+    targetFilter: (t) => t.brand === brand,
+  });
+}
+
+// target 의 customerKey ∈ keys + row 가 rowMatch (대분류 등) 통과
+export function ytdAchievementForCustomerKeys(
+  rows: SalesRow[],
+  targets: TargetRow[],
+  ym: string,
+  customerKeys: string[],
+  rowMatch: (r: SalesRow) => boolean,
+): YTDAchievement {
+  const keySet = new Set(customerKeys);
+  return buildYTDAchievement(rows, targets, ym, {
+    rowFilter: rowMatch,
+    targetFilter: (t) => keySet.has(t.customerKey),
+  });
 }

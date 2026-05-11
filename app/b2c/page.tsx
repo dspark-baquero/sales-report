@@ -3,7 +3,7 @@ import { resolveMonth } from "@/lib/months";
 import { computeB2CInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdChannelGroupSeries } from "@/lib/ytd";
+import { ytdChannelGroupSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
 import {
   kpi,
   filterMonth,
@@ -153,6 +153,14 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
         ym={ym}
         series={ytdChannelGroupSeries(cube, ym)}
         caption="채널그룹별 (자사 공식몰 / 종합몰 / 소호몰 / 임직원·패밀리 / 기타)"
+        achievement={ytdAchievementForCustomerKeys(
+          all,
+          targets,
+          ym,
+          ["공식몰", "종합몰", "소호몰", "바크로하우스", "올리브영", "링커"],
+          (r) => r.category === "B2C",
+        )}
+        achievementLabel="B2C (공식몰·종합몰·소호몰·바크로하우스·올리브영·링커)"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

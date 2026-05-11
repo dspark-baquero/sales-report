@@ -10,7 +10,7 @@ import {
 import { computeB2BInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdDealerSeries } from "@/lib/ytd";
+import { ytdDealerSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
 import { dealerBoard, dealerCustomerChurn, dealerQuarterCompare } from "@/lib/dealerAnalysis";
 import Link from "next/link";
 import {
@@ -188,6 +188,14 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         ym={ym}
         series={ytdDealerSeries(cube, ym, 5)}
         caption="영업사원 Top 5 + 기타 (0원 사원 제외)"
+        achievement={ytdAchievementForCustomerKeys(
+          all,
+          targets,
+          ym,
+          ["병원", "피부관리실", "대리점"],
+          (r) => r.category === "B2B",
+        )}
+        achievementLabel="B2B (병원 + 피부관리실 + 대리점)"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

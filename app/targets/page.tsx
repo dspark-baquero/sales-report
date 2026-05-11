@@ -6,7 +6,7 @@ import { loadTargets, buildTargetActuals, isProspectiveKey } from "@/lib/targets
 import { computeTargetsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategorySeries } from "@/lib/ytd";
+import { ytdCategorySeries, ytdAchievementOverall } from "@/lib/ytd";
 import { TargetGauge } from "@/components/TargetGauge";
 import { AnnualProgressCard } from "@/components/AnnualProgressCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,6 +162,8 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
         caption="대분류별 매출 흐름 — 목표 진척도 카드와 함께 보세요"
+        achievement={ytdAchievementOverall(all, targets, ym)}
+        achievementLabel="전체 국내"
       />
 
       {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 */}

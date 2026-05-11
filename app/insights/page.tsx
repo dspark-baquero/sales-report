@@ -24,7 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
 import { HeatmapChart } from "@/components/charts/HeatmapChart";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategorySeries } from "@/lib/ytd";
+import { ytdCategorySeries, ytdAchievementOverall } from "@/lib/ytd";
+import { loadTargets } from "@/lib/targets";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -42,6 +43,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
   const ym = resolveMonth(sp.month);
   const all = loadSalesRows();
   const cube = loadFactCube();
+  const targets = loadTargets();
 
   // 사람 코멘트
   const insightsPath = path.join(process.cwd(), "insights", `${ym}.md`);
@@ -88,6 +90,8 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
         caption="대분류별 (B2B / B2C / 면세점) — 심층 표 해석의 기준선"
+        achievement={ytdAchievementOverall(all, targets, ym)}
+        achievementLabel="전체 국내"
       />
 
       {/* 거래처 심층 — 분기 절벽 / 동면 복귀 / 핵심 이탈 / 신규 진입 */}

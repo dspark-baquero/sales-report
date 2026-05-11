@@ -13,7 +13,7 @@ import {
 import { computeDutyFreeInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCustomerSeries } from "@/lib/ytd";
+import { ytdCustomerSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -141,6 +141,14 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         ym={ym}
         series={ytdCustomerSeries(cube, ym, 5, { category: "면세점" })}
         caption="거래처 Top 5 + 기타"
+        achievement={ytdAchievementForCustomerKeys(
+          all,
+          targets,
+          ym,
+          ["면세점"],
+          (r) => r.category === "면세점",
+        )}
+        achievementLabel="면세점"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

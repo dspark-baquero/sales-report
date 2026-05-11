@@ -15,7 +15,7 @@ import {
 import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategorySeries } from "@/lib/ytd";
+import { ytdCategorySeries, ytdAchievementOverall } from "@/lib/ytd";
 import { AccountHighlights } from "@/components/AccountHighlights";
 import {
   prevMonth,
@@ -145,6 +145,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
         caption="대분류별 (B2B / B2C / 면세점) 스택"
+        achievement={ytdAchievementOverall(all, targets, ym)}
+        achievementLabel="전체 국내 (B2B + B2C + 면세점)"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
