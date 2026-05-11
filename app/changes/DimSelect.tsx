@@ -15,7 +15,6 @@ const OPTIONS = [
   { value: "category", label: "카테고리 단위" },
   { value: "brand", label: "브랜드 단위" },
   { value: "product", label: "제품 단위" },
-  { value: "country", label: "국가 단위 (수출)" },
   { value: "dealer", label: "영업사원 단위 (B2B)" },
 ];
 

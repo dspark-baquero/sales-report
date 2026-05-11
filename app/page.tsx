@@ -80,7 +80,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const fromYM = ymMinusMonths(ym, 11);
   const stack = monthlyByCategory(all, fromYM, ym);
   const months = stack.map((s) => s.yearMonth);
-  const categories: ("수출" | "B2B" | "B2C" | "면세점")[] = ["수출", "B2B", "B2C", "면세점"];
+  const categories: ("B2B" | "B2C" | "면세점")[] = ["B2B", "B2C", "면세점"];
 
   // 일별 누적
   const cumCur = dailyCumulative(cur);
@@ -144,7 +144,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       <YearToDateChart
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
-        caption="대분류별 (수출 / B2B / B2C / 면세점) 스택"
+        caption="대분류별 (B2B / B2C / 면세점) 스택"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -164,34 +164,27 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           highlight
         />
         <MetricCard
-          label="수출 실매출"
-          current={catCur["수출"]}
+          label="B2B 실매출"
+          current={catCur["B2B"]}
           comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["수출"] },
-            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["수출"] },
+            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2B"] },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2B"] },
           ]}
         />
         <MetricCard
-          label="국내 실매출 (B2C+B2B+면세점)"
-          current={catCur["B2C"] + catCur["B2B"] + catCur["면세점"]}
+          label="B2C 실매출"
+          current={catCur["B2C"]}
           comparisons={[
-            {
-              label: COMPARE_LABEL.prevMonth,
-              prev: catPrevMo["B2C"] + catPrevMo["B2B"] + catPrevMo["면세점"],
-            },
-            {
-              label: COMPARE_LABEL.prevYear,
-              prev: catPrevYr["B2C"] + catPrevYr["B2B"] + catPrevYr["면세점"],
-            },
+            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2C"] },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2C"] },
           ]}
         />
         <MetricCard
-          label="총 판매수량"
-          current={k.qty}
-          unit="qty"
+          label="면세점 실매출"
+          current={catCur["면세점"]}
           comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: kPrevMo.qty },
-            { label: COMPARE_LABEL.prevYear, prev: kPrevYr.qty },
+            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["면세점"] },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["면세점"] },
           ]}
         />
       </div>
@@ -203,7 +196,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         contribs={catContribs}
         topN={4}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="카테고리(수출/B2B/B2C/면세점) 단위 분해"
+        hint="카테고리(B2B/B2C/면세점) 단위 분해"
       />
 
       <ChangeBreakdown

@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 const TABS = [
   { href: "/", label: "종합" },
   { href: "/targets", label: "목표 달성" },
-  { href: "/export", label: "수출" },
   { href: "/b2b", label: "B2B" },
   { href: "/b2c", label: "B2C" },
   { href: "/duty-free", label: "면세점" },

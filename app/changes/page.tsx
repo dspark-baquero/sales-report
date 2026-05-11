@@ -45,7 +45,6 @@ const KEY_FN: Record<string, (r: SalesRow) => string | null> = {
   category: (r) => r.category || null,
   brand: (r) => r.brand || null,
   product: (r) => r.productName || null,
-  country: (r) => (r.category === "수출" ? r.country : null),
   dealer: (r) => (r.category === "B2B" ? r.dealer || null : null),
 };
 
@@ -56,7 +55,6 @@ const DIM_LABEL: Record<string, string> = {
   category: "카테고리",
   brand: "브랜드",
   product: "제품",
-  country: "국가",
   dealer: "영업사원",
 };
 

@@ -55,11 +55,13 @@ export function loadTargets(): TargetRow[] {
     const customerKey = (r["거래처"] || "").trim();
     const monthRaw = (r["월"] || "").trim();
     if (!brand || !division || !customerKey || !monthRaw) continue;
+    // 수출(해외)은 해외영업팀 별도 관리 — 이 보고서에서 제외
+    if (division === "해외") continue;
     const yearMonth = parseMonth(monthRaw);
     if (!yearMonth) continue;
     rows.push({
       brand,
-      division: division === "해외" ? "해외" : "국내",
+      division: "국내",
       customerKey,
       yearMonth,
       target: parseAmount(r["목표매출"]),

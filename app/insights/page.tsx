@@ -87,7 +87,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
       <YearToDateChart
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
-        caption="대분류별 (수출 / B2B / B2C / 면세점) — 심층 표 해석의 기준선"
+        caption="대분류별 (B2B / B2C / 면세점) — 심층 표 해석의 기준선"
       />
 
       {/* 거래처 심층 — 분기 절벽 / 동면 복귀 / 핵심 이탈 / 신규 진입 */}

@@ -105,15 +105,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
     )
     .reduce((s, t) => s + t.target, 0);
 
-  // 국내/해외 분리
-  const domestic = monthRows.filter((t) => t.division === "국내" && !t.prospective);
-  const overseas = monthRows.filter((t) => t.division === "해외" && !t.prospective);
   const prospective = monthRows.filter((t) => t.prospective && t.target > 0);
-
-  const domTarget = domestic.reduce((s, t) => s + t.target, 0);
-  const domActual = domestic.reduce((s, t) => s + t.actual, 0);
-  const ovrTarget = overseas.reduce((s, t) => s + t.target, 0);
-  const ovrActual = overseas.reduce((s, t) => s + t.actual, 0);
 
   // 미달 / 초과 항목
   const withTargetActive = monthRows.filter((t) => t.target > 0 && !t.prospective);
@@ -199,12 +191,6 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
           target={monthTargetTotal}
           hint="이번달 (브랜드 × 거래처) 합계"
         />
-      </div>
-
-      {/* 이번달 국내/해외 분리 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TargetGauge title="이번달 국내" actual={domActual} target={domTarget} />
-        <TargetGauge title="이번달 해외 (수출)" actual={ovrActual} target={ovrTarget} />
       </div>
 
       {/* 미달 워닝 */}

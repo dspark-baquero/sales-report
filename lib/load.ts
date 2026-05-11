@@ -142,6 +142,9 @@ function loadCached(): Cached {
     const realRevenue = parseNum(r["실 매출"]);
     const cat = category(channel);
 
+    // 수출은 해외영업팀에서 별도 관리 — 이 보고서에서는 제외
+    if (cat === "수출") continue;
+
     const isNonRev = isNonRevenueBiz(bizType) || realRevenue === 0;
 
     const row: SalesRow = {

@@ -84,11 +84,11 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const fromYM = ymMinusMonths(ym, 23);
   const monthsList = enumerateMonths(fromYM, ym);
   const stack = monthlyByCategory(all.filter(isBrand), fromYM, ym);
-  const categories: ("수출" | "B2B" | "B2C" | "면세점")[] = ["수출", "B2B", "B2C", "면세점"];
+  const categories: ("B2B" | "B2C" | "면세점")[] = ["B2B", "B2C", "면세점"];
 
   // 카테고리 분포 (이번달)
   const catDistribution = (() => {
-    const out: Record<string, number> = { 수출: 0, B2B: 0, B2C: 0, 면세점: 0 };
+    const out: Record<string, number> = { B2B: 0, B2C: 0, 면세점: 0 };
     for (const r of cur) {
       if (r.isNonRevenue) continue;
       out[r.category] += r.realRevenue;
@@ -102,8 +102,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
     for (const r of cur) {
       if (r.isNonRevenue) continue;
       let key = "";
-      if (r.category === "수출") key = `수출/${r.country ?? "기타"}`;
-      else if (r.category === "B2B") key = `B2B/${r.b2bCustomerType ?? "기타"}`;
+      if (r.category === "B2B") key = `B2B/${r.b2bCustomerType ?? "기타"}`;
       else if (r.category === "면세점") key = `면세점/${r.customer || "기타"}`;
       else key = `B2C/${r.channel || "기타"}`;
       m.set(key, (m.get(key) ?? 0) + r.realRevenue);
@@ -164,7 +163,6 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
 
   // 변화 요인 — 채널/거래처 단위
   const channelContribs = attributeChange(cur, prevMo, (r) => {
-    if (r.category === "수출") return `수출/${r.country ?? "기타"}`;
     if (r.category === "B2B") return `B2B/${r.b2bCustomerType ?? "기타"}`;
     if (r.category === "면세점") return `면세점/${r.customer ?? "기타"}`;
     return `B2C/${r.channel ?? "기타"}`;
@@ -197,7 +195,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
       <YearToDateChart
         ym={ym}
         series={ytdCategoryForBrandSeries(all, ym, brand)}
-        caption={`${brand} 의 대분류 (수출 / B2B / B2C / 면세점) 흐름`}
+        caption={`${brand} 의 대분류 (B2B / B2C / 면세점) 흐름`}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
