@@ -28,3 +28,6 @@ npm-debug.log*
 # 임시 분석 파일
 /analysis*.txt
 /tmp/
+
+# Playwright MCP 캡쳐
+/.playwright-mcp/
