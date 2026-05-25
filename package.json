@@ -8,7 +8,8 @@
     "start": "next start",
     "report": "next build && next start",
     "build:cf": "npx opennextjs-cloudflare build",
-    "deploy": "npm run build:cf && npx wrangler pages deploy .open-next",
+    "deploy": "npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy",
+    "preview:cf": "npx opennextjs-cloudflare build && npx opennextjs-cloudflare preview",
     "sync-data": "tsx scripts/sync-data.ts",
     "check": "tsx scripts/check-mappings.ts",
     "snapshot": "tsx scripts/snapshot.ts"

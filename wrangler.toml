@@ -1,13 +1,15 @@
 name = "baquero-sales-report"
+main = ".open-next/worker.js"
 compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
 
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
 [[kv_namespaces]]
 binding = "SALES_DATA"
-id = "placeholder-kv-id"
-# 실제 KV 네임스페이스 ID로 교체:
-# wrangler kv namespace create SALES_DATA
-# 출력된 id 값을 위에 입력
+id = "4db7634eb4d04a51be0cd295bac66349"
 
 [vars]
 DATA_PROVIDER = "kv"
