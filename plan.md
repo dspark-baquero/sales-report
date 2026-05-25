@@ -1,15 +1,21 @@
-# 바크로 월별 매출 보고서 — 기획안 v4.0
+# 바크로 월별 매출 보고서 — 기획안 v4.1
 
 ## 0. 한 줄 요약
-Google BigQuery (매출 데이터) + `target.csv` (월별 목표)를 입력으로 받아 **매월 임원 보고용 다각도 분석 대시보드**를 Cloudflare Pages에서 서비스하는 Next.js + ECharts + shadcn 웹 앱. Google Workspace 인증(@baquero.co.kr)으로 접근 제한. URL 쿼리(`?month=2026-04`)로 보고월을 바꿔 동일 규격을 매달 재사용. **2026-04를 기준월**로 첫 빌드.
+Google BigQuery (매출 데이터) + `target.csv` (월별 목표)를 입력으로 받아 **매월 임원 보고용 다각도 분석 대시보드**를 Google Cloud Run에서 서비스하는 Next.js + ECharts + shadcn 웹 앱. Google Workspace 인증(@baquero.co.kr)으로 접근 제한. URL 쿼리(`?month=2026-04`)로 보고월을 바꿔 동일 규격을 매달 재사용. **2026-04를 기준월**로 첫 빌드.
 
-### v4 vs v3 핵심 차이
+### v4.1 vs v4.0 핵심 차이
 
-- **클라우드 데이터** — `sales.csv` 로컬 파일 → Google BigQuery. `scripts/sync-data.ts`가 BigQuery → Cloudflare KV 사전 동기화. 런타임 BigQuery 호출 없음.
-- **Cloudflare Pages 배포** — @opennextjs/cloudflare로 Next.js SSR을 Cloudflare Workers에서 실행. `npm run deploy`.
-- **Google Workspace 인증** — Auth.js v5 + Google OAuth. `@baquero.co.kr` 전용. 비로그인 시 `/login` 리다이렉트.
-- **비동기 데이터 레이어** — 모든 load 함수 async. `DataProvider` 패턴 (CSV dev / KV prod). `loadSalesRows()` → `loadMonthRows(ym)` 월별 로드.
-- **파싱 로직 분리** — `lib/parsers.ts` + `lib/serialization.ts` 신규.
+- **배포 플랫폼 변경** — Cloudflare Workers → **Google Cloud Run**. Workers 무료 플랜 CPU 10ms 제한으로 Next.js SSR 불가. Cloud Run은 같은 GCP 생태계로 BigQuery 직접 쿼리 가능.
+- **데이터 흐름 단순화** — Cloudflare KV + sync 스크립트 + serialization 전부 제거. Cloud Run에서 BigQuery 직접 쿼리 → FactCube 인메모리 빌드.
+- **BigQuery가 유일한 데이터 소스** — CSV 제공자 제거. 로컬 개발도 BigQuery 사용 (`gcloud auth application-default login`).
+- **Docker 배포** — `output: "standalone"` + Dockerfile. GitHub Actions → Artifact Registry → Cloud Run 자동 배포.
+
+### v4.0 핵심 변화 (vs v3)
+
+- 데이터 소스 클라우드화 — `sales.csv` → Google BigQuery.
+- Google Workspace 인증 — Auth.js v5 + Google OAuth. `@baquero.co.kr` 전용.
+- 비동기 데이터 레이어 — 모든 load 함수 async. `DataProvider` 패턴. `loadMonthRows(ym)` 월별 로드.
+- 파싱 로직 분리 — `lib/parsers.ts` 신규.
 
 ### v3 vs v2 핵심 차이
 
@@ -31,12 +37,11 @@ Google BigQuery (매출 데이터) + `target.csv` (월별 목표)를 입력으�
 | 차트 | **Apache ECharts + echarts-for-react** | 워터폴/트리맵/히트맵/게이지 등 풍부, 한국어 툴팁/폰트, Apache 2.0 무료 |
 | UI | **shadcn/ui (Radix) + Tailwind 4** | 카드/탭/배지/셀렉트/툴팁 폴리시 |
 | 표 | **TanStack Table** | 정렬/검색/페이지/sticky 헤더 |
-| 데이터 소스 | **Google BigQuery** (프로덕션) / `sales.csv` (개발) | BigQuery로 데이터 관리 일원화. 로컬 개발은 CSV 유지 |
-| 데이터 캐시 | **Cloudflare KV** | sync 스크립트가 BigQuery → KV 사전 동기화. 런타임 BigQuery 호출 없음 |
-| 데이터 처리 | **팩트 큐브** (`lib/facts.ts`) | 모든 차원 사전 집계 → 모든 화면 공유. sync 시점에 빌드 |
+| 데이터 소스 | **Google BigQuery** | BigQuery로 데이터 관리 일원화. 로컬 개발도 BigQuery 사용 |
+| 데이터 처리 | **팩트 큐브** (`lib/facts.ts`) | BigQuery 쿼리 → 인메모리 FactCube 빌드 → 모든 화면 공유 |
 | 인증 | **Auth.js v5 + Google OAuth** | @baquero.co.kr 도메인 전용. JWT 세션 (DB 불필요) |
-| 배포 | **Cloudflare Pages** + @opennextjs/cloudflare | `npm run deploy` 한 줄. Workers에서 Next.js SSR 실행 |
-| 개발 | `npm run dev` → http://localhost:3000 | 로컬 CSV 모드. 기존과 동일 |
+| 배포 | **Google Cloud Run** + Docker | `git push` → GitHub Actions 자동 배포. GCP 무료 티어 |
+| 개발 | `npm run dev` → http://localhost:3000 | `gcloud auth application-default login` 후 BigQuery 직접 쿼리 |
 
 ---
 
@@ -97,7 +102,7 @@ CSV 로드와 동시에 **모든 차원 사전 집계** 빌드. 페이지가 raw
 
 **메타**: `monthsAsc` / `customers/dealers/brands/channels/countries` Set / `customerToCategory|Brand|Dealer` (전체 기간 매출 최대 기준 대표값)
 
-**규약**: 신규 분석/인사이트 코드는 `await loadFactCube()` 직접 사용. 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 `await loadMonthRows(ym)` → filter로 한 달치 한 번 스캔. 전체 raw 스캔 금지. 프로덕션에서 `buildFactCube()`는 sync 스크립트에서만 호출 — 런타임에는 KV에서 직렬화된 큐브 로드 (`lib/serialization.ts`).
+**규약**: 신규 분석/인사이트 코드는 `await loadFactCube()` 직접 사용. 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 `await loadMonthRows(ym)` → filter로 한 달치 한 번 스캔. 전체 raw 스캔 금지. BigQuery에서 전체 데이터를 한 번 쿼리해 인메모리 FactCube를 빌드하고 모듈 캐시. 컨테이너 재시작 시 캐시 초기화.
 
 ---
 
@@ -484,59 +489,56 @@ LLM 사용 금지. 결정적 규칙으로 노이즈 없는 한국어 불릿 5~7�
 ## 9. 매월 운영 워크플로우
 
 1. **BigQuery에 데이터 업로드**: 영업관리 시스템 export → BigQuery 테이블 업로드
-2. **데이터 동기화**: `npm run sync-data` → BigQuery → Cloudflare KV (FactCube + 월별 raw rows + target.csv)
-3. **(선택) target.csv 갱신**: 목표 변경 시 target.csv 수정 후 sync-data 재실행
-4. **(선택) 사람 코멘트**: `insights/2026-05.md` 생성, 자동 분석으로 잡히지 않는 맥락만 기록
-5. **배포**: `npm run deploy` → Cloudflare Pages 배포
+2. **(선택) target.csv 갱신**: 목표 변경 시 커밋 + 푸시
+3. **(선택) 사람 코멘트**: `insights/2026-05.md` 생성, 자동 분석으로 잡히지 않는 맥락만 기록
+4. **배포**: `git push` → GitHub Actions 자동 빌드 + Cloud Run 배포
+5. **캐시 초기화**: Cloud Run 재시작으로 BigQuery 데이터 새로 로드
 6. **확인**: `https://{도메인}?month=2026-05` — Google 로그인 후 확인
 
-**로컬 개발 시**: `npm run check` (매핑 검증, 로컬 CSV 대상) → `npm run dev`
+**로컬 개발 시**: `gcloud auth application-default login` → `npm run dev`
 
 ---
 
-## 10. 디렉토리 구조 (v4)
+## 10. 디렉토리 구조 (v4.1)
 
 ```
 sales-report/
-├── sales.csv                      # 로컬 개발용 (프로덕션은 BigQuery)
 ├── target.csv                     # 매월 (또는 분기) 갱신 (CSV 유지)
+├── Dockerfile                     # Cloud Run 배포용 (v4.1)
+├── .dockerignore                  # Docker 빌드 제외 (v4.1)
 ├── plan.md / CLAUDE.md
-├── wrangler.toml                  # Cloudflare Pages 설정 (v4)
-├── open-next.config.ts            # @opennextjs/cloudflare 설정 (v4)
-├── middleware.ts                  # 인증 미들웨어 (v4)
-├── .env.local.example             # 환경변수 템플릿 (v4)
+├── middleware.ts                  # 인증 미들웨어
+├── .env.local.example             # 환경변수 템플릿
 ├── insights/
 │   └── 2026-04.md                 # (선택) 월별 사람 코멘트
 ├── config/
 │   └── mappings.ts                # 채널/브랜드/국가 매핑 (단일 소스)
 ├── lib/
-│   ├── load.ts                    # async 데이터 로드 API (제공자 위임, v4)
-│   ├── parsers.ts                 # 순수 파싱 함수 (v4)
-│   ├── serialization.ts           # FactCube 직렬화/역직렬화 (v4)
-│   ├── data-provider.ts           # DataProvider 인터페이스 (v4)
-│   ├── auth.ts                    # Auth.js v5 + Google OAuth (v4)
-│   ├── providers/                 # 데이터 제공자 (v4)
-│   │   ├── csv-provider.ts        # CSV 기반 (개발)
-│   │   ├── kv-provider.ts         # Cloudflare KV 기반 (프로덕션)
+│   ├── load.ts                    # async 데이터 로드 API (BigQuery 제공자)
+│   ├── parsers.ts                 # 순수 파싱 함수
+│   ├── data-provider.ts           # DataProvider 인터페이스
+│   ├── auth.ts                    # Auth.js v5 + Google OAuth
+│   ├── providers/
+│   │   ├── bigquery-provider.ts   # BigQuery 직접 쿼리 (v4.1)
 │   │   └── index.ts
-│   ├── facts.ts                   # 팩트 큐브 (v3)
-│   ├── targets.ts                 # target.csv 파서 + 매칭 (async, v4)
-│   ├── months.ts                  # 월 목록 / 기준월 (async, v4)
+│   ├── facts.ts                   # 팩트 큐브
+│   ├── targets.ts                 # target.csv 파서 + 매칭 (async)
+│   ├── months.ts                  # 월 목록 / 기준월 (async)
 │   ├── aggregate.ts / compare.ts / format.ts / labels.ts
 │   ├── changeAttribution.ts / dimensions.ts / insights.ts
 │   ├── accountAnalysis.ts / dealerAnalysis.ts / tabInsights.ts
 │   └── ytd.ts
 ├── app/
-│   ├── layout.tsx                 # 탭 네비 + 사용자 정보/로그아웃 (v4)
-│   ├── login/page.tsx             # Google 로그인 (v4)
-│   ├── api/auth/[...nextauth]/    # NextAuth API (v4)
+│   ├── layout.tsx                 # 탭 네비 + 사용자 정보/로그아웃
+│   ├── login/page.tsx             # Google 로그인
+│   ├── api/auth/[...nextauth]/    # NextAuth API
 │   ├── page.tsx ... insights/     # 9개 탭
 │   └── */loading.tsx              # 스켈레톤
 ├── components/                    # (v3과 동일)
-└── scripts/
-    ├── check-mappings.ts          # 매월 정합성 검사
-    ├── sync-data.ts               # BigQuery → KV 동기화 (v4)
-    └── snapshot.ts                # 정적 HTML 추출
+├── scripts/
+│   └── check-mappings.ts          # 매월 정합성 검사
+└── .github/workflows/
+    └── deploy.yml                 # GitHub Actions → Cloud Run 배포 (v4.1)
 ```
 
 ---
@@ -555,7 +557,8 @@ sales-report/
 
 ## 12. 변경 이력
 
-- **v4.0** (2026-05): CSV → BigQuery 데이터 소스 전환. 로컬 → Cloudflare Pages 배포. Google Workspace 인증 추가. 비동기 DataProvider 패턴. `parsers.ts` / `serialization.ts` / `sync-data.ts` / `auth.ts` 신규.
+- **v4.1** (2026-05): Cloudflare Workers → Google Cloud Run 전환. BigQuery 직접 쿼리 (KV/sync 제거). Docker + GitHub Actions CI/CD.
+- **v4.0** (2026-05): CSV → BigQuery 데이터 소스. Cloudflare Workers 배포 (CPU 제한으로 이후 v4.1에서 Cloud Run으로 전환). Google Workspace 인증. 비동기 DataProvider 패턴.
 - **v3.0** (2026-05): 거래처 분석 탭 + 탭 자동 인사이트 + 팩트 큐브 + loading.tsx 추가. 커밋 `4a20046`.
 - **v2.0**: 9개 탭 / target.csv 통합 / 한국어 라벨 / 변화 요인 워터폴.
 - **v1.0**: 6개 탭 초기 빌드.
