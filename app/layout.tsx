@@ -11,9 +11,18 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+
+  if (!session) {
+    return (
+      <html lang="ko">
+        <body className="min-h-screen bg-muted/30">{children}</body>
+      </html>
+    );
+  }
+
   const months = (await availableMonths()).slice().reverse();
   const fallback = await defaultMonth();
-  const session = await auth();
   return (
     <html lang="ko">
       <body className="min-h-screen bg-muted/30">
@@ -27,26 +36,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <MonthSelect fallback={fallback} available={months} />
               </Suspense>
               <PrintButton />
-              {session?.user && (
-                <div className="flex items-center gap-2 ml-2 pl-2 border-l">
-                  <span className="text-xs text-muted-foreground">
-                    {session.user.name ?? session.user.email}
-                  </span>
-                  <form
-                    action={async () => {
-                      "use server";
-                      await signOut({ redirectTo: "/login" });
-                    }}
+              <div className="flex items-center gap-2 ml-2 pl-2 border-l">
+                <span className="text-xs text-muted-foreground">
+                  {session.user?.name ?? session.user?.email}
+                </span>
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/login" });
+                  }}
+                >
+                  <button
+                    type="submit"
+                    className="text-xs text-muted-foreground hover:text-foreground transition"
                   >
-                    <button
-                      type="submit"
-                      className="text-xs text-muted-foreground hover:text-foreground transition"
-                    >
-                      로그아웃
-                    </button>
-                  </form>
-                </div>
-              )}
+                    로그아웃
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
           <div className="max-w-[1400px] mx-auto px-6">
