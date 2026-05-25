@@ -1,12 +1,9 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { computeBrandInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import {
-  filterMonth,
-  filterRange,
   ymMinusMonths,
-  monthlyRevenueOf,
   monthlyByCategory,
   topNProductsWithPrev,
   enumerateMonths,
@@ -46,10 +43,8 @@ type SearchParams = Promise<{ month?: string; brand?: string }>;
 
 export default async function BrandPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
+  const ym = await resolveMonth(sp.month);
+  const [cube, targets] = await Promise.all([loadFactCube(), loadTargets()]);
 
   const brands = Object.keys(BRAND_TO_HOUSE).filter((b) => b !== "기타");
   const brand = sp.brand && brands.includes(sp.brand) ? sp.brand : brands[0];
@@ -58,14 +53,22 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
 
   const isBrand = (r: SalesRow) => r.brand === brand;
 
-  const cur = filterMonth(all, ym).filter(isBrand);
-  const prevMo = filterMonth(all, prevMonth(ym)).filter(isBrand);
-  const prevYr = filterMonth(all, prevYearSameMonth(ym)).filter(isBrand);
   const { qStart } = quarterOf(ym);
   const prevQ = prevQuarter(ym);
-  const curQ = filterRange(all, qStart, ym).filter(isBrand);
-  const prevQRows = filterRange(all, prevQ.qStart, prevQ.qEnd).filter(isBrand);
   const qProg = quarterProgress(ym);
+
+  const [curAll, prevMoAll, prevYrAll, curQAll, prevQRowsAll] = await Promise.all([
+    loadMonthRows(ym),
+    loadMonthRows(prevMonth(ym)),
+    loadMonthRows(prevYearSameMonth(ym)),
+    loadRangeRows(qStart, ym),
+    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+  ]);
+  const cur = curAll.filter(isBrand);
+  const prevMo = prevMoAll.filter(isBrand);
+  const prevYr = prevYrAll.filter(isBrand);
+  const curQ = curQAll.filter(isBrand);
+  const prevQRows = prevQRowsAll.filter(isBrand);
 
   const sumRev = (rows: SalesRow[]) =>
     rows.filter((r) => !r.isNonRevenue).reduce((s, r) => s + r.realRevenue, 0);
@@ -83,7 +86,8 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   // 24개월 추이 (카테고리별 스택)
   const fromYM = ymMinusMonths(ym, 23);
   const monthsList = enumerateMonths(fromYM, ym);
-  const stack = monthlyByCategory(all.filter(isBrand), fromYM, ym);
+  const rangeRows = await loadRangeRows(fromYM, ym);
+  const stack = monthlyByCategory(rangeRows.filter(isBrand), fromYM, ym);
   const categories: ("B2B" | "B2C" | "면세점")[] = ["B2B", "B2C", "면세점"];
 
   // 카테고리 분포 (이번달)
@@ -117,7 +121,8 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
 
   // 신규 SKU (이번달 첫 출고)
   const past6FromYM = ymMinusMonths(ym, 6);
-  const past6FromExclusive = filterRange(all, past6FromYM, prevMonth(ym)).filter(isBrand);
+  const past6Range = await loadRangeRows(past6FromYM, prevMonth(ym));
+  const past6FromExclusive = past6Range.filter(isBrand);
   const past6Skus = new Set(past6FromExclusive.map((r) => r.productName));
   const newSkus = (() => {
     const m = new Map<string, { qty: number; revenue: number }>();
@@ -135,7 +140,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   })();
 
   // 단종 위험 SKU (직전 6개월 평균 대비 -70%+)
-  const past6 = filterRange(all, past6FromYM, prevMonth(ym)).filter(isBrand);
+  const past6 = past6Range.filter(isBrand);
   const past6Map = new Map<string, number>();
   for (const r of past6) {
     if (r.isNonRevenue || !r.productName) continue;
@@ -194,9 +199,9 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
 
       <YearToDateChart
         ym={ym}
-        series={ytdCategoryForBrandSeries(all, ym, brand)}
+        series={ytdCategoryForBrandSeries(rangeRows, ym, brand)}
         caption={`${brand} 의 대분류 (B2B / B2C / 면세점) 흐름`}
-        achievement={ytdAchievementForBrand(all, targets, ym, brand)}
+        achievement={ytdAchievementForBrand(rangeRows, targets, ym, brand)}
         achievementLabel={brand}
       />
 

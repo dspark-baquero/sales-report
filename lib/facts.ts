@@ -4,7 +4,7 @@
 // 핵심: 페이지가 raw rows에서 매번 kpi/group을 다시 돌리는 대신,
 // 미리 cellize된 차원별 합계 셀을 룩업+합산. 159k 행 스캔 → 수십 셀 합산.
 
-import type { SalesRow } from "./load";
+import type { SalesRow } from "./parsers";
 import type {
   Category,
   ChannelGroup,
@@ -71,13 +71,21 @@ function addRow(cell: FactCell, r: SalesRow): void {
   cell.rowCount++;
 }
 
-// 셀 합산 — 새 셀 반환 (orders Set은 union)
+// 셀 합산 — 새 셀 반환.
+// 직렬화된 큐브(ordersCount)와 라이브 큐브(orders Set) 모두 지원.
 export function mergeCells(cells: Iterable<FactCell>): FactCell {
   const out = newCell();
+  let ordersCountSum = 0;
+  let useFallback = false;
   for (const c of cells) {
     out.revenue += c.revenue;
     out.qty += c.qty;
-    for (const o of c.orders) out.orders.add(o);
+    if ("ordersCount" in c) {
+      useFallback = true;
+      ordersCountSum += (c as FactCell & { ordersCount: number }).ordersCount;
+    } else {
+      for (const o of c.orders) out.orders.add(o);
+    }
     out.discount += c.discount;
     out.fee += c.fee;
     out.shippingFee += c.shippingFee;
@@ -88,15 +96,24 @@ export function mergeCells(cells: Iterable<FactCell>): FactCell {
     out.costMissingCount += c.costMissingCount;
     out.rowCount += c.rowCount;
   }
+  if (useFallback) {
+    (out as FactCell & { ordersCount: number }).ordersCount =
+      ordersCountSum + out.orders.size;
+  }
   return out;
 }
 
 // FactCell → Kpi (aggregate.ts:Kpi 와 동일 시그니처)
+// 직렬화된 큐브(ordersCount)와 라이브 큐브(orders.size) 모두 지원.
 export function cellToKpi(c: FactCell): Kpi {
+  const ordersCount =
+    "ordersCount" in c
+      ? (c as FactCell & { ordersCount: number }).ordersCount
+      : c.orders.size;
   return {
     revenue: c.revenue,
-    orders: c.orders.size,
-    aov: c.orders.size ? c.revenue / c.orders.size : 0,
+    orders: ordersCount,
+    aov: ordersCount ? c.revenue / ordersCount : 0,
     qty: c.qty,
     settlement: c.settlement,
     gp: c.gpSum,
@@ -393,7 +410,11 @@ export function cubeCustomerSeries(
       yearMonth: ym,
       revenue: cell?.revenue ?? 0,
       qty: cell?.qty ?? 0,
-      orders: cell?.orders.size ?? 0,
+      orders: cell
+        ? "ordersCount" in cell
+          ? (cell as FactCell & { ordersCount: number }).ordersCount
+          : cell.orders.size
+        : 0,
     });
   }
   return out;

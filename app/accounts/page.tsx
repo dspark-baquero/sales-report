@@ -1,4 +1,4 @@
-import { loadFactCube, loadSalesRows } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { ymMinusMonths, filterMonth } from "@/lib/aggregate";
 import { prevMonth, prevYearSameMonth, quarterOf, prevQuarter, quarterProgress } from "@/lib/compare";
@@ -422,9 +422,7 @@ function EmptyState({ cube, ym }: { cube: FactCube; ym: string }) {
 
 export default async function AccountsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const cube = loadFactCube();
-  const all = loadSalesRows();
+  const [ym, cube] = await Promise.all([resolveMonth(sp.month), loadFactCube()]);
 
   const ranked = listCustomersRanked(cube);
   const options = ranked.map((r) => ({
@@ -438,7 +436,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
 
   const insights = computeAccountsInsights(cube, ym, customer);
 
-  const monthRows = filterMonth(all, ym);
+  const monthRows = await loadMonthRows(ym);
 
   return (
     <div className="space-y-6">
@@ -462,7 +460,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
       {customer ? (
         <YearToDateChart
           ym={ym}
-          series={ytdBrandForCustomerSeries(all, ym, customer)}
+          series={ytdBrandForCustomerSeries(await loadRangeRows(`${ym.slice(0, 4)}-01`, ym), ym, customer)}
           caption={`${customer} 의 브랜드 Top 5 + 기타`}
         />
       ) : (

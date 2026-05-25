@@ -2,8 +2,9 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import { marked } from "marked";
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
+import { ymMinusMonths } from "@/lib/aggregate";
 import {
   newProducts,
   decliningProducts,
@@ -40,10 +41,13 @@ type SearchParams = Promise<{ month?: string }>;
 
 export default async function InsightsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
+  const [ym, cube, targets] = await Promise.all([
+    resolveMonth(sp.month),
+    loadFactCube(),
+    loadTargets(),
+  ]);
+  // Load rows spanning 13 months back through current — covers all insight functions
+  const rangeRows = await loadRangeRows(ymMinusMonths(ym, 13), ym);
 
   // 사람 코멘트
   const insightsPath = path.join(process.cwd(), "insights", `${ym}.md`);
@@ -53,13 +57,13 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
     humanComment = marked.parse(md, { async: false }) as string;
   }
 
-  const bw = bestWorstChannelGroups(all, ym);
-  const np = newProducts(all, ym);
-  const dec = decliningProducts(all, ym);
-  const weekday = weekdayPattern(all, ym);
-  const conc = customerConcentration(all, ym);
-  const heat = brandChannelGroupHeatmap(all, ym);
-  const df = discountFeeByChannelGroup(all, ym);
+  const bw = bestWorstChannelGroups(rangeRows, ym);
+  const np = newProducts(rangeRows, ym);
+  const dec = decliningProducts(rangeRows, ym);
+  const weekday = weekdayPattern(rangeRows, ym);
+  const conc = customerConcentration(rangeRows, ym);
+  const heat = brandChannelGroupHeatmap(rangeRows, ym);
+  const df = discountFeeByChannelGroup(rangeRows, ym);
 
   // 거래처 심층 자동 분석 (큐브 기반)
   const cliff = quarterlyCliff(cube, ym);
@@ -68,7 +72,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
   const newAcc = newAccounts(cube, ym, 6);
 
   // 데이터 품질
-  const monthRows = all.filter((r) => r.yearMonth === ym);
+  const monthRows = rangeRows.filter((r) => r.yearMonth === ym);
   const revRows = monthRows.filter((r) => !r.isNonRevenue);
   const costMissing = revRows.filter((r) => r.cost === null).length;
   const nonRevenue = monthRows.filter((r) => r.isNonRevenue).length;
@@ -90,7 +94,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
         caption="대분류별 (B2B / B2C / 면세점) — 심층 표 해석의 기준선"
-        achievement={ytdAchievementOverall(all, targets, ym)}
+        achievement={ytdAchievementOverall(rangeRows, targets, ym)}
         achievementLabel="전체 국내"
       />
 

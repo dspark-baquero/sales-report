@@ -1,15 +1,10 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { computeChangesInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdByDim, type YTDDim } from "@/lib/ytd";
-import {
-  filterMonth,
-  filterRange,
-  ymMinusMonths,
-  enumerateMonths,
-} from "@/lib/aggregate";
+import { ymMinusMonths } from "@/lib/aggregate";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -60,15 +55,15 @@ const DIM_LABEL: Record<string, string> = {
 
 export default async function ChangesPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
+  const [ym, cube] = await Promise.all([resolveMonth(sp.month), loadFactCube()]);
   const dim = sp.dim && KEY_FN[sp.dim] ? sp.dim : "customer";
-  const all = loadSalesRows();
-  const cube = loadFactCube();
   const insights = computeChangesInsights(cube, ym);
 
-  const cur = filterMonth(all, ym);
-  const prevMo = filterMonth(all, prevMonth(ym));
-  const prevYr = filterMonth(all, prevYearSameMonth(ym));
+  const [cur, prevMo, prevYr] = await Promise.all([
+    loadMonthRows(ym),
+    loadMonthRows(prevMonth(ym)),
+    loadMonthRows(prevYearSameMonth(ym)),
+  ]);
 
   const curTotal = cur.filter((r) => !r.isNonRevenue).reduce((s, r) => s + r.realRevenue, 0);
   const prevTotal = prevMo.filter((r) => !r.isNonRevenue).reduce((s, r) => s + r.realRevenue, 0);
@@ -78,16 +73,16 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
   const contribsMo = attributeChange(cur, prevMo, KEY_FN[dim]);
   const contribsYr = attributeChange(cur, prevYr, KEY_FN[dim]);
 
-  // 신규/이탈 거래처 (3개월 윈도우)
-  const past3 = filterRange(all, ymMinusMonths(ym, 3), prevMonth(ym));
+  // 신규/이탈 거래처 (3개월 윈도우) + 신제품 효과 (직전 13개월 무매출 → 이번달)
+  const [past3, past13] = await Promise.all([
+    loadRangeRows(ymMinusMonths(ym, 3), prevMonth(ym)),
+    loadRangeRows(ymMinusMonths(ym, 13), prevMonth(ym)),
+  ]);
   const { newOnes: newCustomers, lost: lostCustomers } = newAndLostEntities(
     cur,
     past3,
     (r) => r.customer || null,
   );
-
-  // 신제품 효과 (직전 13개월 무매출 → 이번달)
-  const past13 = filterRange(all, ymMinusMonths(ym, 13), prevMonth(ym));
   const { newOnes: newProducts } = newAndLostEntities(
     cur,
     past13,

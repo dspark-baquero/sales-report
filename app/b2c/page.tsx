@@ -1,4 +1,4 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { computeB2CInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
@@ -6,8 +6,6 @@ import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdChannelGroupSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
 import {
   kpi,
-  filterMonth,
-  filterRange,
   ymMinusMonths,
   topNProductsWithPrev,
 } from "@/lib/aggregate";
@@ -46,20 +44,21 @@ type SearchParams = Promise<{ month?: string }>;
 
 export default async function B2CPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
+  const ym = await resolveMonth(sp.month);
+  const [cube, targets] = await Promise.all([loadFactCube(), loadTargets()]);
   const insights = computeB2CInsights(cube, ym);
 
-  const cur = filterMonth(all, ym);
-  const prevMo = filterMonth(all, prevMonth(ym));
-  const prevYr = filterMonth(all, prevYearSameMonth(ym));
   const { qStart } = quarterOf(ym);
   const prevQ = prevQuarter(ym);
-  const curQ = filterRange(all, qStart, ym);
-  const prevQRows = filterRange(all, prevQ.qStart, prevQ.qEnd);
   const qProg = quarterProgress(ym);
+
+  const [cur, prevMo, prevYr, curQ, prevQRows] = await Promise.all([
+    loadMonthRows(ym),
+    loadMonthRows(prevMonth(ym)),
+    loadMonthRows(prevYearSameMonth(ym)),
+    loadRangeRows(qStart, ym),
+    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+  ]);
 
   const k = kpi(b2cRows(cur));
   const kPrevMo = kpi(b2cRows(prevMo));
@@ -117,7 +116,8 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
 
   // 자사 공식몰 12개월 추이
   const fromYM = ymMinusMonths(ym, 11);
-  const officialTrends = brandOfficialTrend(all, fromYM, ym);
+  const rangeRows = await loadRangeRows(fromYM, ym);
+  const officialTrends = brandOfficialTrend(rangeRows, fromYM, ym);
   const trendMonths = officialTrends[0]?.months ?? [];
 
   // 종합몰
@@ -154,7 +154,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
         series={ytdChannelGroupSeries(cube, ym)}
         caption="채널그룹별 (자사 공식몰 / 종합몰 / 소호몰 / 임직원·패밀리 / 기타)"
         achievement={ytdAchievementForCustomerKeys(
-          all,
+          rangeRows,
           targets,
           ym,
           ["공식몰", "종합몰", "소호몰", "바크로하우스", "올리브영", "링커"],

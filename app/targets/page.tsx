@@ -1,6 +1,6 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
-import { filterMonth, filterRange, enumerateMonths } from "@/lib/aggregate";
+import { enumerateMonths } from "@/lib/aggregate";
 import { quarterOf } from "@/lib/compare";
 import { loadTargets, buildTargetActuals, isProspectiveKey } from "@/lib/targets";
 import { computeTargetsInsights } from "@/lib/tabInsights";
@@ -24,14 +24,14 @@ type SearchParams = Promise<{ month?: string }>;
 
 export default async function TargetsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
-
-  const cur = filterMonth(all, ym);
+  const ym = await resolveMonth(sp.month);
   const { qStart } = quarterOf(ym);
-  const curQ = filterRange(all, qStart, ym);
+
+  const [cube, targets, cur] = await Promise.all([
+    loadFactCube(),
+    loadTargets(),
+    loadMonthRows(ym),
+  ]);
 
   // 이번달 매트릭스
   const monthRows = buildTargetActuals(targets, cur, ym);
@@ -52,8 +52,10 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
 
   // 분기 누적 (브랜드 × 거래처): 모든 분기 월 합산
   const qMatrix = new Map<string, { brand: string; division: "국내" | "해외"; customerKey: string; target: number; actual: number; prospective: boolean }>();
-  for (const qym of quarterMonths) {
-    const monthSliceRows = filterMonth(all, qym);
+  const quarterMonthSlices = await Promise.all(quarterMonths.map((qym) => loadMonthRows(qym)));
+  for (let qi = 0; qi < quarterMonths.length; qi++) {
+    const qym = quarterMonths[qi];
+    const monthSliceRows = quarterMonthSlices[qi];
     const ta = buildTargetActuals(targets, monthSliceRows, qym);
     for (const t of ta) {
       const key = `${t.brand}|${t.division}|${t.customerKey}`;
@@ -87,7 +89,8 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
   const annualMonthSet = new Set(enumerateMonths(annualStart, annualEnd));
 
   // YTD 실적 (1월~이번달, 비매출 제외)
-  const ytdActual = filterRange(all, annualStart, ym)
+  const ytdRangeRows = await loadRangeRows(annualStart, ym);
+  const ytdActual = ytdRangeRows
     .filter((r) => !r.isNonRevenue)
     .reduce((s, r) => s + r.realRevenue, 0);
 
@@ -162,7 +165,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
         caption="대분류별 매출 흐름 — 목표 진척도 카드와 함께 보세요"
-        achievement={ytdAchievementOverall(all, targets, ym)}
+        achievement={ytdAchievementOverall(ytdRangeRows, targets, ym)}
         achievementLabel="전체 국내"
       />
 

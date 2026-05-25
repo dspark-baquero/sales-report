@@ -1,22 +1,7 @@
-import {
-  isCachedFullSet,
-  loadByMonth,
-  loadByMonthRevenue,
-  type SalesRow,
-} from "./load";
+import type { SalesRow } from "./parsers";
 import type { Category, ChannelGroup } from "@/config/mappings";
 
-// 매출 집계의 핵심 규칙: **비매출 출고 행은 제외**.
 export function revenueRows(rows: SalesRow[]): SalesRow[] {
-  // 월별 매출-only 인덱스 fast path: 입력이 풀 세트면 미리 분리된 인덱스 반환
-  if (isCachedFullSet(rows)) {
-    const all: SalesRow[] = [];
-    for (const arr of loadByMonthRevenue().values()) {
-      for (const r of arr) all.push(r);
-    }
-    return all;
-  }
-  // 월별 인덱스 결과(한 달 분량)는 빠른 단순 필터로 처리
   return rows.filter((r) => !r.isNonRevenue);
 }
 
@@ -24,26 +9,11 @@ export function nonRevenueRows(rows: SalesRow[]): SalesRow[] {
   return rows.filter((r) => r.isNonRevenue);
 }
 
-// 월별 인덱스 fast path. 풀 세트 입력일 때 O(1) 룩업.
 export function filterMonth(rows: SalesRow[], yearMonth: string): SalesRow[] {
-  if (isCachedFullSet(rows)) {
-    return loadByMonth().get(yearMonth) ?? [];
-  }
   return rows.filter((r) => r.yearMonth === yearMonth);
 }
 
-// 범위 fast path. 159k 전체 스캔 대신 1~12개월 버킷만 합침.
 export function filterRange(rows: SalesRow[], fromYM: string, toYM: string): SalesRow[] {
-  if (isCachedFullSet(rows)) {
-    const byM = loadByMonth();
-    const out: SalesRow[] = [];
-    for (const [ym, arr] of byM) {
-      if (ym >= fromYM && ym <= toYM) {
-        for (const r of arr) out.push(r);
-      }
-    }
-    return out;
-  }
   return rows.filter((r) => r.yearMonth >= fromYM && r.yearMonth <= toYM);
 }
 
@@ -167,7 +137,6 @@ export function monthlyRevenue(
   for (const r of filtered) {
     m.set(r.yearMonth, (m.get(r.yearMonth) ?? 0) + r.realRevenue);
   }
-  // 빈 월도 0으로 채워서 순서대로
   const out: { yearMonth: string; revenue: number }[] = [];
   const months = enumerateMonths(fromYM, toYM);
   for (const ym of months) {
@@ -288,7 +257,6 @@ export function weeklyRevenue(rows: SalesRow[]): { week: number; revenue: number
 }
 
 // ── Top N + 전월 비교 ────────────────────────────────
-// 이번달 상위 N + 동일 키의 전월 매출 묶음 (변화 분류용)
 export function topNCustomersWithPrev(
   curRows: SalesRow[],
   prevRows: SalesRow[],
@@ -356,7 +324,7 @@ export function revenueBySegment<K extends string>(
 export type NonRevenueSummary = {
   totalRows: number;
   totalQty: number;
-  totalCost: number; // 원가*수량 합 (cost 있는 행만)
+  totalCost: number;
   byBizType: { bizType: string; rows: number; qty: number; cost: number }[];
 };
 
@@ -367,7 +335,7 @@ export function nonRevenueSummary(rows: SalesRow[]): NonRevenueSummary {
   const byTypeMap = new Map<string, { rows: number; qty: number; cost: number }>();
   for (const r of nr) {
     totalQty += r.qty;
-    const c = r.cost !== null ? r.cost : 0; // 원가는 행당 합계
+    const c = r.cost !== null ? r.cost : 0;
     totalCost += c;
     const key = r.bizType || "(기타)";
     const cur = byTypeMap.get(key) ?? { rows: 0, qty: 0, cost: 0 };

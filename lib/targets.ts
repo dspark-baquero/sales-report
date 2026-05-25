@@ -1,10 +1,7 @@
 // target.csv 파서 + 빠른 lookup 인덱스.
 // 컬럼: 브랜드, 구분(국내/해외), 거래처, 월(YYYY/M), 목표매출(₩X,XXX,XXX 또는 빈 값)
 
-import fs from "fs";
-import path from "path";
-import Papa from "papaparse";
-import type { SalesRow } from "./load";
+import type { SalesRow } from "./parsers";
 import { BRAND_OFFICIAL_CHANNELS } from "@/config/mappings";
 
 export type Division = "국내" | "해외";
@@ -12,12 +9,10 @@ export type Division = "국내" | "해외";
 export type TargetRow = {
   brand: string;
   division: Division;
-  customerKey: string;       // "공식몰" / "올리브영" / "면세점" / "병원" / "베트남" / "동남아" 등
-  yearMonth: string;         // "2026-04"
-  target: number;            // 0 if blank
+  customerKey: string;
+  yearMonth: string;
+  target: number;
 };
-
-let cached: { rows: TargetRow[]; mtime: number } | null = null;
 
 function parseAmount(s: string | undefined | null): number {
   if (!s) return 0;
@@ -28,24 +23,71 @@ function parseAmount(s: string | undefined | null): number {
 }
 
 function parseMonth(s: string): string | null {
-  // "2026/4" or "2026/04" → "2026-04"
   const m = s.trim().match(/^(\d{4})\s*\/\s*(\d{1,2})$/);
   if (!m) return null;
   return `${m[1]}-${String(Number(m[2])).padStart(2, "0")}`;
 }
 
-export function loadTargets(): TargetRow[] {
+export function parseTargetCSV(text: string): TargetRow[] {
+  // papaparse를 동적으로 import하지 않고 간단한 CSV 파싱 (target.csv는 단순 구조)
+  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim());
+  const brandIdx = headers.indexOf("브랜드");
+  const divIdx = headers.indexOf("구분");
+  const custIdx = headers.indexOf("거래처");
+  const monthIdx = headers.indexOf("월");
+  const targetIdx = headers.indexOf("목표매출");
+  if (brandIdx < 0 || divIdx < 0 || custIdx < 0 || monthIdx < 0) return [];
+
+  const rows: TargetRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",").map((c) => c.trim());
+    const brand = cols[brandIdx] ?? "";
+    const division = cols[divIdx] ?? "";
+    const customerKey = cols[custIdx] ?? "";
+    const monthRaw = cols[monthIdx] ?? "";
+    if (!brand || !division || !customerKey || !monthRaw) continue;
+    if (division === "해외") continue;
+    const yearMonth = parseMonth(monthRaw);
+    if (!yearMonth) continue;
+    rows.push({
+      brand,
+      division: "국내",
+      customerKey,
+      yearMonth,
+      target: parseAmount(cols[targetIdx]),
+    });
+  }
+  return rows;
+}
+
+let targetCache: TargetRow[] | null = null;
+
+export async function loadTargets(): Promise<TargetRow[]> {
+  if (targetCache) return targetCache;
+
+  if (process.env.DATA_PROVIDER === "kv") {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const ctx = await getCloudflareContext();
+    const kv = (ctx.env as Record<string, { get(key: string): Promise<string | null> }>).SALES_DATA;
+    const text = await kv.get("sales:targets");
+    if (!text) return [];
+    targetCache = parseTargetCSV(text);
+    return targetCache;
+  }
+
+  // CSV 모드 (개발)
+  const fs = await import("fs");
+  const path = await import("path");
+  const Papa = await import("papaparse");
   const csvPath = path.join(process.cwd(), "target.csv");
   if (!fs.existsSync(csvPath)) return [];
-  const stat = fs.statSync(csvPath);
-  const mtime = stat.mtimeMs;
-  if (cached && cached.mtime === mtime) return cached.rows;
-
   const text = fs.readFileSync(csvPath, "utf8");
   const parsed = Papa.parse<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
+    transformHeader: (h: string) => h.trim(),
   });
 
   const rows: TargetRow[] = [];
@@ -55,7 +97,6 @@ export function loadTargets(): TargetRow[] {
     const customerKey = (r["거래처"] || "").trim();
     const monthRaw = (r["월"] || "").trim();
     if (!brand || !division || !customerKey || !monthRaw) continue;
-    // 수출(해외)은 해외영업팀 별도 관리 — 이 보고서에서 제외
     if (division === "해외") continue;
     const yearMonth = parseMonth(monthRaw);
     if (!yearMonth) continue;
@@ -68,7 +109,7 @@ export function loadTargets(): TargetRow[] {
     });
   }
 
-  cached = { rows, mtime };
+  targetCache = rows;
   return rows;
 }
 

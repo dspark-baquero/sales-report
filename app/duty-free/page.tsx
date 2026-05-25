@@ -1,9 +1,7 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   kpi,
-  filterMonth,
-  filterRange,
   ymMinusMonths,
   monthlyRevenueOf,
   dailyRevenue,
@@ -47,20 +45,21 @@ type SearchParams = Promise<{ month?: string }>;
 
 export default async function DutyFreePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
+  const ym = await resolveMonth(sp.month);
+  const [cube, targets] = await Promise.all([loadFactCube(), loadTargets()]);
   const insights = computeDutyFreeInsights(cube, ym);
 
-  const cur = filterMonth(all, ym);
-  const prevMo = filterMonth(all, prevMonth(ym));
-  const prevYr = filterMonth(all, prevYearSameMonth(ym));
   const { qStart } = quarterOf(ym);
   const prevQ = prevQuarter(ym);
-  const curQ = filterRange(all, qStart, ym);
-  const prevQRows = filterRange(all, prevQ.qStart, prevQ.qEnd);
   const qProg = quarterProgress(ym);
+
+  const [cur, prevMo, prevYr, curQ, prevQRows] = await Promise.all([
+    loadMonthRows(ym),
+    loadMonthRows(prevMonth(ym)),
+    loadMonthRows(prevYearSameMonth(ym)),
+    loadRangeRows(qStart, ym),
+    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+  ]);
 
   const k = kpi(dutyFreeRows(cur));
   const kPrevMo = kpi(dutyFreeRows(prevMo));
@@ -76,11 +75,15 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
 
   // 12개월 추이 (본 윈도우 + 전년 동기)
   const fromYM = ymMinusMonths(ym, 11);
-  const monthly = monthlyRevenueOf(all, fromYM, ym, (r) => r.category === "면세점");
   const prevYearFrom = ymMinusMonths(fromYM, 12);
   const prevYearTo = ymMinusMonths(ym, 12);
+  const [trendRows, prevYearTrendRows] = await Promise.all([
+    loadRangeRows(fromYM, ym),
+    loadRangeRows(prevYearFrom, prevYearTo),
+  ]);
+  const monthly = monthlyRevenueOf(trendRows, fromYM, ym, (r) => r.category === "면세점");
   const monthlyPrevYear = monthlyRevenueOf(
-    all,
+    prevYearTrendRows,
     prevYearFrom,
     prevYearTo,
     (r) => r.category === "면세점",
@@ -142,7 +145,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         series={ytdCustomerSeries(cube, ym, 5, { category: "면세점" })}
         caption="거래처 Top 5 + 기타"
         achievement={ytdAchievementForCustomerKeys(
-          all,
+          trendRows,
           targets,
           ym,
           ["면세점"],

@@ -1,9 +1,7 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   kpi,
-  filterMonth,
-  filterRange,
   ymMinusMonths,
   monthlyByCategory,
   dailyCumulative,
@@ -46,20 +44,21 @@ type SearchParams = Promise<{ month?: string }>;
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
-  const insights = computeOverviewInsights(cube, ym);
-
-  const cur = filterMonth(all, ym);
-  const prevMo = filterMonth(all, prevMonth(ym));
-  const prevYr = filterMonth(all, prevYearSameMonth(ym));
+  const ym = await resolveMonth(sp.month);
   const { qStart, qNumber } = quarterOf(ym);
   const prevQ = prevQuarter(ym);
-  const curQ = filterRange(all, qStart, ym);
-  const prevQRows = filterRange(all, prevQ.qStart, prevQ.qEnd);
   const qProg = quarterProgress(ym);
+
+  const [cube, targets, cur, prevMo, prevYr, curQ, prevQRows] = await Promise.all([
+    loadFactCube(),
+    loadTargets(),
+    loadMonthRows(ym),
+    loadMonthRows(prevMonth(ym)),
+    loadMonthRows(prevYearSameMonth(ym)),
+    loadRangeRows(qStart, ym),
+    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+  ]);
+  const insights = computeOverviewInsights(cube, ym);
 
   const k = kpi(cur);
   const kPrevMo = kpi(prevMo);
@@ -78,7 +77,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   // 12개월 카테고리 스택
   const fromYM = ymMinusMonths(ym, 11);
-  const stack = monthlyByCategory(all, fromYM, ym);
+  const rangeRows12 = await loadRangeRows(fromYM, ym);
+  const stack = monthlyByCategory(rangeRows12, fromYM, ym);
   const months = stack.map((s) => s.yearMonth);
   const categories: ("B2B" | "B2C" | "면세점")[] = ["B2B", "B2C", "면세점"];
 
@@ -145,7 +145,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
         caption="대분류별 (B2B / B2C / 면세점) 스택"
-        achievement={ytdAchievementOverall(all, targets, ym)}
+        achievement={ytdAchievementOverall(rangeRows12, targets, ym)}
         achievementLabel="전체 국내 (B2B + B2C + 면세점)"
       />
 

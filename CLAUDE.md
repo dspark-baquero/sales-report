@@ -1,4 +1,4 @@
-# CLAUDE.md — 바크로 매출 보고서 프로젝트 가이드 (v3)
+# CLAUDE.md — 바크로 매출 보고서 프로젝트 가이드 (v4)
 
 이 문서는 이 저장소에서 작업하는 Claude(또는 다른 작업자)가 따라야 할 **프로젝트 기본 정책**과 **매월 운영 워크플로우**를 정의합니다. 자세한 화면/지표 기획은 `plan.md`를 참고하세요.
 
@@ -7,17 +7,25 @@
 ## 1. 프로젝트 개요
 
 - **목적**: 화장품 회사 바크로(baquero)의 **월별 매출 임원 보고서**. 매달 1회 보고.
-- **결과물**: 로컬 실행 Next.js 웹 대시보드 (`npm run dev` → http://localhost:3000)
-- **입력 데이터**: 루트의 `sales.csv` (월별 매출 raw) + `target.csv` (월별 목표). 매달 덮어씀.
-- **배포 없음**: 로컬에서만 실행. 임원 회람은 브라우저 PDF 인쇄 또는 `npm run snapshot`으로 단일 HTML 추출.
-- **기술 스택**: Next.js 15 App Router · React 19 · Apache ECharts (echarts-for-react) · shadcn/ui (Radix) · TanStack Table · Tailwind 3 · Server Components 집계 · PapaParse · Marked.
+- **결과물**: Cloudflare Pages에 배포된 Next.js 웹 대시보드 (Google Workspace 로그인 필수)
+- **입력 데이터**: Google BigQuery (매출 raw, sales.csv와 동일 스키마 17컬럼) + `target.csv` (월별 목표, CSV 유지).
+- **배포**: Cloudflare Pages (`npm run deploy`). @opennextjs/cloudflare 어댑터 사용.
+- **인증**: Auth.js v5 + Google OAuth. `@baquero.co.kr` 도메인 이메일만 허용.
+- **개발**: 로컬에서는 기존처럼 `sales.csv` 직접 읽기 (`npm run dev`).
+- **기술 스택**: Next.js 16 App Router · React 19 · Apache ECharts (echarts-for-react) · shadcn/ui (Radix) · TanStack Table · Tailwind 4 · Server Components 집계 · Auth.js v5 · @opennextjs/cloudflare · @google-cloud/bigquery (sync 스크립트).
+
+### v4 핵심 변화 (vs v3)
+- **데이터 소스 클라우드화** — `sales.csv` → Google BigQuery. `scripts/sync-data.ts`가 BigQuery에서 데이터를 읽어 Cloudflare KV에 사전 동기화. 런타임에 BigQuery 직접 호출 없음.
+- **Cloudflare Pages 배포** — @opennextjs/cloudflare 어댑터로 Next.js SSR을 Cloudflare Workers에서 실행. `npm run deploy` 한 줄로 배포.
+- **Google Workspace 인증** — Auth.js v5 + Google OAuth. @baquero.co.kr 이메일만 허용. 비로그인 시 `/login`으로 리다이렉트.
+- **비동기 데이터 레이어** — 모든 데이터 로드 함수 async 전환. `DataProvider` 패턴으로 CSV(dev)/KV(prod) 선택. `loadSalesRows()` 제거 → `loadMonthRows(ym)` 월별 로드.
+- **파싱 로직 분리** — `lib/parsers.ts`에 순수 파싱 함수 추출. sync 스크립트와 CSV 제공자가 공유.
 
 ### v3 핵심 변화 (vs v2)
-- **거래처/딜러 심층 분석** — 신규 `/accounts` 탭 + 거래처 비교 모드 + 동면 복귀 / 분기 절벽 / 상실된 핵심 거래처 자동 감지. B2B 탭에 영업사원 6개월 sparkline + 신규/이탈 거래처.
-- **탭별 자동 인사이트** — 모든 탭 상단에 휴리스틱 기반 한국어 불릿 (예: "네이버 스마트스토어 +150%", "주마레 에스테틱 동면 복귀"). LLM 없음.
-- **`/insights` 탭 재포지셔닝** — "심층 분석" 으로 개명. 분기 절벽/동면 복귀/핵심 이탈/신규 진입 표 + 기존 SKU/요일/HHI/할인율 + 사람 코멘트(있을 때만 하단).
-- **구조적 성능 — 팩트 큐브** — `lib/facts.ts` 가 CSV 로드 시 모든 차원 사전 집계. 신규 분석은 raw rows 재집계 0회.
-- **모든 라우트 `loading.tsx`** — 탭 전환 즉시 스켈레톤 노출.
+- 거래처/딜러 심층 분석 — `/accounts` 탭 + 동면 복귀 / 분기 절벽 / 상실된 핵심 거래처.
+- 탭별 자동 인사이트 — 휴리스틱 한국어 불릿. LLM 없음.
+- 팩트 큐브 (`lib/facts.ts`) — 모든 차원 사전 집계.
+- 모든 라우트 `loading.tsx` — 탭 전환 즉시 스켈레톤.
 
 ---
 
@@ -63,11 +71,13 @@
 
 ## 3. 데이터 정책
 
-### 3.1 sales.csv 컬럼 (17개, 순서 고정)
+### 3.1 매출 데이터 컬럼 (17개, 순서 고정)
+
+BigQuery 테이블과 `sales.csv`(로컬 개발) 모두 동일한 한국어 컬럼명 사용:
 
 `채널, 날짜, 주문번호, 제품명, 품목코드, 판매수량, 실 매출, 주문금액, 할인금액, 수수료, 배송비, 정산금액, 딜러, 거래처, 거래처 사업형태, 원가, 브랜드`
 
-### 3.2 정제 규칙 (`lib/load.ts`에서 일괄 처리)
+### 3.2 정제 규칙 (`lib/parsers.ts`에서 일괄 처리)
 
 | 케이스 | 처리 |
 |---|---|
@@ -128,26 +138,17 @@
 
 매달 1회, 다음 4단계로 보고서를 갱신합니다.
 
-### Step 1. 데이터 교체
+### Step 1. BigQuery에 데이터 업로드
+
+영업관리 시스템에서 export한 매출 데이터를 BigQuery 테이블에 업로드.
+
+### Step 2. 데이터 동기화
 
 ```bash
-# 신규 매출 raw 데이터로 sales.csv 덮어쓰기
-# (영업관리 시스템에서 export → 컬럼 17개 순서 일치 확인)
+npm run sync-data
+# BigQuery → Cloudflare KV 동기화
+# FactCube + 월별 raw rows + target.csv 업로드
 ```
-
-### Step 2. 자동 검증
-
-```bash
-npm run check
-```
-
-확인 항목:
-- 매핑 미등록 채널 (예: 새로 생긴 종합몰)
-- 매핑 미등록 브랜드
-- 매핑 미등록 사업형태 (새 B2B 거래처 유형 등)
-- 데이터 품질: 원가 #N/A 비율, 실매출 0 행 비율
-
-미등록 항목이 있으면 `config/mappings.ts`에 추가하고 다시 실행.
 
 ### Step 3. (선택) 사람 코멘트 작성
 
@@ -159,18 +160,19 @@ npm run check
 
 파일이 없으면 `/insights` 페이지에 자동 분석만 노출.
 
-### Step 4. 보고서 출력
+### Step 4. 배포
 
 ```bash
-npm run dev
-# 브라우저에서 http://localhost:3000?month=2026-05
-# 인쇄 → PDF 저장
+npm run deploy
+# Cloudflare Pages 배포
+# 브라우저에서 https://{도메인}?month=2026-05 확인
 ```
 
-또는 단일 HTML 스냅샷:
+### (로컬 개발 시)
 
 ```bash
-npm run snapshot -- 2026-05
+npm run check          # 매핑 검증 (로컬 sales.csv 대상)
+npm run dev            # http://localhost:3000
 ```
 
 ---
@@ -207,11 +209,15 @@ CSV 컬럼명은 한국어. UTF-8 BOM이 있을 수 있음. PapaParse + `header:
 
 ### 7.7 데이터 로드 + 팩트 큐브
 
-- `sales.csv`는 한 번 읽고 메모리 캐시 (`lib/load.ts`, mtime 기반 무효화).
-- 동시에 `lib/facts.ts:buildFactCube()` 가 모든 차원의 월별 사전 집계 셀(`Map<ym, Map<dim, FactCell>>`) 을 빌드. 모듈 캐시.
-- **새 분석/인사이트 함수는 큐브 직접 사용** — `loadFactCube()` → `cubeMonthCustomerCells(ym)`, `cubeBrandSeries(brand, fromYM, toYM)` 등. raw rows 재집계 금지.
+- **데이터 소스**: 개발 시 `sales.csv` (CSV 제공자), 프로덕션은 Cloudflare KV (KV 제공자). `DATA_PROVIDER` 환경변수로 선택.
+- **모든 데이터 로드 함수는 async**: `await loadFactCube()`, `await loadMonthRows(ym)`, `await loadRangeRows(from, to)`.
+- `loadSalesRows()` 는 제거됨 — 전체 로드 대신 `loadMonthRows(ym)` 로 월별 로드.
+- `lib/parsers.ts` 에 순수 파싱 함수, `lib/serialization.ts` 에 FactCube 직렬화/역직렬화.
+- `lib/providers/csv-provider.ts` (개발), `lib/providers/kv-provider.ts` (프로덕션).
+- `lib/facts.ts:buildFactCube()` 는 sync 스크립트(`scripts/sync-data.ts`)에서만 호출. 런타임에는 사전 빌드된 큐브를 KV에서 로드.
+- **새 분석/인사이트 함수는 큐브 직접 사용** — `await loadFactCube()` → `cubeMonthCustomerCells(ym)`, `cubeBrandSeries(brand, fromYM, toYM)` 등. raw rows 재집계 금지.
 - 큐브 인덱스: byMonth / byMonthCategory / byMonthChannelGroup / byMonthChannel / byMonthBrand / byMonthBrandHouse / byMonthCustomer / byMonthDealer / byMonthCountry / byMonthB2bType + 2D (DealerType / BrandChannelGroup / CountryBrand) + 제품 / 일별 / 비매출 + 메타 (customers/dealers/brands set, customer→category/brand/dealer 대표값).
-- 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 `filterMonth(rows, ym).filter(r => r.customer === X)` 한 달치 raw 한 번 스캔으로 처리. 전체 raw 스캔은 절대 금지.
+- 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 `(await loadMonthRows(ym)).filter(r => r.customer === X)` 한 달치 raw 한 번 스캔으로 처리. 전체 raw 스캔은 절대 금지.
 
 ### 7.8 자동 인사이트 (TabInsights)
 
@@ -236,41 +242,51 @@ CSV 컬럼명은 한국어. UTF-8 BOM이 있을 수 있음. PapaParse + `header:
 
 ```
 sales-report/
-├── sales.csv                  # 매월 교체
-├── target.csv                 # 매월 (또는 분기) 목표 갱신
+├── sales.csv                  # 로컬 개발용 (프로덕션은 BigQuery)
+├── target.csv                 # 매월 (또는 분기) 목표 갱신 (CSV 유지)
 ├── plan.md                    # 상세 기획안
 ├── CLAUDE.md                  # 본 문서
+├── wrangler.toml              # Cloudflare Pages 설정 (v4)
+├── open-next.config.ts        # @opennextjs/cloudflare 설정 (v4)
+├── middleware.ts              # 인증 미들웨어 (v4)
+├── .env.local.example         # 환경변수 템플릿 (v4)
 ├── insights/YYYY-MM.md        # (선택) 사람이 작성하는 월별 코멘트
 ├── config/mappings.ts         # 모든 분류 매핑 (단일 소스)
 ├── lib/                       # 데이터 파이프라인
-│   ├── load.ts                # sales.csv 파서 + 캐시 + 큐브 빌드 트리거
+│   ├── load.ts                # async 데이터 로드 API (제공자 위임, v4)
+│   ├── parsers.ts             # 순수 파싱 함수 (v4, load.ts에서 분리)
+│   ├── serialization.ts       # FactCube 직렬화/역직렬화 (v4)
+│   ├── data-provider.ts       # DataProvider 인터페이스 (v4)
+│   ├── auth.ts                # Auth.js v5 + Google OAuth 설정 (v4)
+│   ├── providers/             # 데이터 제공자 구현체 (v4)
+│   │   ├── csv-provider.ts    # CSV 기반 (개발)
+│   │   ├── kv-provider.ts     # Cloudflare KV 기반 (프로덕션)
+│   │   └── index.ts           # 제공자 선택 로직
 │   ├── facts.ts               # 월별 차원별 사전 집계 큐브 (v3)
-│   ├── targets.ts             # target.csv 파서 + 매칭 규칙
-│   ├── changeAttribution.ts   # 변화 요인 분석 (워터폴)
-│   ├── format.ts              # 한국식 숫자 포맷
-│   ├── labels.ts              # 한국어 라벨 상수
+│   ├── targets.ts             # target.csv 파서 + 매칭 규칙 (async, v4)
+│   ├── months.ts              # 월 목록 / 기준월 (async, v4)
 │   ├── aggregate.ts           # KPI/그룹 집계
 │   ├── compare.ts             # 전월/전분기/전년 헬퍼
+│   ├── changeAttribution.ts   # 변화 요인 분석 (워터폴)
+│   ├── format.ts / labels.ts  # 한국식 숫자 포맷 / 한국어 라벨
 │   ├── dimensions.ts          # 탭별 차원 집계
-│   ├── insights.ts            # 심층 분석 페이지의 자동 통계 (구 v2 인사이트)
+│   ├── insights.ts            # 심층 분석 페이지의 자동 통계
 │   ├── accountAnalysis.ts     # 거래처 심층 분석 (v3)
 │   ├── dealerAnalysis.ts      # 딜러 심층 분석 (v3)
-│   ├── tabInsights.ts         # 탭 상단 자동 인사이트 휴리스틱 (v3)
-│   └── months.ts              # 월 목록 / 기이번달
-├── app/                       # 페이지 (10탭)
+│   └── tabInsights.ts         # 탭 상단 자동 인사이트 휴리스틱 (v3)
+├── app/                       # 페이지 (9탭 + 로그인)
+│   ├── layout.tsx             # 탭 네비 + 사용자 정보/로그아웃
 │   ├── page.tsx (종합) / targets / b2b / b2c
-│   ├── duty-free / brand / accounts (v3) / changes / insights
+│   ├── duty-free / brand / accounts / changes / insights
+│   ├── login/page.tsx         # Google 로그인 페이지 (v4)
+│   ├── api/auth/[...nextauth] # NextAuth API 라우트 (v4)
 │   └── */loading.tsx          # 라우트별 스켈레톤 (v3)
-├── components/
-│   ├── ui/                    # shadcn primitives (card, badge, tabs, ...)
-│   ├── charts/                # ECharts wrapper들
-│   ├── MetricCard / TargetGauge / ChangeBreakdown / DataTable
-│   ├── MonthSelect / BrandSelect / TabNav / PrintButton
-│   ├── TabInsights (v3)       # 탭 상단 자동 인사이트 카드
-│   ├── AccountHighlights (v3) # 거래처 변동 하이라이트 묶음 (종합/B2B용)
-│   ├── CustomerSelect (v3)    # 거래처 검색형 셀렉터
-│   └── Skeleton (v3)          # PageSkeleton/ChartSkeleton/TableSkeleton
-└── scripts/                   # check-mappings (target 매칭 점검 포함)
+├── components/                # (v3과 동일)
+│   ├── ui/ / charts/ / MetricCard / DataTable / TabInsights 등
+└── scripts/
+    ├── check-mappings.ts      # 매월 정합성 검사 (로컬 CSV용)
+    ├── sync-data.ts           # BigQuery → Cloudflare KV 동기화 (v4)
+    └── snapshot.ts            # 정적 HTML 추출
 ```
 
 ---
@@ -283,11 +299,14 @@ sales-report/
 - [ ] 원가 #N/A를 0으로 처리하지 않았나? (NaN으로 처리하고 GP 계산에서 제외)
 - [ ] YoY 비교 시 전년 동월이 데이터에 있는지 확인했나? (없으면 "신규")
 - [ ] 새 채널을 임의로 "기타"에 넣지 않았나?
-- [ ] 화면 단위가 백만원으로 일관되어 있나? (`formatKRWLong`/`formatKRW`/`formatKRWShort` 만 사용)
+- [ ] 화면 단위가 일관되는가? (`formatKRWLong`/`formatKRW`/`formatKRWShort` 만 사용)
 - [ ] 새 분석 함수가 raw rows 전체 스캔을 하고 있지 않나? (큐브 사용)
 - [ ] 새 페이지 추가 시 `loading.tsx` 만들었나?
 - [ ] 새 탭에 `<TabInsights bullets={...} />` 상단 삽입했나?
 - [ ] 거래처명을 표시할 때 `/accounts?customer=XXX&month=YYYY-MM` 링크 걸었나?
+- [ ] 데이터 로드 함수에 `await` 를 빠뜨리지 않았나? (모든 load 함수는 async)
+- [ ] 새 lib 함수에서 `fs` 모듈을 직접 import하지 않았나? (프로덕션 Workers에서 사용 불가, 제공자 패턴 사용)
+- [ ] `SalesRow` 타입을 `@/lib/parsers` 또는 `@/lib/load`에서 import했나? (둘 다 가능)
 
 ---
 
@@ -296,4 +315,9 @@ sales-report/
 - 기획 상세: `plan.md`
 - 데이터 기간: 2023-07 ~ 현재 (매월 갱신)
 - 첫 보고 기준월: **2026-04**
+- 데이터 소스: Google BigQuery (프로덕션) / `sales.csv` (로컬 개발)
+- 배포: Cloudflare Pages + @opennextjs/cloudflare
+- 인증: Auth.js v5 + Google OAuth (`@baquero.co.kr` 전용)
+- 환경변수 템플릿: `.env.local.example`
+- v4 변경: CSV→BigQuery, 로컬→Cloudflare 배포, Google Workspace 인증 추가
 - v3 변경 커밋: `4a20046` (거래처/딜러 심층 + 탭 자동 인사이트 + 팩트 큐브)

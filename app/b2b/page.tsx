@@ -1,9 +1,7 @@
-import { loadSalesRows, loadFactCube } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   kpi,
-  filterMonth,
-  filterRange,
   ymMinusMonths,
   monthlyRevenueOf,
 } from "@/lib/aggregate";
@@ -71,23 +69,24 @@ function typeToTargetKey(type: string): string | null {
 
 export default async function B2BPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const ym = resolveMonth(sp.month);
-  const all = loadSalesRows();
-  const cube = loadFactCube();
-  const targets = loadTargets();
+  const ym = await resolveMonth(sp.month);
+  const { qStart } = quarterOf(ym);
+  const prevQ = prevQuarter(ym);
+  const qProg = quarterProgress(ym);
+
+  const [cube, targets, cur, prevMo, prevYr, curQ, prevQRows] = await Promise.all([
+    loadFactCube(),
+    loadTargets(),
+    loadMonthRows(ym),
+    loadMonthRows(prevMonth(ym)),
+    loadMonthRows(prevYearSameMonth(ym)),
+    loadRangeRows(qStart, ym),
+    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+  ]);
   const insights = computeB2BInsights(cube, ym);
   const dealerBoardRows = dealerBoard(cube, ym, 6);
   const dealerChurnRows = dealerCustomerChurn(cube, ym, 3);
   const dealerQRows = dealerQuarterCompare(cube, ym);
-
-  const cur = filterMonth(all, ym);
-  const prevMo = filterMonth(all, prevMonth(ym));
-  const prevYr = filterMonth(all, prevYearSameMonth(ym));
-  const { qStart } = quarterOf(ym);
-  const prevQ = prevQuarter(ym);
-  const curQ = filterRange(all, qStart, ym);
-  const prevQRows = filterRange(all, prevQ.qStart, prevQ.qEnd);
-  const qProg = quarterProgress(ym);
 
   const k = kpi(b2bRows(cur));
   const kPrevMo = kpi(b2bRows(prevMo));
@@ -136,11 +135,12 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
 
   // 거래처유형 12개월 추이
   const fromYM = ymMinusMonths(ym, 11);
+  const rangeRows12 = await loadRangeRows(fromYM, ym);
   const typeKeys = byType.map((t) => t.type);
   const typeMonthlySeries = typeKeys.map((t) => ({
     type: t,
     series: monthlyRevenueOf(
-      all,
+      rangeRows12,
       fromYM,
       ym,
       (r) => r.category === "B2B" && r.b2bCustomerType === t,
@@ -151,8 +151,8 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   // 영업사원 × 거래처유형
   const matrix = dealerCustomerTypeMatrix(cur);
 
-  // 신규/이탈
-  const { newOnes, lost } = b2bNewLost(all, ym);
+  // 신규/이탈 (rangeRows12 covers 12 months — b2bNewLost needs 6 months back)
+  const { newOnes, lost } = b2bNewLost(rangeRows12, ym);
 
   // B2B 브랜드
   const brandRev = b2bBrandRevenue(cur);
@@ -189,7 +189,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         series={ytdDealerSeries(cube, ym, 5)}
         caption="영업사원 Top 5 + 기타 (0원 사원 제외)"
         achievement={ytdAchievementForCustomerKeys(
-          all,
+          rangeRows12,
           targets,
           ym,
           ["병원", "피부관리실", "대리점"],

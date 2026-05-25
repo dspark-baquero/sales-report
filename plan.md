@@ -1,22 +1,25 @@
-# 바크로 월별 매출 보고서 — 기획안 v3.0
+# 바크로 월별 매출 보고서 — 기획안 v4.0
 
 ## 0. 한 줄 요약
-`sales.csv` (매출 raw) + `target.csv` (월별 목표)를 입력으로 받아 **매월 임원 보고용 다각도 분석 대시보드**를 생성하는 Next.js + ECharts + shadcn 로컬 웹 앱. URL 쿼리(`?month=2026-04`)로 보고월을 바꿔 동일 규격을 매달 재사용. **2026-04를 기준월**로 첫 빌드.
+Google BigQuery (매출 데이터) + `target.csv` (월별 목표)를 입력으로 받아 **매월 임원 보고용 다각도 분석 대시보드**를 Cloudflare Pages에서 서비스하는 Next.js + ECharts + shadcn 웹 앱. Google Workspace 인증(@baquero.co.kr)으로 접근 제한. URL 쿼리(`?month=2026-04`)로 보고월을 바꿔 동일 규격을 매달 재사용. **2026-04를 기준월**로 첫 빌드.
+
+### v4 vs v3 핵심 차이
+
+- **클라우드 데이터** — `sales.csv` 로컬 파일 → Google BigQuery. `scripts/sync-data.ts`가 BigQuery → Cloudflare KV 사전 동기화. 런타임 BigQuery 호출 없음.
+- **Cloudflare Pages 배포** — @opennextjs/cloudflare로 Next.js SSR을 Cloudflare Workers에서 실행. `npm run deploy`.
+- **Google Workspace 인증** — Auth.js v5 + Google OAuth. `@baquero.co.kr` 전용. 비로그인 시 `/login` 리다이렉트.
+- **비동기 데이터 레이어** — 모든 load 함수 async. `DataProvider` 패턴 (CSV dev / KV prod). `loadSalesRows()` → `loadMonthRows(ym)` 월별 로드.
+- **파싱 로직 분리** — `lib/parsers.ts` + `lib/serialization.ts` 신규.
 
 ### v3 vs v2 핵심 차이
 
-- **탭 10개** (v2: 9개) — 신규 **거래처 분석** 탭 추가, **인사이트 → 심층 분석** 으로 재포지셔닝.
-- **거래처/딜러 심층 분석** — 동면 복귀 / 분기 절벽 / 상실된 핵심 거래처 / 신규 진입 자동 감지. 거래처 1곳 또는 2곳 비교. B2B 탭에 영업사원 6개월 sparkline + 신규/이탈 거래처.
-- **모든 탭 상단에 자동 인사이트** — 휴리스틱 기반 한국어 불릿 (예: "네이버 스마트스토어 +150%", "롯데면세점 -32%"). LLM 없음.
-- **사람 코멘트는 선택** — `/insights` 페이지 하단에만 노출, 없으면 자동 분석만.
-- **구조적 성능** — `lib/facts.ts` 가 CSV 로드 시 모든 차원 사전 집계(팩트 큐브). 모든 라우트에 `loading.tsx` (탭 전환 즉시 스켈레톤).
+- 거래처/딜러 심층 분석 — `/accounts` 탭 + 동면 복귀 / 분기 절벽 / 상실된 핵심 거래처.
+- 모든 탭 상단에 자동 인사이트 — 휴리스틱 기반 한국어 불릿. LLM 없음.
+- 구조적 성능 — 팩트 큐브. 모든 라우트에 `loading.tsx`.
 
 ### v2 vs v1 차이 (참고)
 
-- 9개 탭 (종합·목표 달성·수출·B2B·B2C·면세점·브랜드 분석·변동 분석·인사이트)
-- target.csv 통합으로 이번달/분기 목표 달성률을 핵심지표 카드와 매트릭스에 노출
-- 모든 라벨 한국어 (영어 약자 제거), 비교는 절대값+차이금액+변화율 동시 표시
-- "왜 늘었나/줄었나" 변화 요인 워터폴 차트 + 신규/이탈 거래처 + 신제품 효과 분석
+- target.csv 통합, 한국어 라벨, 변화 요인 워터폴
 
 ---
 
@@ -24,19 +27,36 @@
 
 | 영역 | 선택 | 이유 |
 |---|---|---|
-| 프레임워크 | **Next.js 15 (App Router)** | Server Component로 CSV 집계를 요청 시점에 끝내고, 클라이언트는 차트만 렌더 |
+| 프레임워크 | **Next.js 16 (App Router)** | Server Component로 데이터 집계를 요청 시점에 끝내고, 클라이언트는 차트만 렌더 |
 | 차트 | **Apache ECharts + echarts-for-react** | 워터폴/트리맵/히트맵/게이지 등 풍부, 한국어 툴팁/폰트, Apache 2.0 무료 |
-| UI | **shadcn/ui (Radix) + Tailwind 3** | 카드/탭/배지/셀렉트/툴팁 폴리시 |
+| UI | **shadcn/ui (Radix) + Tailwind 4** | 카드/탭/배지/셀렉트/툴팁 폴리시 |
 | 표 | **TanStack Table** | 정렬/검색/페이지/sticky 헤더 |
-| 데이터 처리 | Node 단에서 **PapaParse + 자체 집계 + 팩트 큐브** | 외부 의존 최소, sales.csv를 한 번 파싱하고 모든 차원을 사전 집계 → 모든 화면 공유 |
-| 실행 | `npm run dev` → http://localhost:3000 | 매달: `sales.csv` + `target.csv` 교체 → 새로고침 |
-| 스냅샷 | `npm run snapshot -- 2026-04` → 단일 HTML | 임원 회람용 |
+| 데이터 소스 | **Google BigQuery** (프로덕션) / `sales.csv` (개발) | BigQuery로 데이터 관리 일원화. 로컬 개발은 CSV 유지 |
+| 데이터 캐시 | **Cloudflare KV** | sync 스크립트가 BigQuery → KV 사전 동기화. 런타임 BigQuery 호출 없음 |
+| 데이터 처리 | **팩트 큐브** (`lib/facts.ts`) | 모든 차원 사전 집계 → 모든 화면 공유. sync 시점에 빌드 |
+| 인증 | **Auth.js v5 + Google OAuth** | @baquero.co.kr 도메인 전용. JWT 세션 (DB 불필요) |
+| 배포 | **Cloudflare Pages** + @opennextjs/cloudflare | `npm run deploy` 한 줄. Workers에서 Next.js SSR 실행 |
+| 개발 | `npm run dev` → http://localhost:3000 | 로컬 CSV 모드. 기존과 동일 |
 
 ---
 
 ## 2. 데이터 파이프라인
 
+### 2.0 데이터 흐름 (v4)
+
+```
+BigQuery ──sync-data.ts──→ Cloudflare KV ──kv-provider──→ Next.js SSR ──→ 사용자
+                                                          (Cloudflare Workers)
+target.csv ──sync-data.ts──→ Cloudflare KV ──→ (위와 동일)
+
+[로컬 개발]
+sales.csv ──csv-provider──→ Next.js dev server
+target.csv ──targets.ts──→ (위와 동일)
+```
+
 ### 2.1 원본 컬럼 (17개)
+BigQuery 테이블과 `sales.csv` (로컬 개발) 모두 동일한 한국어 컬럼명:
+
 `채널, 날짜, 주문번호, 제품명, 품목코드, 판매수량, 실 매출, 주문금액, 할인금액, 수수료, 배송비, 정산금액, 딜러, 거래처, 거래처 사업형태, 원가, 브랜드`
 
 ### 2.2 정제 규칙
@@ -77,7 +97,7 @@ CSV 로드와 동시에 **모든 차원 사전 집계** 빌드. 페이지가 raw
 
 **메타**: `monthsAsc` / `customers/dealers/brands/channels/countries` Set / `customerToCategory|Brand|Dealer` (전체 기간 매출 최대 기준 대표값)
 
-**규약**: 신규 분석/인사이트 코드는 `loadFactCube()` 직접 사용. 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 한 달치 raw 한 번 스캔으로 처리. 전체 raw 스캔 금지.
+**규약**: 신규 분석/인사이트 코드는 `await loadFactCube()` 직접 사용. 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 `await loadMonthRows(ym)` → filter로 한 달치 한 번 스캔. 전체 raw 스캔 금지. 프로덕션에서 `buildFactCube()`는 sync 스크립트에서만 호출 — 런타임에는 KV에서 직렬화된 큐브 로드 (`lib/serialization.ts`).
 
 ---
 
@@ -463,79 +483,59 @@ LLM 사용 금지. 결정적 규칙으로 노이즈 없는 한국어 불릿 5~7�
 
 ## 9. 매월 운영 워크플로우
 
-1. **데이터 교체**: `sales.csv` (필요 시 `target.csv`)를 최신 파일로 덮어쓰기
-2. **자동 검증**: `npm run check` → 매핑 누락 채널/브랜드/사업형태 경고
-3. **(선택) 사람 코멘트 추가**: `insights/2026-05.md` 생성, 자동 분석으로 잡히지 않는 맥락만 기록
-4. **보고서 출력**: 브라우저에서 `?month=2026-05` → 인쇄 또는 `npm run snapshot -- 2026-05`
+1. **BigQuery에 데이터 업로드**: 영업관리 시스템 export → BigQuery 테이블 업로드
+2. **데이터 동기화**: `npm run sync-data` → BigQuery → Cloudflare KV (FactCube + 월별 raw rows + target.csv)
+3. **(선택) target.csv 갱신**: 목표 변경 시 target.csv 수정 후 sync-data 재실행
+4. **(선택) 사람 코멘트**: `insights/2026-05.md` 생성, 자동 분석으로 잡히지 않는 맥락만 기록
+5. **배포**: `npm run deploy` → Cloudflare Pages 배포
+6. **확인**: `https://{도메인}?month=2026-05` — Google 로그인 후 확인
 
-새 채널/거래처가 등장해도 코드 수정 없이 자동 분류:
-- 채널: 화이트리스트 매핑 → 미매칭은 자동으로 "기타"로 떨어지되 경고
-- 거래처: 패턴(`해외 (XXX)`, `병원`, `피부관리실`) 우선
+**로컬 개발 시**: `npm run check` (매핑 검증, 로컬 CSV 대상) → `npm run dev`
 
 ---
 
-## 10. 디렉토리 구조 (v3)
+## 10. 디렉토리 구조 (v4)
 
 ```
 sales-report/
-├── sales.csv                      # 매월 갱신
-├── target.csv                     # 매월 (또는 분기) 갱신
-├── plan.md
-├── CLAUDE.md
-├── package.json
-├── next.config.ts
-├── tailwind.config.ts
+├── sales.csv                      # 로컬 개발용 (프로덕션은 BigQuery)
+├── target.csv                     # 매월 (또는 분기) 갱신 (CSV 유지)
+├── plan.md / CLAUDE.md
+├── wrangler.toml                  # Cloudflare Pages 설정 (v4)
+├── open-next.config.ts            # @opennextjs/cloudflare 설정 (v4)
+├── middleware.ts                  # 인증 미들웨어 (v4)
+├── .env.local.example             # 환경변수 템플릿 (v4)
 ├── insights/
 │   └── 2026-04.md                 # (선택) 월별 사람 코멘트
 ├── config/
 │   └── mappings.ts                # 채널/브랜드/국가 매핑 (단일 소스)
 ├── lib/
-│   ├── load.ts                    # CSV 파싱 + 캐시 + 큐브 빌드 트리거
-│   ├── facts.ts                   # 월별 차원별 사전 집계 큐브 (v3)
-│   ├── targets.ts                 # target.csv 파서 + 매칭 규칙
-│   ├── changeAttribution.ts       # 변화 요인 분석 (워터폴)
-│   ├── format.ts                  # 한국식 숫자 포맷
-│   ├── labels.ts                  # 한국어 라벨 상수
-│   ├── aggregate.ts               # KPI/그룹 집계 함수
-│   ├── compare.ts                 # 전월/전분기/전년 헬퍼
-│   ├── dimensions.ts              # 탭별 차원 집계 함수
-│   ├── insights.ts                # 심층 분석 페이지의 자동 통계
-│   ├── accountAnalysis.ts         # 거래처 심층 분석 (v3)
-│   ├── dealerAnalysis.ts          # 딜러 심층 분석 (v3)
-│   ├── tabInsights.ts             # 탭 상단 자동 인사이트 휴리스틱 (v3)
-│   └── months.ts                  # 월 목록 / 기준월
+│   ├── load.ts                    # async 데이터 로드 API (제공자 위임, v4)
+│   ├── parsers.ts                 # 순수 파싱 함수 (v4)
+│   ├── serialization.ts           # FactCube 직렬화/역직렬화 (v4)
+│   ├── data-provider.ts           # DataProvider 인터페이스 (v4)
+│   ├── auth.ts                    # Auth.js v5 + Google OAuth (v4)
+│   ├── providers/                 # 데이터 제공자 (v4)
+│   │   ├── csv-provider.ts        # CSV 기반 (개발)
+│   │   ├── kv-provider.ts         # Cloudflare KV 기반 (프로덕션)
+│   │   └── index.ts
+│   ├── facts.ts                   # 팩트 큐브 (v3)
+│   ├── targets.ts                 # target.csv 파서 + 매칭 (async, v4)
+│   ├── months.ts                  # 월 목록 / 기준월 (async, v4)
+│   ├── aggregate.ts / compare.ts / format.ts / labels.ts
+│   ├── changeAttribution.ts / dimensions.ts / insights.ts
+│   ├── accountAnalysis.ts / dealerAnalysis.ts / tabInsights.ts
+│   └── ytd.ts
 ├── app/
-│   ├── layout.tsx                 # 탭 네비
-│   ├── loading.tsx                # 루트 로딩 스켈레톤 (v3)
-│   ├── page.tsx                   # Tab 1 종합
-│   ├── targets/page.tsx           # Tab 2 목표 달성
-│   ├── export/page.tsx            # Tab 3 수출
-│   ├── b2b/page.tsx               # Tab 4 B2B
-│   ├── b2c/page.tsx               # Tab 5 B2C
-│   ├── duty-free/page.tsx         # Tab 6 면세점
-│   ├── brand/page.tsx             # Tab 7 브랜드 분석
-│   ├── accounts/page.tsx          # Tab 8 거래처 분석 (v3 신규)
-│   ├── changes/page.tsx           # Tab 9 변동 분석
-│   ├── insights/page.tsx          # Tab 10 심층 분석 (구 인사이트)
-│   └── */loading.tsx              # 모든 라우트별 스켈레톤 (v3)
-├── components/
-│   ├── ui/                        # shadcn primitives
-│   ├── charts/                    # ECharts wrapper들
-│   ├── MetricCard.tsx
-│   ├── TargetGauge.tsx
-│   ├── AnnualProgressCard.tsx
-│   ├── ChangeBreakdown.tsx
-│   ├── DataTable.tsx
-│   ├── MonthSelect.tsx
-│   ├── BrandSelect.tsx
-│   ├── CustomerSelect.tsx         # v3 신규 (검색형 거래처 셀렉터)
-│   ├── TabNav.tsx
-│   ├── PrintButton.tsx
-│   ├── TabInsights.tsx            # v3 신규 (탭 상단 인사이트 카드)
-│   ├── AccountHighlights.tsx      # v3 신규 (거래처 변동 하이라이트)
-│   └── Skeleton.tsx               # v3 신규 (PageSkeleton/Chart/Table)
+│   ├── layout.tsx                 # 탭 네비 + 사용자 정보/로그아웃 (v4)
+│   ├── login/page.tsx             # Google 로그인 (v4)
+│   ├── api/auth/[...nextauth]/    # NextAuth API (v4)
+│   ├── page.tsx ... insights/     # 9개 탭
+│   └── */loading.tsx              # 스켈레톤
+├── components/                    # (v3과 동일)
 └── scripts/
     ├── check-mappings.ts          # 매월 정합성 검사
+    ├── sync-data.ts               # BigQuery → KV 동기화 (v4)
     └── snapshot.ts                # 정적 HTML 추출
 ```
 
@@ -555,6 +555,7 @@ sales-report/
 
 ## 12. 변경 이력
 
-- **v3.0** (2026-05): 거래처 분석 탭 + 탭 자동 인사이트 + 팩트 큐브 + loading.tsx 추가. 인사이트 → 심층 분석 재포지셔닝. 사람 코멘트는 선택. 커밋 `4a20046`.
+- **v4.0** (2026-05): CSV → BigQuery 데이터 소스 전환. 로컬 → Cloudflare Pages 배포. Google Workspace 인증 추가. 비동기 DataProvider 패턴. `parsers.ts` / `serialization.ts` / `sync-data.ts` / `auth.ts` 신규.
+- **v3.0** (2026-05): 거래처 분석 탭 + 탭 자동 인사이트 + 팩트 큐브 + loading.tsx 추가. 커밋 `4a20046`.
 - **v2.0**: 9개 탭 / target.csv 통합 / 한국어 라벨 / 변화 요인 워터폴.
 - **v1.0**: 6개 탭 초기 빌드.

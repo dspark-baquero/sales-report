@@ -31,3 +31,9 @@ npm-debug.log*
 
 # Playwright MCP 캡쳐
 /.playwright-mcp/
+
+# Cloudflare
+.open-next/
+.wrangler/
+wrangler_out.txt
+wrangler_err.txt
