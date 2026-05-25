@@ -67,17 +67,6 @@ let targetCache: TargetRow[] | null = null;
 export async function loadTargets(): Promise<TargetRow[]> {
   if (targetCache) return targetCache;
 
-  if (process.env.DATA_PROVIDER === "kv") {
-    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
-    const ctx = await getCloudflareContext();
-    const kv = (ctx.env as Record<string, { get(key: string): Promise<string | null> }>).SALES_DATA;
-    const text = await kv.get("sales:targets");
-    if (!text) return [];
-    targetCache = parseTargetCSV(text);
-    return targetCache;
-  }
-
-  // CSV 모드 (개발)
   const fs = await import("fs");
   const path = await import("path");
   const Papa = await import("papaparse");
