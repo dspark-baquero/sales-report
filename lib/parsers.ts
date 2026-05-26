@@ -4,6 +4,7 @@ import {
   brandHouse,
   isNonRevenueBiz,
   b2bCustomerType,
+  extractCountry,
   type Category,
   type ChannelGroup,
   type BrandHouse,
@@ -82,9 +83,6 @@ export function parseRow(r: Record<string, string>): SalesRow | null {
   const dealer = (r["딜러"] || "").trim() || "미지정";
   const realRevenue = parseNum(r["실 매출"]);
   const cat = category(channel);
-
-  if (cat === "수출") return null;
-
   const isNonRev = isNonRevenueBiz(bizType) || realRevenue === 0;
   const costVal = parseCost(r["원가"]);
 
@@ -111,7 +109,7 @@ export function parseRow(r: Record<string, string>): SalesRow | null {
     channelGroup: channelGroup(channel),
     brandHouse: brandHouse(brand),
     isNonRevenue: isNonRev,
-    country: null,
+    country: cat === "수출" ? extractCountry(bizType) : null,
     b2bCustomerType: cat === "B2B" ? b2bCustomerType(bizType) : null,
     gp: costVal !== null ? realRevenue - costVal : null,
   };
