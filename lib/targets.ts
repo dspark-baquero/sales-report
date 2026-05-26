@@ -57,7 +57,6 @@ export async function loadTargets(): Promise<TargetRow[]> {
     const targetRaw = raw.target_amount;
 
     if (!brand || !division || !customerKey || !monthRaw) continue;
-    if (division === "해외") continue;
     const yearMonth = toYearMonth(monthRaw);
     if (!yearMonth) continue;
 
@@ -66,7 +65,7 @@ export async function loadTargets(): Promise<TargetRow[]> {
         ? targetRaw
         : parseAmount(String(targetRaw ?? ""));
 
-    rows.push({ brand, division: "국내", customerKey, yearMonth, target });
+    rows.push({ brand, division: division as Division, customerKey, yearMonth, target });
   }
 
   console.log(`[targets] ${rows.length} target rows loaded from BigQuery`);

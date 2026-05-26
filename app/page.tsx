@@ -80,7 +80,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const rangeRows12 = await loadRangeRows(fromYM, ym);
   const stack = monthlyByCategory(rangeRows12, fromYM, ym);
   const months = stack.map((s) => s.yearMonth);
-  const categories: ("B2B" | "B2C" | "면세점")[] = ["B2B", "B2C", "면세점"];
+  const categories: ("B2B" | "B2C" | "면세점" | "수출")[] = ["B2B", "B2C", "면세점", "수출"];
 
   // 일별 누적
   const cumCur = dailyCumulative(cur);
@@ -144,12 +144,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       <YearToDateChart
         ym={ym}
         series={ytdCategorySeries(cube, ym)}
-        caption="대분류별 (B2B / B2C / 면세점) 스택"
+        caption="대분류별 (B2B / B2C / 면세점 / 수출) 스택"
         achievement={ytdAchievementOverall(rangeRows12, targets, ym)}
-        achievementLabel="전체 국내 (B2B + B2C + 면세점)"
+        achievementLabel="전체 (B2B + B2C + 면세점 + 수출)"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <MetricCard
           label="전체 실매출"
           current={k.revenue}
@@ -189,6 +189,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             { label: COMPARE_LABEL.prevYear, prev: catPrevYr["면세점"] },
           ]}
         />
+        <MetricCard
+          label="수출 실매출"
+          current={catCur["수출"]}
+          comparisons={[
+            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["수출"] },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["수출"] },
+          ]}
+        />
       </div>
 
       <ChangeBreakdown
@@ -198,7 +206,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         contribs={catContribs}
         topN={4}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="카테고리(B2B/B2C/면세점) 단위 분해"
+        hint="카테고리(B2B/B2C/면세점/수출) 단위 분해"
       />
 
       <ChangeBreakdown

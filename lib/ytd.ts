@@ -25,7 +25,7 @@ export function ytdMonthLabels(ym: string): string[] {
 
 // ── 표준 차원 시리즈 ─────────────────────────────────────
 
-const CATEGORY_ORDER: Category[] = ["B2B", "B2C", "면세점"];
+const CATEGORY_ORDER: Category[] = ["B2B", "B2C", "면세점", "수출"];
 
 export function ytdCategorySeries(cube: FactCube, ym: string): YTDSeries[] {
   const months = ytdMonths(ym);

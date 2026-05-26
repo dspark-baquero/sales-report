@@ -434,6 +434,38 @@ export function computeExportInsights(cube: FactCube, ym: string): InsightBullet
   return rankBullets(out).slice(0, 6);
 }
 
+// ── 대리점 탭 ──────────────────────────────────────────
+export function computeAgencyInsights(cube: FactCube, ym: string): InsightBullet[] {
+  const prevYM = prevMonth(ym);
+  const out: InsightBullet[] = [];
+
+  const curCells = cubeMonthB2bTypeCells(cube, ym);
+  const prevCells = cubeMonthB2bTypeCells(cube, prevYM);
+  const curRev = curCells.get("대리점")?.revenue ?? 0;
+  const prevRev = prevCells.get("대리점")?.revenue ?? 0;
+  const tb = totalChangeBullet(curRev, prevRev, "전월", "대리점 전체");
+  if (tb) out.push(tb);
+
+  const allCustCur = cubeMonthCustomerCells(cube, ym);
+  const allCustPrev = cubeMonthCustomerCells(cube, prevYM);
+  const agCustCur = new Map<string, { revenue: number }>();
+  const agCustPrev = new Map<string, { revenue: number }>();
+  for (const [c, cell] of allCustCur) {
+    if (cube.customerToB2bType?.get(c) === "대리점") agCustCur.set(c, { revenue: cell.revenue });
+  }
+  for (const [c, cell] of allCustPrev) {
+    if (cube.customerToB2bType?.get(c) === "대리점") agCustPrev.set(c, { revenue: cell.revenue });
+  }
+  out.push(...topMoversFromCells(agCustCur, agCustPrev, {
+    categoryLabel: "대리점 거래처",
+    minAbsDiff: 1_000_000,
+    minPct: 0.15,
+    maxBullets: 4,
+  }));
+
+  return rankBullets(out).slice(0, 6);
+}
+
 // ── 면세점 탭 ──────────────────────────────────────────
 export function computeDutyFreeInsights(cube: FactCube, ym: string): InsightBullet[] {
   const prevYM = prevMonth(ym);

@@ -19,7 +19,7 @@ import {
   quarterProgress,
 } from "@/lib/compare";
 import {
-  b2bRows,
+  b2bNonAgencyRows,
   revenueByCustomerType,
   revenueByDealer,
   dealerCustomerTypeMatrix,
@@ -63,7 +63,6 @@ const TYPE_COLORS: Record<string, string> = {
 function typeToTargetKey(type: string): string | null {
   if (type.startsWith("병원")) return "병원";
   if (type.startsWith("피부관리실")) return "피부관리실";
-  if (type === "대리점") return "대리점";
   return null;
 }
 
@@ -88,27 +87,27 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const dealerChurnRows = dealerCustomerChurn(cube, ym, 3);
   const dealerQRows = dealerQuarterCompare(cube, ym);
 
-  const k = kpi(b2bRows(cur));
-  const kPrevMo = kpi(b2bRows(prevMo));
-  const kPrevYr = kpi(b2bRows(prevYr));
-  const kCurQ = kpi(b2bRows(curQ));
-  const kPrevQ = kpi(b2bRows(prevQRows));
+  const k = kpi(b2bNonAgencyRows(cur));
+  const kPrevMo = kpi(b2bNonAgencyRows(prevMo));
+  const kPrevYr = kpi(b2bNonAgencyRows(prevYr));
+  const kCurQ = kpi(b2bNonAgencyRows(curQ));
+  const kPrevQ = kpi(b2bNonAgencyRows(prevQRows));
 
-  // B2B 전체 목표 (병원+피부관리실+대리점, 모든 브랜드)
+  // B2B 전체 목표 (병원+피부관리실, 대리점 제외)
   const ta = targetsForMonthWithProspective(targets, ym);
   const b2bTarget = ta
-    .filter((t) => ["병원", "피부관리실", "대리점"].includes(t.customerKey) && !t.prospective)
+    .filter((t) => ["병원", "피부관리실"].includes(t.customerKey) && !t.prospective)
     .reduce((s, t) => s + t.target, 0);
 
-  // 거래처 유형별
-  const byType = revenueByCustomerType(cur);
-  const byTypePrevMo = new Map(revenueByCustomerType(prevMo).map((t) => [t.type, t.revenue]));
+  // 거래처 유형별 (대리점 제외)
+  const byType = revenueByCustomerType(cur, { excludeAgency: true });
+  const byTypePrevMo = new Map(revenueByCustomerType(prevMo, { excludeAgency: true }).map((t) => [t.type, t.revenue]));
 
   // 유형별 목표 (target.csv는 그룹 기준 — "병원" 합계로 매칭)
   const typeTargetByGroup = new Map<string, number>();
   for (const t of ta) {
     if (t.prospective) continue;
-    if (["병원", "피부관리실", "대리점"].includes(t.customerKey)) {
+    if (["병원", "피부관리실"].includes(t.customerKey)) {
       typeTargetByGroup.set(
         t.customerKey,
         (typeTargetByGroup.get(t.customerKey) ?? 0) + t.target,
@@ -116,20 +115,20 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
     }
   }
 
-  // 영업사원 (0원 제외)
-  const byDealerCur = revenueByDealer(cur).filter((d) => d.revenue > 0);
-  const dealerPrevMo = new Map(revenueByDealer(prevMo).map((d) => [d.dealer, d.revenue]));
-  const dealerPrevYr = new Map(revenueByDealer(prevYr).map((d) => [d.dealer, d.revenue]));
-  const dealerCurQ = new Map(revenueByDealer(curQ).map((d) => [d.dealer, d.revenue]));
+  // 영업사원 (0원 제외, 대리점 제외)
+  const byDealerCur = revenueByDealer(cur, { excludeAgency: true }).filter((d) => d.revenue > 0);
+  const dealerPrevMo = new Map(revenueByDealer(prevMo, { excludeAgency: true }).map((d) => [d.dealer, d.revenue]));
+  const dealerPrevYr = new Map(revenueByDealer(prevYr, { excludeAgency: true }).map((d) => [d.dealer, d.revenue]));
+  const dealerCurQ = new Map(revenueByDealer(curQ, { excludeAgency: true }).map((d) => [d.dealer, d.revenue]));
 
   const activeCustomers = new Set(
     cur
-      .filter((r) => r.category === "B2B" && !r.isNonRevenue && r.realRevenue > 0)
+      .filter((r) => r.category === "B2B" && r.b2bCustomerType !== "대리점" && !r.isNonRevenue && r.realRevenue > 0)
       .map((r) => r.customer),
   ).size;
   const activeCustomersPrev = new Set(
     prevMo
-      .filter((r) => r.category === "B2B" && !r.isNonRevenue && r.realRevenue > 0)
+      .filter((r) => r.category === "B2B" && r.b2bCustomerType !== "대리점" && !r.isNonRevenue && r.realRevenue > 0)
       .map((r) => r.customer),
   ).size;
 
@@ -148,26 +147,29 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   }));
   const trendMonths = typeMonthlySeries[0]?.series.map((s) => s.yearMonth) ?? [];
 
-  // 영업사원 × 거래처유형
-  const matrix = dealerCustomerTypeMatrix(cur);
+  // 영업사원 × 거래처유형 (대리점 제외)
+  const matrix = dealerCustomerTypeMatrix(cur, { excludeAgency: true });
 
-  // 신규/이탈 (rangeRows12 covers 12 months — b2bNewLost needs 6 months back)
-  const { newOnes, lost } = b2bNewLost(rangeRows12, ym);
+  // 신규/이탈 (대리점 제외, rangeRows12 covers 12 months)
+  const { newOnes, lost } = b2bNewLost(
+    rangeRows12.filter((r) => r.category === "B2B" && r.b2bCustomerType !== "대리점"),
+    ym,
+  );
 
-  // B2B 브랜드
-  const brandRev = b2bBrandRevenue(cur);
+  // B2B 브랜드 (대리점 제외)
+  const brandRev = b2bBrandRevenue(cur, { excludeAgency: true });
   const brandTotal = brandRev.reduce((s, b) => s + b.revenue, 0);
 
-  // 변화 요인 — 영업사원 단위
+  // 변화 요인 — 영업사원 단위 (대리점 제외)
   const dealerContribs = attributeChange(
-    b2bRows(cur),
-    b2bRows(prevMo),
+    b2bNonAgencyRows(cur),
+    b2bNonAgencyRows(prevMo),
     (r) => r.dealer || null,
   );
-  // 변화 요인 — 거래처 단위
+  // 변화 요인 — 거래처 단위 (대리점 제외)
   const customerContribs = attributeChange(
-    b2bRows(cur),
-    b2bRows(prevMo),
+    b2bNonAgencyRows(cur),
+    b2bNonAgencyRows(prevMo),
     (r) => r.customer || null,
   );
 
@@ -175,7 +177,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} B2B (전문가용)</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} B2B (대리점 제외)</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             영업사원 {byDealerCur.length}명 · 활성 거래처 {formatInt(activeCustomers)}곳
           </p>

@@ -99,10 +99,19 @@ export function b2bRows(rows: SalesRow[]): SalesRow[] {
   return rows.filter((r) => r.category === "B2B");
 }
 
+export function b2bNonAgencyRows(rows: SalesRow[]): SalesRow[] {
+  return rows.filter((r) => r.category === "B2B" && r.b2bCustomerType !== "대리점");
+}
+
+export function b2bAgencyRows(rows: SalesRow[]): SalesRow[] {
+  return rows.filter((r) => r.category === "B2B" && r.b2bCustomerType === "대리점");
+}
+
 // 거래처유형별
-export function revenueByCustomerType(rows: SalesRow[]) {
+export function revenueByCustomerType(rows: SalesRow[], { excludeAgency = false } = {}) {
+  const filtered = excludeAgency ? b2bNonAgencyRows(rows) : b2bRows(rows);
   const m = new Map<string, { revenue: number; orders: Set<string> }>();
-  for (const r of revenueRows(b2bRows(rows))) {
+  for (const r of revenueRows(filtered)) {
     const k = r.b2bCustomerType ?? "기타";
     const cur = m.get(k) ?? { revenue: 0, orders: new Set() };
     cur.revenue += r.realRevenue;
@@ -115,9 +124,10 @@ export function revenueByCustomerType(rows: SalesRow[]) {
 }
 
 // 영업사원별 (B2B 이번달). 0원 사원은 호출자가 필터링.
-export function revenueByDealer(rows: SalesRow[]): { dealer: string; revenue: number; customers: number }[] {
+export function revenueByDealer(rows: SalesRow[], { excludeAgency = false } = {}): { dealer: string; revenue: number; customers: number }[] {
+  const filtered = excludeAgency ? b2bNonAgencyRows(rows) : b2bRows(rows);
   const m = new Map<string, { revenue: number; customers: Set<string> }>();
-  for (const r of revenueRows(b2bRows(rows))) {
+  for (const r of revenueRows(filtered)) {
     const cur = m.get(r.dealer) ?? { revenue: 0, customers: new Set() };
     cur.revenue += r.realRevenue;
     cur.customers.add(r.customer);
@@ -129,14 +139,15 @@ export function revenueByDealer(rows: SalesRow[]): { dealer: string; revenue: nu
 }
 
 // 영업사원 × 거래처유형 매트릭스
-export function dealerCustomerTypeMatrix(rows: SalesRow[]): {
+export function dealerCustomerTypeMatrix(rows: SalesRow[], { excludeAgency = false } = {}): {
   dealers: string[];
   types: string[];
   values: number[][];
 } {
+  const filtered = excludeAgency ? b2bNonAgencyRows(rows) : b2bRows(rows);
   const dMap = new Map<string, Map<string, number>>();
   const typeSet = new Set<string>();
-  for (const r of revenueRows(b2bRows(rows))) {
+  for (const r of revenueRows(filtered)) {
     const t = r.b2bCustomerType ?? "기타";
     typeSet.add(t);
     if (!dMap.has(r.dealer)) dMap.set(r.dealer, new Map());
@@ -163,7 +174,7 @@ export function b2bNewLost(
   rows: SalesRow[],
   ym: string,
 ): { newOnes: { customer: string; revenue: number }[]; lost: { customer: string; prevAvg: number }[] } {
-  const all = revenueRows(b2bRows(rows));
+  const all = revenueRows(b2bRows(rows)); // b2bNewLost는 항상 전체 B2B — 호출자가 pre-filter 가능
   const [y, m] = ym.split("-").map(Number);
   const monthOf = (r: SalesRow) => r.yearMonth;
 
@@ -215,9 +226,10 @@ export function b2bNewLost(
 }
 
 // B2B 브랜드 비중
-export function b2bBrandRevenue(rows: SalesRow[]) {
+export function b2bBrandRevenue(rows: SalesRow[], { excludeAgency = false } = {}) {
+  const filtered = excludeAgency ? b2bNonAgencyRows(rows) : b2bRows(rows);
   const m = new Map<string, number>();
-  for (const r of revenueRows(b2bRows(rows))) {
+  for (const r of revenueRows(filtered)) {
     m.set(r.brand, (m.get(r.brand) ?? 0) + r.realRevenue);
   }
   return [...m.entries()]
