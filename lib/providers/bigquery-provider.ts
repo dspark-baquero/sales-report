@@ -3,6 +3,26 @@ import { parseRow, type SalesRow } from "../parsers";
 import { buildFactCube, type FactCube } from "../facts";
 import type { DataProvider } from "../data-provider";
 
+const BQ_COL_MAP: Record<string, string> = {
+  channel: "채널",
+  date: "날짜",
+  order_number: "주문번호",
+  product_name: "제품명",
+  product_code: "품목코드",
+  quantity: "판매수량",
+  net_sales: "실 매출",
+  order_amount: "주문금액",
+  discount_amount: "할인금액",
+  commission: "수수료",
+  shipping_fee: "배송비",
+  settlement: "정산금액",
+  dealer: "딜러",
+  client: "거래처",
+  client_type: "거래처 사업형태",
+  cost: "원가",
+  brand: "브랜드",
+};
+
 type Cached = {
   cube: FactCube;
   byMonth: Map<string, SalesRow[]>;
@@ -28,10 +48,11 @@ async function ensureLoaded(): Promise<Cached> {
   for (const raw of rawRows) {
     const record: Record<string, string> = {};
     for (const [key, value] of Object.entries(raw)) {
+      const mappedKey = BQ_COL_MAP[key] ?? key;
       if (value != null && typeof value === "object" && "value" in value) {
-        record[key] = String((value as { value: unknown }).value);
+        record[mappedKey] = String((value as { value: unknown }).value);
       } else {
-        record[key] = value != null ? String(value) : "";
+        record[mappedKey] = value != null ? String(value) : "";
       }
     }
     const row = parseRow(record);
