@@ -9,6 +9,7 @@ const TABS = [
   { href: "/export", label: "해외영업" },
   { href: "/b2b", label: "B2B" },
   { href: "/agencies", label: "대리점" },
+  { href: "/baquerohouse", label: "바크로하우스" },
   { href: "/b2c", label: "B2C" },
   { href: "/duty-free", label: "면세점" },
   { href: "/brand", label: "브랜드 분석" },

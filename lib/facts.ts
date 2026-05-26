@@ -158,6 +158,7 @@ export type FactCube = {
   customerToBrand: Map<string, string>;         // 거래처 → 대표 브랜드 (전체 기간 매출 최대)
   customerToDealer: Map<string, string>;        // B2B 거래처 → 담당 딜러 (전체 기간 매출 최대)
   customerToB2bType: Map<string, string>;       // B2B 거래처 → 거래처유형 (병원/피부관리실/대리점/기타)
+  customerToChannel: Map<string, string>;       // 거래처 → 대표 채널 (전체 기간 매출 최대)
 };
 
 function get2D<K1, K2, V>(m: Map<K1, Map<K2, V>>, k1: K1, k2: K2): V | undefined {
@@ -199,6 +200,7 @@ export function buildFactCube(rows: SalesRow[]): FactCube {
     customerToBrand: new Map(),
     customerToDealer: new Map(),
     customerToB2bType: new Map(),
+    customerToChannel: new Map(),
   };
 
   const monthSet = new Set<string>();
@@ -207,6 +209,7 @@ export function buildFactCube(rows: SalesRow[]): FactCube {
   const custBrandSum = new Map<string, Map<string, number>>();
   const custDealerSum = new Map<string, Map<string, number>>();
   const custB2bTypeSum = new Map<string, Map<string, number>>();
+  const custChannelSum = new Map<string, Map<string, number>>();
 
   for (const r of rows) {
     const ym = r.yearMonth;
@@ -301,6 +304,10 @@ export function buildFactCube(rows: SalesRow[]): FactCube {
         const tm = ensure(custB2bTypeSum, r.customer, () => new Map<string, number>());
         tm.set(r.b2bCustomerType, (tm.get(r.b2bCustomerType) ?? 0) + r.realRevenue);
       }
+      if (r.channel) {
+        const chm = ensure(custChannelSum, r.customer, () => new Map<string, number>());
+        chm.set(r.channel, (chm.get(r.channel) ?? 0) + r.realRevenue);
+      }
     }
   }
 
@@ -326,6 +333,11 @@ export function buildFactCube(rows: SalesRow[]): FactCube {
     let best = "", bestV = -1;
     for (const [k, v] of m) if (v > bestV) { best = k; bestV = v; }
     if (best) cube.customerToB2bType.set(c, best);
+  }
+  for (const [c, m] of custChannelSum) {
+    let best = "", bestV = -1;
+    for (const [k, v] of m) if (v > bestV) { best = k; bestV = v; }
+    if (best) cube.customerToChannel.set(c, best);
   }
 
   return cube;

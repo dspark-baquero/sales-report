@@ -237,9 +237,17 @@ export function b2bBrandRevenue(rows: SalesRow[], { excludeAgency = false } = {}
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-// ── B2C ────────────────────────────────────────────────
+// ── 바크로하우스 ───────────────────────────────────────────
+export function baqueroHouseRows(rows: SalesRow[]): SalesRow[] {
+  return rows.filter((r) => r.channel === "바크로하우스");
+}
+
+// ── B2C (바크로하우스 제외) ──────────────────────────────────
 export function b2cRows(rows: SalesRow[], includeDutyFree = false): SalesRow[] {
-  return rows.filter((r) => r.category === "B2C" || (includeDutyFree && r.category === "면세점"));
+  return rows.filter((r) =>
+    (r.category === "B2C" || (includeDutyFree && r.category === "면세점")) &&
+    r.channel !== "바크로하우스",
+  );
 }
 
 export function b2cBrandRevenue(rows: SalesRow[], includeDutyFree = false) {

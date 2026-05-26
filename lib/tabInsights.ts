@@ -434,6 +434,38 @@ export function computeExportInsights(cube: FactCube, ym: string): InsightBullet
   return rankBullets(out).slice(0, 6);
 }
 
+// ── 바크로하우스 탭 ──────────────────────────────────────
+export function computeBaqueroHouseInsights(cube: FactCube, ym: string): InsightBullet[] {
+  const prevYM = prevMonth(ym);
+  const out: InsightBullet[] = [];
+
+  const curCells = cubeMonthChannelCells(cube, ym);
+  const prevCells = cubeMonthChannelCells(cube, prevYM);
+  const curRev = curCells.get("바크로하우스")?.revenue ?? 0;
+  const prevRev = prevCells.get("바크로하우스")?.revenue ?? 0;
+  const tb = totalChangeBullet(curRev, prevRev, "전월", "바크로하우스");
+  if (tb) out.push(tb);
+
+  const allCustCur = cubeMonthCustomerCells(cube, ym);
+  const allCustPrev = cubeMonthCustomerCells(cube, prevYM);
+  const bhCustCur = new Map<string, { revenue: number }>();
+  const bhCustPrev = new Map<string, { revenue: number }>();
+  for (const [c, cell] of allCustCur) {
+    if (cube.customerToChannel?.get(c) === "바크로하우스") bhCustCur.set(c, { revenue: cell.revenue });
+  }
+  for (const [c, cell] of allCustPrev) {
+    if (cube.customerToChannel?.get(c) === "바크로하우스") bhCustPrev.set(c, { revenue: cell.revenue });
+  }
+  out.push(...topMoversFromCells(bhCustCur, bhCustPrev, {
+    categoryLabel: "파트너 샵",
+    minAbsDiff: 500_000,
+    minPct: 0.15,
+    maxBullets: 4,
+  }));
+
+  return rankBullets(out).slice(0, 6);
+}
+
 // ── 대리점 탭 ──────────────────────────────────────────
 export function computeAgencyInsights(cube: FactCube, ym: string): InsightBullet[] {
   const prevYM = prevMonth(ym);
