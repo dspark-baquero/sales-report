@@ -212,9 +212,12 @@ export const TARGET_MATCH_RULES: MatchRule[] = [
   {
     customerKey: "직거래처",
     division: "국내",
-    match: () => () => false,
-    prospective: true,
-    description: "직거래처 — 신규 추진 채널 (실 매출 0)",
+    match: (brand) => (r) =>
+      r.brand === brand &&
+      r.category === "B2B" &&
+      r.b2bCustomerType !== "대리점",
+    prospective: false,
+    description: "B2B 직거래처 (병원+피부관리실 통합, 대리점 제외)",
   },
   {
     customerKey: "기타",

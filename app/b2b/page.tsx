@@ -93,10 +93,10 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const kCurQ = kpi(b2bNonAgencyRows(curQ));
   const kPrevQ = kpi(b2bNonAgencyRows(prevQRows));
 
-  // B2B 전체 목표 (병원+피부관리실, 대리점 제외)
+  // B2B 전체 목표 (병원+피부관리실+직거래처, 대리점 제외)
   const ta = targetsForMonthWithProspective(targets, ym);
   const b2bTarget = ta
-    .filter((t) => ["병원", "피부관리실"].includes(t.customerKey) && !t.prospective)
+    .filter((t) => ["병원", "피부관리실", "직거래처"].includes(t.customerKey) && !t.prospective)
     .reduce((s, t) => s + t.target, 0);
 
   // 거래처 유형별 (대리점 제외)
@@ -107,7 +107,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const typeTargetByGroup = new Map<string, number>();
   for (const t of ta) {
     if (t.prospective) continue;
-    if (["병원", "피부관리실"].includes(t.customerKey)) {
+    if (["병원", "피부관리실", "직거래처"].includes(t.customerKey)) {
       typeTargetByGroup.set(
         t.customerKey,
         (typeTargetByGroup.get(t.customerKey) ?? 0) + t.target,
@@ -194,10 +194,10 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           rangeRows12,
           targets,
           ym,
-          ["병원", "피부관리실", "대리점"],
-          (r) => r.category === "B2B",
+          ["병원", "피부관리실", "직거래처"],
+          (r) => r.category === "B2B" && r.b2bCustomerType !== "대리점",
         )}
-        achievementLabel="B2B (병원 + 피부관리실 + 대리점)"
+        achievementLabel="B2B (대리점 제외)"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
