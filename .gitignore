@@ -25,6 +25,9 @@ npm-debug.log*
 .vscode/
 .idea/
 
+# 매출 데이터 (BigQuery가 유일한 소스)
+sales.csv
+
 # 임시 분석 파일
 /analysis*.txt
 /tmp/
