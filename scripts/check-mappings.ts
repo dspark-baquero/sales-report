@@ -1,7 +1,4 @@
-// 매월 데이터 교체 후 매핑 누락/품질 이슈 점검
-// 이 스크립트는 항상 CSV 모드로 실행 (로컬 sales.csv 검증)
-process.env.DATA_PROVIDER = "";
-
+// 매월 데이터 교체 후 매핑 누락/품질 이슈 점검 (BigQuery 직접 쿼리)
 import { loadFactCube, loadMonthRows } from "@/lib/load";
 import { kpi, nonRevenueSummary } from "@/lib/aggregate";
 import { KNOWN_CHANNELS, KNOWN_BRANDS } from "@/config/mappings";

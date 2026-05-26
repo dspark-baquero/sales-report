@@ -36,5 +36,3 @@ sales.csv
 /.playwright-mcp/
 
 # 빌드 아티팩트
-.open-next/
-.wrangler/

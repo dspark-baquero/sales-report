@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "report": "next build && next start",
-    "check": "tsx scripts/check-mappings.ts",
-    "snapshot": "tsx scripts/snapshot.ts"
+    "check": "tsx scripts/check-mappings.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.3.1",
@@ -28,7 +27,6 @@
     "marked": "^18.0.3",
     "next": "^16.2.6",
     "next-auth": "^5.0.0-beta.31",
-    "papaparse": "^5.4.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwind-merge": "^3.6.0",
@@ -37,7 +35,6 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "^25.6.2",
-    "@types/papaparse": "^5.3.15",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.4.49",

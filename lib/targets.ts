@@ -1,6 +1,4 @@
-// target.csv 파서 + 빠른 lookup 인덱스.
-// 컬럼: 브랜드, 구분(국내/해외), 거래처, 월(YYYY/M), 목표매출(₩X,XXX,XXX 또는 빈 값)
-
+import { BigQuery } from "@google-cloud/bigquery";
 import type { SalesRow } from "./parsers";
 import { BRAND_OFFICIAL_CHANNELS } from "@/config/mappings";
 
@@ -22,44 +20,12 @@ function parseAmount(s: string | undefined | null): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function parseMonth(s: string): string | null {
-  const m = s.trim().match(/^(\d{4})\s*\/\s*(\d{1,2})$/);
-  if (!m) return null;
-  return `${m[1]}-${String(Number(m[2])).padStart(2, "0")}`;
-}
-
-export function parseTargetCSV(text: string): TargetRow[] {
-  // papaparse를 동적으로 import하지 않고 간단한 CSV 파싱 (target.csv는 단순 구조)
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim());
-  const brandIdx = headers.indexOf("브랜드");
-  const divIdx = headers.indexOf("구분");
-  const custIdx = headers.indexOf("거래처");
-  const monthIdx = headers.indexOf("월");
-  const targetIdx = headers.indexOf("목표매출");
-  if (brandIdx < 0 || divIdx < 0 || custIdx < 0 || monthIdx < 0) return [];
-
-  const rows: TargetRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",").map((c) => c.trim());
-    const brand = cols[brandIdx] ?? "";
-    const division = cols[divIdx] ?? "";
-    const customerKey = cols[custIdx] ?? "";
-    const monthRaw = cols[monthIdx] ?? "";
-    if (!brand || !division || !customerKey || !monthRaw) continue;
-    if (division === "해외") continue;
-    const yearMonth = parseMonth(monthRaw);
-    if (!yearMonth) continue;
-    rows.push({
-      brand,
-      division: "국내",
-      customerKey,
-      yearMonth,
-      target: parseAmount(cols[targetIdx]),
-    });
-  }
-  return rows;
+function toYearMonth(s: string): string | null {
+  const m1 = s.trim().match(/^(\d{4})\s*\/\s*(\d{1,2})$/);
+  if (m1) return `${m1[1]}-${String(Number(m1[2])).padStart(2, "0")}`;
+  const m2 = s.trim().match(/^(\d{4})-(\d{1,2})$/);
+  if (m2) return `${m2[1]}-${String(Number(m2[2])).padStart(2, "0")}`;
+  return null;
 }
 
 let targetCache: TargetRow[] | null = null;
@@ -67,37 +33,43 @@ let targetCache: TargetRow[] | null = null;
 export async function loadTargets(): Promise<TargetRow[]> {
   if (targetCache) return targetCache;
 
-  const fs = await import("fs");
-  const path = await import("path");
-  const Papa = await import("papaparse");
-  const csvPath = path.join(process.cwd(), "target.csv");
-  if (!fs.existsSync(csvPath)) return [];
-  const text = fs.readFileSync(csvPath, "utf8");
-  const parsed = Papa.parse<Record<string, string>>(text, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h: string) => h.trim(),
-  });
+  const projectId = process.env.BQ_PROJECT_ID;
+  const dataset = process.env.BQ_DATASET ?? "sales";
+  const table = process.env.BQ_TARGET_TABLE ?? "targets";
+
+  const bq = new BigQuery(projectId ? { projectId } : undefined);
+  const query = projectId
+    ? `SELECT * FROM \`${projectId}.${dataset}.${table}\``
+    : `SELECT * FROM \`${dataset}.${table}\``;
+
+  const [rawRows] = await bq.query({ query });
 
   const rows: TargetRow[] = [];
-  for (const r of parsed.data) {
-    const brand = (r["브랜드"] || "").trim();
-    const division = (r["구분"] || "").trim() as Division;
-    const customerKey = (r["거래처"] || "").trim();
-    const monthRaw = (r["월"] || "").trim();
+  for (const raw of rawRows) {
+    const brand = String(raw.brand ?? "").trim();
+    const division = String(raw.division ?? "").trim();
+    const customerKey = String(raw.customer_key ?? "").trim();
+    const monthRaw = String(
+      raw.month != null && typeof raw.month === "object" && "value" in raw.month
+        ? raw.month.value
+        : raw.month ?? "",
+    ).trim();
+    const targetRaw = raw.target_amount;
+
     if (!brand || !division || !customerKey || !monthRaw) continue;
     if (division === "해외") continue;
-    const yearMonth = parseMonth(monthRaw);
+    const yearMonth = toYearMonth(monthRaw);
     if (!yearMonth) continue;
-    rows.push({
-      brand,
-      division: "국내",
-      customerKey,
-      yearMonth,
-      target: parseAmount(r["목표매출"]),
-    });
+
+    const target =
+      typeof targetRaw === "number"
+        ? targetRaw
+        : parseAmount(String(targetRaw ?? ""));
+
+    rows.push({ brand, division: "국내", customerKey, yearMonth, target });
   }
 
+  console.log(`[targets] ${rows.length} target rows loaded from BigQuery`);
   targetCache = rows;
   return rows;
 }

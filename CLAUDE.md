@@ -1,297 +1,97 @@
-# CLAUDE.md — 바크로 매출 보고서 프로젝트 가이드 (v4.1)
+# CLAUDE.md — 바크로 매출 보고서
 
-이 문서는 이 저장소에서 작업하는 Claude(또는 다른 작업자)가 따라야 할 **프로젝트 기본 정책**과 **매월 운영 워크플로우**를 정의합니다. 자세한 화면/지표 기획은 `plan.md`를 참고하세요.
+화장품 회사 바크로(baquero)의 **월별 매출 임원 보고서** 대시보드.
 
----
-
-## 1. 프로젝트 개요
-
-- **목적**: 화장품 회사 바크로(baquero)의 **월별 매출 임원 보고서**. 매달 1회 보고.
-- **결과물**: Google Cloud Run에 배포된 Next.js 웹 대시보드 (Google Workspace 로그인 필수)
-- **입력 데이터**: Google BigQuery (매출 raw, 17컬럼) + `target.csv` (월별 목표, CSV 유지).
-- **배포**: Google Cloud Run (Docker). `git push` → GitHub Actions 자동 배포.
-- **인증**: Auth.js v5 + Google OAuth. `@baquero.co.kr` 도메인 이메일만 허용.
-- **개발**: 로컬에서도 BigQuery 사용 (`gcloud auth application-default login` 후 `npm run dev`).
-- **기술 스택**: Next.js 16 App Router · React 19 · Apache ECharts (echarts-for-react) · shadcn/ui (Radix) · TanStack Table · Tailwind 4 · Server Components 집계 · Auth.js v5 · @google-cloud/bigquery · Docker.
-
-### v4.1 핵심 변화 (vs v4.0)
-- **Cloud Run 배포** — Cloudflare Workers → Google Cloud Run. Workers 무료 CPU 제한으로 전환.
-- **BigQuery 직접 쿼리** — KV 캐싱/sync 스크립트 제거. Cloud Run에서 BigQuery 직접 쿼리 → 인메모리 FactCube.
-- **BigQuery가 유일한 데이터 소스** — CSV 제공자 제거. 로컬/프로덕션 모두 BigQuery 사용.
-- **Docker 배포** — `output: "standalone"` + Dockerfile. GitHub Actions → Artifact Registry → Cloud Run.
-
-### v3 핵심 변화 (vs v2)
-- 거래처/딜러 심층 분석 — `/accounts` 탭 + 동면 복귀 / 분기 절벽 / 상실된 핵심 거래처.
-- 탭별 자동 인사이트 — 휴리스틱 한국어 불릿. LLM 없음.
-- 팩트 큐브 (`lib/facts.ts`) — 모든 차원 사전 집계.
-- 모든 라우트 `loading.tsx` — 탭 전환 즉시 스켈레톤.
+- **기술 스택**: Next.js 16 App Router · React 19 · ECharts · shadcn/ui · Tailwind 4 · Auth.js v5 · BigQuery · Cloud Run
+- **문서**: 기획 상세 → `docs/plan.md` · 개발 진행사항 → `docs/progress.md`
 
 ---
 
-## 2. 비즈니스 도메인 (작업 시 반드시 이해하고 시작)
+## 1. 비즈니스 도메인
 
-### 2.1 채널 대분류 (3개, 국내만)
+### 채널 대분류 (3개, 국내만 — 수출 제외)
 
-> **수출은 해외영업팀에서 별도 관리**하므로 이 보고서에서 제외. `lib/load.ts` 와 `lib/targets.ts` 가 로드 시점에 수출(채널=`수출`) 매출 row 와 target.csv 의 `해외` 구분 row 를 필터링한다. 모든 KPI/차트는 국내 합계만 반영.
+- **B2B**: 채널 = `B2B몰`. 영업사원(딜러)별 실적 관리. 거래처 유형: 병원 / 피부관리실 / 대리점 / 프랜차이즈
+- **면세점**: 채널 = `면세점`. B2C지만 중요도 높아 대분류로 독립
+- **B2C**: 위 둘과 수출을 제외한 모든 채널
 
-- **B2B**: 채널 = `B2B몰`. 국내영업팀 소관. 관리용 화장품(전문가용)이 대부분.
-  - 거래처 유형: 병원 / 피부관리실 / 대리점 / 프랜차이즈 등
-  - 영업사원(딜러)별 실적이 핵심
-- **면세점**: 채널 = `면세점`. **B2C 안의 한 종류지만 중요도가 높아 대분류로 독립**.
-- **B2C**: 위 둘을 제외한 모든 채널 (수출 제외). 일반 소비자 대상.
+### 브랜드
 
-### 2.2 브랜드
+- **자체**: 레노덤, 레노덤 프로페셔널, 헤이우
+- **수입**: 네오스트라타, 엑스비앙스, 크리스티나
 
-- **자체 브랜드**: 레노덤, 레노덤 프로페셔널, 헤이우
-- **수입 브랜드**: 네오스트라타, 엑스비앙스, 크리스티나
-- **기타**: 도구류·리플렛 등 (매출 0이 대부분)
-
-### 2.3 B2C 채널 그룹
+### B2C 채널 그룹
 
 | 그룹 | 채널 |
 |---|---|
 | 자사 공식몰 | 레노덤 공식몰/스마트스토어, 엑스비앙스 공식몰/스마트스토어, 헤이우 공식몰, 바크로하우스(+스마트스토어) |
 | 종합몰 | W컨셉, SSG, 쿠팡, 쿠팡 로켓, 쿠팡 그로스, 큐텐, 화해 |
-| 소호몰 | 소호몰 (사입 후 재판매하는 파트너) |
+| 소호몰 | 소호몰 (사입 후 재판매) |
 | 임직원/패밀리 | 바크로패밀리, 헤메코랩 |
-
-### 2.4 브랜드 ↔ 자사 공식몰 매핑
-
-- 레노덤 → `레노덤 공식몰` + `레노덤 스마트스토어`
-- 엑스비앙스 → `엑스비앙스 공식몰` + `엑스비앙스 스마트스토어`
-- 헤이우 → `헤이우 공식몰` (스마트스토어 없음)
-- 바크로하우스 → `바크로하우스` + `바크로하우스 스마트스토어` (다브랜드 자사몰)
-
-### 2.5 (삭제됨 — 수출 국가 추출)
-
-이 보고서는 수출을 다루지 않는다. 수출 국가 추출 로직 (`extractCountry`, `byMonthCountry` 등) 은 코드에 남아 있지만 수출 row 가 로드 단계에서 필터되므로 실행되지 않는다.
 
 ---
 
-## 3. 데이터 정책
+## 2. 데이터 정책
 
-### 3.1 매출 데이터 컬럼 (17개, 순서 고정)
+### 매출 데이터 (BigQuery `sales` 테이블, 영어 컬럼)
 
-BigQuery 테이블과 `sales.csv`(로컬 개발) 모두 동일한 한국어 컬럼명 사용:
+`channel, date, order_number, product_name, product_code, quantity, net_sales, order_amount, discount_amount, commission, shipping_fee, settlement, dealer, client, client_type, cost, brand`
 
-`채널, 날짜, 주문번호, 제품명, 품목코드, 판매수량, 실 매출, 주문금액, 할인금액, 수수료, 배송비, 정산금액, 딜러, 거래처, 거래처 사업형태, 원가, 브랜드`
+`bigquery-provider.ts`의 `BQ_COL_MAP`에서 한국어로 매핑 → `parsers.ts`에서 `SalesRow`로 변환.
 
-### 3.2 정제 규칙 (`lib/parsers.ts`에서 일괄 처리)
+### 정제 규칙 (`lib/parsers.ts`)
 
 | 케이스 | 처리 |
 |---|---|
-| 날짜 포맷 혼재 (`2023-12-21`, `2026. 4. 9`) | ISO 변환 |
-| 숫자 콤마/공백 (`11,400`) | 콤마 제거 후 Number |
-| 원가 `#N/A` | NaN 처리. 마진 KPI에서 제외하고 데이터 품질 배지로 비율 노출 |
-| 실매출 0 행 | **매출 집계에서 제외**, 별도 "비매출 출고" 카드로 분리 |
+| 날짜 포맷 혼재 | ISO 변환 |
+| 숫자 콤마/공백 | 콤마 제거 후 Number |
+| 원가 `#N/A` | NaN 처리 (GP 계산에서 제외) |
+| 실매출 0 행 | 매출 집계에서 제외, "비매출 출고" 별도 노출 |
 | 빈 딜러 | "미지정"으로 통일 |
 
-### 3.3 비매출 출고 (집계에서 빼되 별도 가시화)
+### 비매출 출고 사업형태
 
-다음 거래처 사업형태는 **비매출**로 분류해 매출 집계에서 빼고, "비매출 출고" 섹션에서 수량·원가만 보여줌:
-
-증정 (기타) / 증정 (마케팅) / 증정 (영업) / 임직원 / 직원 / 거래처 직원 / 마케팅용 / 테스트 (수입허가) / 파손제품 / 교육
+증정 (기타/마케팅/영업) / 임직원 / 직원 / 거래처 직원 / 마케팅용 / 테스트 (수입허가) / 파손제품 / 교육
 
 ---
 
-## 4. 사용자 확정 정책
+## 3. 사용자 확정 정책
 
-매번 작업 시작 전 반드시 확인:
-
-1. **B2B 영업사원 0원**: **숨김**. 이번달 매출 0인 영업사원은 실적 보드에서 제외.
-2. **비매출 출고**: 매출에서 제외하되 별도 카드/탭으로 노출.
-3. **수입 브랜드**: 데이터 그대로 노출. 환율·원가 변동 캡션 같은 거 추가하지 말 것.
-4. **인사이트는 자동이 기본**: 각 탭 상단에 휴리스틱 자동 인사이트가 항상 노출. 사람 코멘트는 **선택** — `insights/YYYY-MM.md` 파일이 있을 때만 `/insights` 페이지 하단에 마크다운으로 렌더. 자동 인사이트는 LLM 사용 금지, `lib/tabInsights.ts` 의 결정적 휴리스틱.
-5. **모든 라벨은 한국어**: MoM/QoQ/YoY/HHI/AOV/SKU 같은 영어 약자 사용 금지. 코드/주석은 영어 가능, 화면 텍스트는 모두 한국어.
-6. **비교 표시 규약**: 변화율(`+10%`)만 단독 노출 금지. 반드시 이번달 절대값 + 비교 절대값 + 차이금액 + 변화율을 같이 표시.
-   - 예: `1억 1,000만원 / 전월 1억 / +1,000만원 (+10.0%)`
-7. **숫자 표기**:
-   - 전체: 항상 3자리 콤마 (`156,234,000원`)
-   - 풀어쓰기: `1억 5,623만원` 형식 (만원 단위 절삭, 0이면 생략 → `1억원`)
-   - `formatM`처럼 영문 단위(M/B) 절대 사용 금지 → `formatKRW` / `formatKRWLong` / `formatKRWShort` 만 사용.
-8. **target.csv 통합**: 이번달 (브랜드 × 구분 × 거래처) 단위 목표 vs 실적 매트릭스. 달성률은 핵심지표 카드에 표시.
-   - 매칭 sales 데이터가 없는 키 (올리브영/링커/바크로하우스 대리점/직거래처)는 "신규 추진 채널"로 별도 표시. 0% 달성이 아니라 "추진 중"으로.
-9. **거래처/딜러 분석 깊이**: 단순 Top-N으로 끝내지 말 것. 동면 복귀 / 분기 절벽 / 상실된 핵심 거래처 / 신규 진입 같은 임원 시각의 질문에 답하도록 `lib/accountAnalysis.ts`, `lib/dealerAnalysis.ts` 의 헬퍼를 활용. 거래처명은 어디서든 클릭 시 `/accounts?customer=XXX&month=YYYY-MM` 으로 이동.
+1. **B2B 영업사원 0원**: 숨김
+2. **비매출 출고**: 매출 제외, 별도 카드로 노출
+3. **수입 브랜드**: 데이터 그대로 노출 (특수 캡션 추가 금지)
+4. **인사이트**: 자동 휴리스틱 기본 (LLM 금지). 사람 코멘트는 `insights/YYYY-MM.md` 있을 때만 표시
+5. **모든 라벨 한국어**: MoM/QoQ/YoY/AOV 등 영어 약자 화면 노출 금지
+6. **비교 표시**: 이번달 절대값 + 비교 절대값 + 차이금액 + 변화율 모두 표시 (변화율 단독 노출 금지)
+7. **숫자 표기**: `formatKRWLong` (1억 5,623만원) / `formatKRW` (156,234,000원) / `formatKRWShort` (좁은 공간 전용). 영문 단위(M/B) 금지
+8. **목표 달성**: 매칭 데이터 없는 키는 "신규 추진 채널"로 표시 (0% 달성 아님)
+9. **거래처 분석**: 단순 Top-N 금지. 동면 복귀 / 분기 절벽 / 상실된 핵심 / 신규 진입 포함. 거래처명 클릭 → `/accounts?customer=XXX&month=YYYY-MM`
 
 ---
 
-## 5. 화면 구조 (탭 9개)
+## 4. 코드 규약
 
-자세한 사양은 `plan.md` §5를 참조. 모든 탭은 자동 인사이트 직후 **"올해 월별 매출 추이"** 스택 차트 (`components/YearToDateChart.tsx`) 가 공통으로 노출된다.
-
-1. **종합** — 자동 인사이트 + 올해 월별 추이 (대분류 스택) + 4핵심지표 (전체/B2B/B2C/면세점) + 변화 요인 워터폴 + 일별 누적 + 12개월 카테고리 스택 + 상위 10 거래처/제품 + **거래처 변동 하이라이트** (Top 무버/동면 복귀/분기 절벽/상실된 핵심) + 비매출 출고
-2. **목표 달성** — 자동 인사이트 + 올해 월별 추이 + 이번달·분기 게이지 / 미달 워닝 / 초과 달성 / 신규 추진 / 매트릭스 표
-3. **B2B** — 자동 인사이트 + 올해 월별 추이 (영업사원 Top 5) + 영업사원 보드 + **딜러 심층 (6개월 sparkline + 분기 비교 + 신규/이탈 거래처)** + 거래처 유형별 + 매트릭스 + 신규/이탈 + 변화 요인
-4. **B2C** — 자동 인사이트 + 올해 월별 추이 (채널그룹) + 채널그룹별 + 자사 공식몰 12개월 + 종합몰 표 + 브랜드 분해 + 변화 요인
-5. **면세점** — 자동 인사이트 + 올해 월별 추이 (거래처 Top 5) + 12개월 (전년 점선) + 거래처별 + 브랜드 + 일별/주차별 + 변화 요인
-6. **브랜드 분석** — 자동 인사이트 + 올해 월별 추이 (선택 브랜드의 대분류 분해) + 브랜드 1개 선택 → 24개월 추이 + 트리맵 + 신규/단종 SKU + 변화 요인
-7. **거래처 분석** — 자동 인사이트 + 올해 월별 추이 (선택 거래처의 브랜드 분해 또는 거래처 Top 5) + 거래처 1곳(또는 2곳 비교) 선택 → 24개월 추이 + 분기/연간 비교 + 브랜드/채널 분해 + Top 10 제품 + 신규/이탈 SKU
-8. **변동 분석** — 자동 인사이트 + 올해 월별 추이 (선택 차원) + 차원 토글(거래처/채널/브랜드/제품/영업사원) + 신규/이탈 거래처 + 신제품 효과 + 이상치
-9. **심층 분석** — 자동 인사이트 + 올해 월별 추이 (대분류) + 분기 절벽/동면 복귀/상실된 핵심/신규 진입 표 + 신제품·이탈 SKU + 요일 패턴 + 거래처 집중도 + 브랜드×채널그룹 히트맵 + 할인/수수료율 + 데이터 품질 + (선택) 사람 코멘트
-
-매 탭 상단에 자동 인사이트 → 올해 월별 추이 → 비교 카드 순. 비교는 절대값 + 차이금액 + 변화율을 모두 표시.
+- **매핑**: `config/mappings.ts` 한 곳에. 하드코딩 금지
+- **새 분류**: 코드 수정 전 사용자에게 확인. 임의 "기타" 분류 금지
+- **차트**: `components/charts/ChartBase.tsx` wrapper 통과. 사전 정의 wrapper 패턴 따라 추가
+- **데이터 로드**: 모든 load 함수는 async. BigQuery → FactCube 인메모리 캐시
+- **분석 함수**: 큐브 직접 사용 (`await loadFactCube()`). raw rows 전체 스캔 금지. 큐브에 없는 분해는 `loadMonthRows(ym)` 한 달치만 스캔
+- **거래처/딜러 분석**: `lib/accountAnalysis.ts`, `lib/dealerAnalysis.ts`에 추가. 페이지에서 직접 분석 로직 작성 금지
+- **인사이트**: 모든 탭 상단 `<TabInsights bullets={computeXxxInsights(...)} />`. 함수는 `lib/tabInsights.ts`
+- **비교 카드**: 양수=녹색▲, 음수=빨강▼, ±2%이내=회색●
+- **라우트**: 새 라우트 추가 시 `loading.tsx` 함께 생성
 
 ---
 
-## 6. 매월 보고 워크플로우
+## 5. 체크리스트
 
-매달 1회, 다음 4단계로 보고서를 갱신합니다.
-
-### Step 1. BigQuery에 데이터 업로드
-
-영업관리 시스템에서 export한 매출 데이터를 BigQuery 테이블에 업로드.
-
-### Step 2. (선택) target.csv / 사람 코멘트 갱신
-
-- 목표 변경 시: `target.csv` 수정
-- 인사이트: `insights/2026-05.md` 작성 (자동 분석으로 부족한 맥락만)
-
-### Step 3. 배포
-
-```bash
-git push    # GitHub Actions가 자동으로 Docker 빌드 + Cloud Run 배포
-```
-
-Cloud Run 재시작으로 BigQuery 데이터 새로 로드됨.
-
-### (로컬 개발 시)
-
-```bash
-gcloud auth application-default login    # BigQuery 인증 (최초 1회)
-npm run dev                              # http://localhost:3000
-```
-
----
-
-## 7. 코드 작업 시 지켜야 할 규칙
-
-### 7.1 매핑은 한 곳에
-
-채널·브랜드·사업형태·국가 매핑은 모두 `config/mappings.ts` 한 파일에. 코드 다른 곳에 하드코딩 금지.
-
-### 7.2 새로운 분류가 생기면
-
-코드를 수정하기 전에 **사용자에게 분류를 확인**할 것. 임의로 "기타"에 넣고 끝내지 말 것 (특히 새 종합몰·새 B2B 거래처 유형 등).
-
-### 7.3 한국어 컬럼명 처리
-
-CSV 컬럼명은 한국어. UTF-8 BOM이 있을 수 있음. PapaParse + `header: true` + 컬럼명 trim 필수.
-
-### 7.4 숫자 단위
-
-`formatKRWLong`(풀어쓰기, 예: `1억 5,623만원`) 또는 `formatKRW`(정확값, 예: `156,234,000원`)만 사용. `formatKRWShort`는 차트 축 라벨/배지 등 좁은 공간 전용. 영문 단위(M/B) 절대 금지.
-
-### 7.5 비교 카드 시각 규약
-
-- 양수 = 녹색 ▲, 음수 = 빨강 ▼, ±2% 이내 = 회색 ●
-- 모든 비교 카드는 **이번달 절대값 + 비교 라벨(전월/전분기 동기간/전년 동월) + 비교 절대값 + 차이금액 + 변화율** 표시.
-- 비교 데이터 없음 → "신규" 또는 "—".
-
-### 7.6 차트 라이브러리
-
-- **Apache ECharts** (echarts-for-react). `components/charts/ChartBase.tsx`가 ssr:false dynamic import + 한국어 폰트/툴팁 기본값을 제공. 모든 차트는 이 wrapper 통과.
-- 사전 정의 wrapper: `BarChart`, `LineChart`, `HeatmapChart`, `WaterfallChart`, `GaugeChart`, `Treemap`, `DonutChart`. 새 차트 만들 때는 이 패턴 따라 추가.
-- shadcn/ui (Radix 기반) UI primitives는 `components/ui/`에. 카드/배지/탭/셀렉트/표 등 공통.
-
-### 7.7 데이터 로드 + 팩트 큐브
-
-- **데이터 소스**: Google BigQuery가 유일한 소스. 로컬/프로덕션 모두 BigQuery 직접 쿼리.
-- **모든 데이터 로드 함수는 async**: `await loadFactCube()`, `await loadMonthRows(ym)`, `await loadRangeRows(from, to)`.
-- `lib/parsers.ts` 에 순수 파싱 함수 (BigQuery 결과를 SalesRow로 변환).
-- `lib/providers/bigquery-provider.ts` — BigQuery 쿼리 → FactCube 인메모리 빌드 → 모듈 캐시.
-- 컨테이너 재시작 시 캐시 초기화 → BigQuery 데이터 새로 로드.
-- **새 분석/인사이트 함수는 큐브 직접 사용** — `await loadFactCube()` → `cubeMonthCustomerCells(ym)`, `cubeBrandSeries(brand, fromYM, toYM)` 등. raw rows 재집계 금지.
-- 큐브 인덱스: byMonth / byMonthCategory / byMonthChannelGroup / byMonthChannel / byMonthBrand / byMonthBrandHouse / byMonthCustomer / byMonthDealer / byMonthCountry / byMonthB2bType + 2D (DealerType / BrandChannelGroup / CountryBrand) + 제품 / 일별 / 비매출 + 메타 (customers/dealers/brands set, customer→category/brand/dealer 대표값).
-- 큐브에 인덱스가 없는 분해(예: 거래처×제품)는 `(await loadMonthRows(ym)).filter(r => r.customer === X)` 한 달치 raw 한 번 스캔으로 처리. 전체 raw 스캔은 절대 금지.
-
-### 7.8 자동 인사이트 (TabInsights)
-
-- 모든 페이지 상단에 `<TabInsights bullets={computeXxxInsights(cube, ym, ...)} />` 한 줄로 삽입.
-- 컴퓨터 함수는 `lib/tabInsights.ts` 의 `computeOverviewInsights` / `computeB2CInsights` / `computeB2BInsights` / `computeDutyFreeInsights` / `computeBrandInsights` / `computeChangesInsights` / `computeTargetsInsights` / `computeAccountsInsights`.
-- 휴리스틱: 전체 ±5%, 차원별 ±15~20% 또는 ±5% 매출 변동, 신규/이탈, 목표 ±20%, 빅 무버 등. 임계치 미만은 노이즈로 버림.
-- 각 불릿은 `severity` (critical/warn/positive/info) + `category` 칩 + 본문 + (선택) `href` (거래처명 클릭 시 `/accounts` 이동). 한 탭 5~7개 한도.
-
-### 7.9 거래처/딜러 분석 헬퍼
-
-- `lib/accountAnalysis.ts` — `customerTrend`, `customerQuarterCompare`, `customerYtdCompare`, `sleepingReturned`, `quarterlyCliff`, `lostKeyAccounts`, `topMovers`, `newAccounts`, `customerProfile`, `listCustomersRanked`.
-- `lib/dealerAnalysis.ts` — `dealerTrend`, `dealerBoard`, `dealerCustomerChurn`, `dealerQuarterCompare`, `dealerProfile`.
-- 새 거래처/딜러 분석은 이 두 파일에 추가. 페이지에서 직접 raw rows를 풀어 분석 로직을 작성하지 말 것.
-
-### 7.10 라우트 전환 UX
-
-- 모든 `app/*/` 라우트에 `loading.tsx` 가 있어야 함 (`<PageSkeleton />`). 새 라우트 추가 시 함께 생성.
-
----
-
-## 8. 디렉토리 구조 (요약)
-
-```
-sales-report/
-├── target.csv                 # 매월 (또는 분기) 목표 갱신 (CSV 유지)
-├── Dockerfile                 # Cloud Run 배포용 Docker 이미지 (v4.1)
-├── .dockerignore              # Docker 빌드 제외 (v4.1)
-├── plan.md / CLAUDE.md
-├── middleware.ts              # 인증 미들웨어
-├── .env.local.example         # 환경변수 템플릿
-├── insights/YYYY-MM.md        # (선택) 사람이 작성하는 월별 코멘트
-├── config/mappings.ts         # 모든 분류 매핑 (단일 소스)
-├── lib/                       # 데이터 파이프라인
-│   ├── load.ts                # async 데이터 로드 API
-│   ├── parsers.ts             # 순수 파싱 함수 (BigQuery 결과 → SalesRow)
-│   ├── data-provider.ts       # DataProvider 인터페이스
-│   ├── auth.ts                # Auth.js v5 + Google OAuth 설정
-│   ├── providers/
-│   │   ├── bigquery-provider.ts  # BigQuery 직접 쿼리 (v4.1)
-│   │   └── index.ts
-│   ├── facts.ts               # 월별 차원별 사전 집계 큐브
-│   ├── targets.ts             # target.csv 파서 + 매칭 규칙 (async)
-│   ├── months.ts              # 월 목록 / 기준월 (async)
-│   ├── aggregate.ts / compare.ts / format.ts / labels.ts
-│   ├── changeAttribution.ts / dimensions.ts / insights.ts
-│   ├── accountAnalysis.ts / dealerAnalysis.ts / tabInsights.ts
-│   └── ytd.ts
-├── app/                       # 페이지 (9탭 + 로그인)
-│   ├── layout.tsx             # 탭 네비 + 사용자 정보/로그아웃
-│   ├── login/page.tsx         # Google 로그인 페이지
-│   ├── api/auth/[...nextauth] # NextAuth API 라우트
-│   ├── page.tsx (종합) / targets / b2b / b2c / duty-free / brand / accounts / changes / insights
-│   └── */loading.tsx          # 라우트별 스켈레톤
-├── components/                # (v3과 동일)
-├── scripts/
-│   └── check-mappings.ts      # 매월 정합성 검사
-└── .github/workflows/
-    └── deploy.yml             # GitHub Actions → Cloud Run 배포 (v4.1)
-```
-
----
-
-## 9. 자주 하는 실수 체크리스트
-
-- [ ] 매출 집계 시 비매출 출고 제외했나?
-- [ ] B2B 영업사원 0원 사원 숨겼나?
-- [ ] 면세점을 B2C에 다시 합치지 않았나?
-- [ ] 원가 #N/A를 0으로 처리하지 않았나? (NaN으로 처리하고 GP 계산에서 제외)
-- [ ] YoY 비교 시 전년 동월이 데이터에 있는지 확인했나? (없으면 "신규")
-- [ ] 새 채널을 임의로 "기타"에 넣지 않았나?
-- [ ] 화면 단위가 일관되는가? (`formatKRWLong`/`formatKRW`/`formatKRWShort` 만 사용)
-- [ ] 새 분석 함수가 raw rows 전체 스캔을 하고 있지 않나? (큐브 사용)
-- [ ] 새 페이지 추가 시 `loading.tsx` 만들었나?
-- [ ] 새 탭에 `<TabInsights bullets={...} />` 상단 삽입했나?
-- [ ] 거래처명을 표시할 때 `/accounts?customer=XXX&month=YYYY-MM` 링크 걸었나?
-- [ ] 데이터 로드 함수에 `await` 를 빠뜨리지 않았나? (모든 load 함수는 async)
-- [ ] `SalesRow` 타입을 `@/lib/parsers` 또는 `@/lib/load`에서 import했나? (둘 다 가능)
-
----
-
-## 10. 참고
-
-- 기획 상세: `plan.md`
-- 데이터 기간: 2023-07 ~ 현재 (매월 갱신)
-- 첫 보고 기준월: **2026-04**
-- 데이터 소스: Google BigQuery (유일한 소스, 로컬/프로덕션 모두)
-- 배포: Google Cloud Run (Docker) + GitHub Actions
-- 인증: Auth.js v5 + Google OAuth (`@baquero.co.kr` 전용)
-- 환경변수 템플릿: `.env.local.example`
-- v4.1 변경: Cloudflare Workers → Cloud Run, KV/sync 제거, BigQuery 직접 쿼리
-- v4.0 변경: CSV→BigQuery, Google Workspace 인증 추가
-- v3 변경 커밋: `4a20046` (거래처/딜러 심층 + 탭 자동 인사이트 + 팩트 큐브)
+- [ ] 매출 집계 시 비매출 출고 제외?
+- [ ] B2B 영업사원 0원 숨김?
+- [ ] 면세점을 B2C에 합치지 않았는지?
+- [ ] 원가 #N/A를 0이 아닌 NaN으로 처리?
+- [ ] 새 채널을 임의로 "기타"에 넣지 않았는지?
+- [ ] `formatKRWLong`/`formatKRW`/`formatKRWShort`만 사용?
+- [ ] 새 분석 함수가 큐브 사용? (raw 전체 스캔 금지)
+- [ ] 새 페이지에 `loading.tsx` + `<TabInsights>` 포함?
+- [ ] 거래처명에 `/accounts` 링크?
+- [ ] 데이터 로드 함수에 `await` 빠뜨리지 않았는지?

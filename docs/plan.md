@@ -47,20 +47,18 @@ Google BigQuery (매출 데이터) + `target.csv` (월별 목표)를 입력으�
 
 ## 2. 데이터 파이프라인
 
-### 2.0 데이터 흐름 (v4)
+### 2.0 데이터 흐름 (v4.1)
 
 ```
-BigQuery ──sync-data.ts──→ Cloudflare KV ──kv-provider──→ Next.js SSR ──→ 사용자
-                                                          (Cloudflare Workers)
-target.csv ──sync-data.ts──→ Cloudflare KV ──→ (위와 동일)
-
-[로컬 개발]
-sales.csv ──csv-provider──→ Next.js dev server
+BigQuery (sales 테이블) ──bigquery-provider──→ FactCube 인메모리 빌드 ──→ Next.js SSR ──→ 사용자
+                                               (Google Cloud Run)
 target.csv ──targets.ts──→ (위와 동일)
 ```
 
+컨테이너 시작 시 BigQuery 전체 쿼리 1회 → 인메모리 캐시. 재시작 시 캐시 초기화.
+
 ### 2.1 원본 컬럼 (17개)
-BigQuery 테이블과 `sales.csv` (로컬 개발) 모두 동일한 한국어 컬럼명:
+BigQuery 테이블 컬럼 (영어) → `bigquery-provider.ts`의 `BQ_COL_MAP`에서 한국어로 매핑:
 
 `채널, 날짜, 주문번호, 제품명, 품목코드, 판매수량, 실 매출, 주문금액, 할인금액, 수수료, 배송비, 정산금액, 딜러, 거래처, 거래처 사업형태, 원가, 브랜드`
 

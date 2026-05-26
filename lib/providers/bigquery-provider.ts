@@ -1,7 +1,6 @@
 import { BigQuery } from "@google-cloud/bigquery";
 import { parseRow, type SalesRow } from "../parsers";
 import { buildFactCube, type FactCube } from "../facts";
-import type { DataProvider } from "../data-provider";
 
 const BQ_COL_MAP: Record<string, string> = {
   channel: "채널",
@@ -80,7 +79,7 @@ async function ensureLoaded(): Promise<Cached> {
   return cached;
 }
 
-export const bigqueryProvider: DataProvider = {
+export const bigqueryProvider = {
   async loadFactCube(): Promise<FactCube> {
     return (await ensureLoaded()).cube;
   },
