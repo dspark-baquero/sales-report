@@ -28,10 +28,23 @@ async function ensureLoaded(): Promise<Cached> {
   for (const raw of rawRows) {
     const record: Record<string, string> = {};
     for (const [key, value] of Object.entries(raw)) {
-      record[key] = value != null ? String(value) : "";
+      if (value != null && typeof value === "object" && "value" in value) {
+        record[key] = String((value as { value: unknown }).value);
+      } else {
+        record[key] = value != null ? String(value) : "";
+      }
     }
     const row = parseRow(record);
     if (row) rows.push(row);
+  }
+
+  if (rows.length === 0) {
+    console.error(
+      `[bigquery-provider] 0 rows parsed from ${rawRows.length} raw rows. ` +
+      `Sample keys: ${rawRows[0] ? Object.keys(rawRows[0]).join(", ") : "(empty)"}`,
+    );
+  } else {
+    console.log(`[bigquery-provider] ${rows.length} rows loaded from BigQuery`);
   }
 
   const byMonth = new Map<string, SalesRow[]>();
