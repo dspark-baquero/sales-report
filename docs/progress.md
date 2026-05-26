@@ -13,6 +13,15 @@
 
 ## 버전 이력
 
+### v5.0 (2026-05)
+탭 구조 개편 (9 → 11탭).
+- 해외영업(`/export`) 탭 신설 — 국가별 매출, 12개월 추이, 국가×브랜드 매트릭스, 목표 달성
+- 대리점(`/agencies`) 탭 신설 — 거래처별 실적, 브랜드 분해, 신규/이탈 거래처
+- B2B 탭에서 대리점 거래처 완전 분리 (영업사원 실적 포함)
+- 종합 탭에 수출 카테고리 추가 (B2B/B2C/면세점/수출 4대 카테고리)
+- 목표 데이터 해외(수출) division 활성화
+- FactCube에 `customerToB2bType` 인덱스 추가
+
 ### v4.1 (2026-05)
 Cloudflare Workers → **Google Cloud Run** 전환.
 - Workers 무료 CPU 10ms 제한으로 Next.js SSR 불가 → Cloud Run 전환
@@ -37,7 +46,7 @@ CSV → BigQuery 데이터 소스 전환.
 - 모든 라우트 `loading.tsx` 스켈레톤
 
 ### v2.0
-- 9개 탭 체계 확립
+- 9개 탭 체계 확립 (v5.0에서 11개로 확장)
 - `target.csv` 통합 (목표 vs 실적)
 - 한국어 라벨 전환
 - 변화 요인 워터폴 차트
@@ -51,6 +60,7 @@ CSV → BigQuery 데이터 소스 전환.
 
 | 커밋 | 내용 |
 |---|---|
+| `6449d47` | 탭 구조 개편 — 해외영업·대리점 신설, B2B 대리점 분리, 종합에 수출 추가 |
 | `5609d7e` | `target.csv` 삭제 — BigQuery `targets` 테이블로 이전 완료 |
 | `7c5a7c4` | 죽은 코드 정리 + target.csv → BigQuery 전환 |
 | `9ee9f0e` | `sales.csv` 삭제 + `.gitignore` 추가 |
