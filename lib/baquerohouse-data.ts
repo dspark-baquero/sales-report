@@ -76,7 +76,13 @@ async function ensureLoaded(): Promise<Cached> {
   const dataset = process.env.BQ_DATASET ?? "dashboard_1";
 
   try {
-    const bq = new BigQuery(projectId ? { projectId } : undefined);
+    const bq = new BigQuery({
+      ...(projectId ? { projectId } : {}),
+      scopes: [
+        "https://www.googleapis.com/auth/bigquery",
+        "https://www.googleapis.com/auth/drive.readonly",
+      ],
+    });
     const fqDataset = projectId ? `${projectId}.${dataset}` : dataset;
 
     const [partnerRows] = await bq.query({
