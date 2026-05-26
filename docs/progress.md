@@ -4,7 +4,7 @@
 
 - **배포**: Google Cloud Run (asia-northeast3) — `git push` → Cloud Run 소스 기반 자동 배포
 - **데이터**: Google BigQuery (`sales` 테이블, 159,287행, 2023-07 ~ 현재)
-- **목표**: `target.csv` (CSV, 컨테이너 이미지에 포함 — BigQuery 이전 예정)
+- **목표**: BigQuery (`targets` 테이블, dataset `dashboard_1`)
 - **인증**: Auth.js v5 + Google OAuth (`@baquero.co.kr` 전용)
 - **첫 보고 기준월**: 2026-04
 - **URL**: https://baquero-sales-report-44352754132.asia-northeast3.run.app
@@ -20,6 +20,7 @@ Cloudflare Workers → **Google Cloud Run** 전환.
 - BigQuery 직접 쿼리 → FactCube 인메모리 빌드 → 모듈 캐시
 - Docker (`output: "standalone"`) + Dockerfile
 - `sales.csv` 삭제 — BigQuery가 유일한 데이터 소스
+- `target.csv` → BigQuery `targets` 테이블 이전 완료 + CSV 삭제
 
 ### v4.0 (2026-05)
 CSV → BigQuery 데이터 소스 전환.
@@ -50,6 +51,8 @@ CSV → BigQuery 데이터 소스 전환.
 
 | 커밋 | 내용 |
 |---|---|
+| `5609d7e` | `target.csv` 삭제 — BigQuery `targets` 테이블로 이전 완료 |
+| `7c5a7c4` | 죽은 코드 정리 + target.csv → BigQuery 전환 |
 | `9ee9f0e` | `sales.csv` 삭제 + `.gitignore` 추가 |
 | `6542abd` | BigQuery 영어 컬럼명 → 한국어 매핑 (`BQ_COL_MAP`) |
 | `224444a` | BigQuery DATE 객체 `.value` 변환 + `resolveMonth` 빈 배열 방어 |
@@ -70,9 +73,10 @@ CSV → BigQuery 데이터 소스 전환.
 
 ### BigQuery
 - 프로젝트: `citric-lead-457515-v2`
-- 데이터셋: `sales`
-- 테이블: `sales` (영어 컬럼명 — `bigquery-provider.ts`에서 한국어로 매핑)
-- 컬럼: `channel, date, order_number, product_name, product_code, quantity, net_sales, order_amount, discount_amount, commission, shipping_fee, settlement, dealer, client, client_type, cost, brand`
+- 데이터셋: `dashboard_1`
+- 매출 테이블: `매출통계` (영어 컬럼명 — `bigquery-provider.ts`에서 한국어로 매핑)
+- 목표 테이블: `targets` (brand, division, customer_key, month, target_amount)
+- 매출 컬럼: `channel, date, order_number, product_name, product_code, quantity, net_sales, order_amount, discount_amount, commission, shipping_fee, settlement, dealer, client, client_type, cost, brand`
 - 비용: 무료 등급 범위 내 (쿼리 ~32MB/회, 월 1TB 무료)
 
 ### 환경변수 (Cloud Run)
@@ -85,5 +89,5 @@ CSV → BigQuery 데이터 소스 전환.
 
 ## TODO
 
-- [ ] `target.csv` → BigQuery `targets` 테이블 이전 (배포 없이 목표 즉시 반영)
+- [x] `target.csv` → BigQuery `targets` 테이블 이전 (배포 없이 목표 즉시 반영)
 - [ ] `docs/plan.md` 내 데이터 흐름도 업데이트 (v4.0 Cloudflare KV 흐름 → v4.1 BigQuery 직접 쿼리)
