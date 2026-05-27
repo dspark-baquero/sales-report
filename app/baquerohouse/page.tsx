@@ -282,11 +282,11 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           unitSuffix="개"
         />
         <MetricCard
-          label="샵당 평균 매출"
-          current={shops.length > 0 ? k.revenue / shops.length : 0}
+          label="파트너당 평균 추천 매출"
+          current={refByPartner.size > 0 ? partnerRefRevenue / refByPartner.size : 0}
           comparisons={[{
             label: COMPARE_LABEL.prevMonth,
-            prev: shopPrevMap.size > 0 ? kPrevMo.revenue / shopPrevMap.size : 0,
+            prev: refByPartnerPrev.size > 0 ? partnerRefRevenuePrev / refByPartnerPrev.size : 0,
           }]}
         />
         <MetricCard
