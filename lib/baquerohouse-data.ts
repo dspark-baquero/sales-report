@@ -110,21 +110,10 @@ async function ensureLoaded(): Promise<Cached> {
       if (p.partnerName) partnerMap.set(p.partnerName, p);
     }
 
-    // 디버그: 날짜 형식 확인
-    if (saleRows.length > 0) {
-      const samples = saleRows.slice(0, 3).map((r: Record<string, unknown>) => ({
-        raw: r.order_date,
-        type: typeof r.order_date,
-        str: str(r.order_date),
-      }));
-      console.log("[baquerohouse-data] order_date 샘플:", JSON.stringify(samples));
-    }
-
-    let parseFail = 0;
     const salesByMonth = new Map<string, BHPartnerSale[]>();
     for (const r of saleRows) {
       const { date, ym } = parseDate(r.order_date);
-      if (!ym) { parseFail++; continue; }
+      if (!ym) continue;
       const sale: BHPartnerSale = {
         partnerName: str(r.partner_name),
         orderDate: date,
@@ -144,12 +133,8 @@ async function ensureLoaded(): Promise<Cached> {
       else salesByMonth.set(ym, [sale]);
     }
 
-    const ymKeys = [...salesByMonth.keys()].sort();
     console.log(
-      `[baquerohouse-data] 파트너 ${partners.length}명, 매출 ${saleRows.length}건 로드 (파싱실패: ${parseFail}건)`,
-    );
-    console.log(
-      `[baquerohouse-data] 매출 월 분포: ${ymKeys.map(k => `${k}:${salesByMonth.get(k)!.length}`).join(", ")}`,
+      `[baquerohouse-data] 파트너 ${partners.length}명, 매출 ${saleRows.length}건 로드`,
     );
     cached = { partners, partnerMap, salesByMonth, available: true };
   } catch (e) {
