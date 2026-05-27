@@ -444,7 +444,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 거래처 분석</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            거래처 1곳 또는 2곳을 비교 — 24개월 추이 / 분기·연간 비교 / 브랜드·채널 분해 / 신규·이탈 SKU
+            거래처 1개 또는 2개을 비교 — 24개월 추이 / 분기·연간 비교 / 브랜드·채널 분해 / 신규·이탈 SKU
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

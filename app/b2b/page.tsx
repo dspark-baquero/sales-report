@@ -179,7 +179,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} B2B (대리점 제외)</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            영업사원 {byDealerCur.length}명 · 활성 거래처 {formatInt(activeCustomers)}곳
+            영업사원 {byDealerCur.length}명 · 활성 거래처 {formatInt(activeCustomers)}개
           </p>
         </div>
       </div>
@@ -216,7 +216,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           label="활성 거래처 수"
           current={activeCustomers}
           unit="raw"
-          unitSuffix="곳"
+          unitSuffix="개"
           hint="이번달 매출 발생"
           comparisons={[{ label: COMPARE_LABEL.prevMonth, prev: activeCustomersPrev }]}
         />
@@ -310,7 +310,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                   return (
                     <tr key={d.dealer} className="border-b last:border-0">
                       <td className="py-2 font-medium">{d.dealer}</td>
-                      <td className="py-2 text-right tabular-nums">{formatInt(d.customers)}곳</td>
+                      <td className="py-2 text-right tabular-nums">{formatInt(d.customers)}개</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(d.revenue)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
                         {pm > 0 ? formatKRWLong(pm) : "—"}
@@ -384,7 +384,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                           {d.series6m[0]?.yearMonth.slice(2)} ~ {d.series6m[d.series6m.length - 1]?.yearMonth.slice(2)}
                         </div>
                       </td>
-                      <td className="py-2 text-right tabular-nums">{formatInt(d.curActiveCustomers)}곳</td>
+                      <td className="py-2 text-right tabular-nums">{formatInt(d.curActiveCustomers)}개</td>
                       <td className="py-2 text-right tabular-nums">
                         {qRow ? formatKRWShort(qRow.currentQAccum) : "—"}
                       </td>
@@ -433,14 +433,14 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                     <div className="flex items-baseline justify-between mb-2">
                       <h4 className="font-medium text-sm">{d.dealer}</h4>
                       <div className="text-[11px] text-muted-foreground">
-                        활성 {d.currentActive}곳 · 순증감 {d.netChange > 0 ? "+" : ""}
-                        {d.netChange}곳
+                        활성 {d.currentActive}개 · 순증감 {d.netChange > 0 ? "+" : ""}
+                        {d.netChange}개
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <div className="text-[11px] text-emerald-700 mb-1">
-                          신규 ({d.newCustomers.length}곳)
+                          신규 ({d.newCustomers.length}개)
                         </div>
                         {d.newCustomers.length === 0 ? (
                           <div className="text-xs text-muted-foreground">—</div>
@@ -458,14 +458,14 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                               </li>
                             ))}
                             {d.newCustomers.length > 5 && (
-                              <li className="text-[10px] text-muted-foreground">+{d.newCustomers.length - 5}곳 더</li>
+                              <li className="text-[10px] text-muted-foreground">+{d.newCustomers.length - 5}개 더</li>
                             )}
                           </ul>
                         )}
                       </div>
                       <div>
                         <div className="text-[11px] text-rose-700 mb-1">
-                          이탈 ({d.lostCustomers.length}곳)
+                          이탈 ({d.lostCustomers.length}개)
                         </div>
                         {d.lostCustomers.length === 0 ? (
                           <div className="text-xs text-muted-foreground">—</div>
@@ -485,7 +485,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                               </li>
                             ))}
                             {d.lostCustomers.length > 5 && (
-                              <li className="text-[10px] text-muted-foreground">+{d.lostCustomers.length - 5}곳 더</li>
+                              <li className="text-[10px] text-muted-foreground">+{d.lostCustomers.length - 5}개 더</li>
                             )}
                           </ul>
                         )}
@@ -664,7 +664,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>신규 거래처 (직전 6개월 무매출 → 이번달)</CardTitle>
-              <Badge variant="info">{newOnes.length}곳</Badge>
+              <Badge variant="info">{newOnes.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -696,7 +696,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>이탈 거래처 (직전 3개월 매출 → 이번달 0)</CardTitle>
-              <Badge variant="negative">{lost.length}곳</Badge>
+              <Badge variant="negative">{lost.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">

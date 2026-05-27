@@ -206,9 +206,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
       <div>
         <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 바크로하우스</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {shops.length}곳 파트너 샵 · 이번달 {formatInt(k.qty)}개 출고
+          {shops.length}개 파트너 샵 · 이번달 {formatInt(k.qty)}개 출고
           {bhAvailable && partnerRefList.length > 0 && (
-            <> · 파트너 추천 {partnerRefList.length}곳</>
+            <> · 파트너 추천 {partnerRefList.length}개</>
           )}
         </p>
       </div>
@@ -240,7 +240,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           current={bhAvailable ? bhPartners.length : shops.length}
           comparisons={[]}
           unit="qty"
-          unitSuffix="곳"
+          unitSuffix="개"
         />
         <MetricCard
           label="샵당 평균 매출"
@@ -465,7 +465,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                     {gradeList.map((g) => (
                       <tr key={g.grade} className="border-b last:border-0">
                         <td className="py-2 font-medium">{g.grade}</td>
-                        <td className="py-2 text-right tabular-nums">{g.count}곳</td>
+                        <td className="py-2 text-right tabular-nums">{g.count}개</td>
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(g.revenue)}</td>
                         <td className="py-2 text-right tabular-nums">
                           {g.count > 0 ? formatKRWLong(g.revenue / g.count) : "—"}
@@ -502,7 +502,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                   {agencyList.map((a) => (
                     <tr key={a.agency} className="border-b last:border-0">
                       <td className="py-2 font-medium">{a.agency}</td>
-                      <td className="py-2 text-right tabular-nums">{a.partners}곳</td>
+                      <td className="py-2 text-right tabular-nums">{a.partners}개</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(a.commission)}</td>
                     </tr>
                   ))}
@@ -554,7 +554,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                           <div>{ch.diffText}</div>
                           <div className="text-[10px]">{ch.pctText}</div>
                         </td>
-                        <td className="py-2 text-right tabular-nums">{formatInt(d.shops)}곳</td>
+                        <td className="py-2 text-right tabular-nums">{formatInt(d.shops)}개</td>
                       </tr>
                     );
                   })}

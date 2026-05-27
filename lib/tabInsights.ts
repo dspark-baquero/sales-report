@@ -246,7 +246,7 @@ export function computeOverviewInsights(cube: FactCube, ym: string): InsightBull
       severity: "critical",
       category: "핵심 거래처 이탈",
       text: `지난 분기 ${l.baselineRank}위 ${l.customer} 이번달 매출 0 (분기 ${formatKRWShort(l.baselineRevenue)})`,
-      detail: lost.length > 1 ? `+${lost.length - 1}곳 더` : undefined,
+      detail: lost.length > 1 ? `+${lost.length - 1}개 더` : undefined,
       weight: l.baselineRevenue,
       href: `/accounts?customer=${encodeURIComponent(l.customer)}&month=${ym}`,
     });
@@ -355,7 +355,7 @@ export function computeB2BInsights(cube: FactCube, ym: string): InsightBullet[] 
     out.push({
       severity: "info",
       category: "거래처 변동",
-      text: `이번달 신규 B2B 거래처 ${totalNew}곳 진입`,
+      text: `이번달 신규 B2B 거래처 ${totalNew}개 진입`,
       weight: totalNew,
     });
   }
@@ -363,7 +363,7 @@ export function computeB2BInsights(cube: FactCube, ym: string): InsightBullet[] 
     out.push({
       severity: totalLost > totalNew ? "warn" : "info",
       category: "거래처 변동",
-      text: `직전 3개월 거래 ${totalLost}곳이 이번달 매출 0`,
+      text: `직전 3개월 거래 ${totalLost}개이 이번달 매출 0`,
       weight: totalLost,
     });
   }
@@ -741,7 +741,7 @@ export function computeAccountsInsights(cube: FactCube, ym: string, customer: st
       out.push({
         severity: "critical",
         category: "핵심 이탈",
-        text: `지난 분기 상위 거래처 중 ${lost.length}곳이 이번달 매출 0`,
+        text: `지난 분기 상위 거래처 중 ${lost.length}개이 이번달 매출 0`,
         weight: lost.reduce((s, l) => s + l.baselineRevenue, 0),
       });
     }
@@ -750,7 +750,7 @@ export function computeAccountsInsights(cube: FactCube, ym: string, customer: st
       out.push({
         severity: "info",
         category: "신규 진입",
-        text: `이번달 신규 거래처 ${newOnes.length}곳 진입 (Top: ${newOnes[0].customer} ${formatKRWShort(newOnes[0].currentRevenue)})`,
+        text: `이번달 신규 거래처 ${newOnes.length}개 진입 (Top: ${newOnes[0].customer} ${formatKRWShort(newOnes[0].currentRevenue)})`,
         weight: newOnes[0].currentRevenue,
       });
     }

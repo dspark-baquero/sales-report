@@ -104,7 +104,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>분기 절벽 거래처 (지난 분기 상위 → 이번 분기 -40%↓)</CardTitle>
-              <Badge variant={cliff.length > 0 ? "negative" : "muted"}>{cliff.length}곳</Badge>
+              <Badge variant={cliff.length > 0 ? "negative" : "muted"}>{cliff.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -152,7 +152,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>동면 거래처 복귀 (직전 3개월 무거래 → 이번달)</CardTitle>
-              <Badge variant="info">{sleeping.length}곳</Badge>
+              <Badge variant="info">{sleeping.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -200,7 +200,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>상실된 핵심 거래처 (지난 분기 상위 10 → 이번달 0)</CardTitle>
-              <Badge variant={lostKey.length > 0 ? "negative" : "muted"}>{lostKey.length}곳</Badge>
+              <Badge variant={lostKey.length > 0 ? "negative" : "muted"}>{lostKey.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -246,7 +246,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>신규 진입 거래처 (직전 6개월 무거래 → 이번달 첫 매출)</CardTitle>
-              <Badge variant="info">{newAcc.length}곳</Badge>
+              <Badge variant="info">{newAcc.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -314,7 +314,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
             </div>
             <div>
               <div className="text-[11px] text-muted-foreground">활성 거래처 수</div>
-              <div className="text-lg font-semibold tabular-nums">{formatInt(conc.customerCount)}곳</div>
+              <div className="text-lg font-semibold tabular-nums">{formatInt(conc.customerCount)}개</div>
             </div>
           </div>
         </CardContent>
@@ -537,7 +537,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
               <div>
                 <div className="text-[11px] text-muted-foreground">활성 거래처 수</div>
                 <div className="text-lg font-semibold tabular-nums">
-                  {formatInt(conc.customerCount)}곳
+                  {formatInt(conc.customerCount)}개
                 </div>
               </div>
             </div>

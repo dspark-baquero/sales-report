@@ -220,7 +220,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>신규 거래처 (직전 3개월 무거래)</CardTitle>
-              <Badge variant="info">{newCustomers.length}곳</Badge>
+              <Badge variant="info">{newCustomers.length}개</Badge>
             </div>
             <div className="text-[11px] text-muted-foreground">
               이번달 매출 발생 + 직전 3개월 매출 0
@@ -255,7 +255,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Sear
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>이탈 거래처 (직전 3개월 거래 → 이번달 0)</CardTitle>
-              <Badge variant="negative">{lostCustomers.length}곳</Badge>
+              <Badge variant="negative">{lostCustomers.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">

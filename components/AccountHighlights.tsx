@@ -54,7 +54,7 @@ export function AccountHighlights({ cube, ym }: { cube: FactCube; ym: string }) 
                 <TrendingUp className="h-4 w-4 text-emerald-600" />
                 전월 대비 상위 상승
               </CardTitle>
-              <Badge variant="info">{movers.gainers.length}곳</Badge>
+              <Badge variant="info">{movers.gainers.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -103,7 +103,7 @@ export function AccountHighlights({ cube, ym }: { cube: FactCube; ym: string }) 
                 <TrendingDown className="h-4 w-4 text-rose-600" />
                 전월 대비 상위 하락
               </CardTitle>
-              <Badge variant="negative">{movers.decliners.length}곳</Badge>
+              <Badge variant="negative">{movers.decliners.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -157,7 +157,7 @@ export function AccountHighlights({ cube, ym }: { cube: FactCube; ym: string }) 
                 <Sparkles className="h-4 w-4 text-violet-600" />
                 동면 거래처 복귀
               </CardTitle>
-              <Badge variant="info">{sleeping.length}곳</Badge>
+              <Badge variant="info">{sleeping.length}개</Badge>
             </div>
             <div className="text-[11px] text-muted-foreground">
               직전 3개월 무거래 → 이번달 매출 (300만원 이상)
@@ -209,7 +209,7 @@ export function AccountHighlights({ cube, ym }: { cube: FactCube; ym: string }) 
                 <AlertTriangle className={cliff.length > 0 ? "h-4 w-4 text-rose-600" : "h-4 w-4 text-muted-foreground"} />
                 분기 절벽 경보
               </CardTitle>
-              <Badge variant={cliff.length > 0 ? "negative" : "muted"}>{cliff.length}곳</Badge>
+              <Badge variant={cliff.length > 0 ? "negative" : "muted"}>{cliff.length}개</Badge>
             </div>
             <div className="text-[11px] text-muted-foreground">
               지난 분기 상위 거래처 중 이번 분기 누적이 진행률 보정 -40% 이상 하락
@@ -262,7 +262,7 @@ export function AccountHighlights({ cube, ym }: { cube: FactCube; ym: string }) 
                 <AlertTriangle className="h-4 w-4 text-rose-600" />
                 상실된 핵심 거래처 (지난 분기 상위 10 → 이번달 0원)
               </CardTitle>
-              <Badge variant="negative">{lost.length}곳</Badge>
+              <Badge variant="negative">{lost.length}개</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">

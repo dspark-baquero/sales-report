@@ -138,7 +138,7 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
       <div>
         <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 대리점</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {agencyCustomers.length}곳 활성 거래처 · 이번달 출고 {formatInt(k.qty)}개
+          {agencyCustomers.length}개 활성 거래처 · 이번달 출고 {formatInt(k.qty)}개
         </p>
       </div>
 

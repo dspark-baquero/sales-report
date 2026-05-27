@@ -133,7 +133,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 면세점</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {customers.length}곳 거래처 · 이번달 출고 {formatInt(k.qty)}개
+            {customers.length}개 거래처 · 이번달 출고 {formatInt(k.qty)}개
           </p>
         </div>
       </div>
@@ -193,7 +193,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
           label="활성 거래처"
           current={customers.filter((c) => c.revenue > 0).length}
           unit="raw"
-          unitSuffix="곳"
+          unitSuffix="개"
           hint="이번달 매출 발생"
           comparisons={[
             {
