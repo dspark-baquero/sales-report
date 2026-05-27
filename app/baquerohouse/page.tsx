@@ -198,22 +198,30 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     return result.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
   })();
 
-  // 영업사원별 실적 (파트너 매출 기준)
+  // 영업사원/대리점별 실적 (파트너 매출 기준)
+  // 대리점이 본사 → 영업사원명, 대리점이 본사가 아닌 경우 → 대리점명
+  function repKey(partnerName: string): string {
+    const p = partnerMap.get(partnerName);
+    if (!p) return "미지정";
+    const agency = p.agencyLinker;
+    if (agency && agency !== "본사") return agency;
+    return p.salesRep || "미지정";
+  }
   const salesRepMap = new Map<string, { revenue: number; commission: number; partners: Set<string> }>();
   for (const s of bhSalesCur) {
     if (!s.partnerName) continue;
-    const rep = partnerMap.get(s.partnerName)?.salesRep || "미지정";
-    const c = salesRepMap.get(rep) ?? { revenue: 0, commission: 0, partners: new Set() };
+    const key = repKey(s.partnerName);
+    const c = salesRepMap.get(key) ?? { revenue: 0, commission: 0, partners: new Set() };
     c.revenue += s.paymentAmount;
     c.commission += s.estimatedCommission;
     c.partners.add(s.partnerName);
-    salesRepMap.set(rep, c);
+    salesRepMap.set(key, c);
   }
   const salesRepPrevMap = new Map<string, number>();
   for (const s of bhSalesPrev) {
     if (!s.partnerName) continue;
-    const rep = partnerMap.get(s.partnerName)?.salesRep || "미지정";
-    salesRepPrevMap.set(rep, (salesRepPrevMap.get(rep) ?? 0) + s.paymentAmount);
+    const key = repKey(s.partnerName);
+    salesRepPrevMap.set(key, (salesRepPrevMap.get(key) ?? 0) + s.paymentAmount);
   }
   const salesRepList = [...salesRepMap.entries()]
     .map(([salesRep, v]) => ({
@@ -467,9 +475,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
       {bhAvailable && salesRepList.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>영업사원별 실적</CardTitle>
+            <CardTitle>영업사원/대리점별 실적</CardTitle>
             <div className="text-[11px] text-muted-foreground">
-              파트너 매출 기준 · 영업사원별 추천 매출 및 담당 파트너
+              파트너 매출 기준 · 본사 파트너는 영업사원별, 대리점 파트너는 대리점별 집계
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -477,7 +485,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
-                    <th className="py-2">영업사원</th>
+                    <th className="py-2">영업사원/대리점</th>
                     <th className="py-2 text-right">이번달</th>
                     <th className="py-2 text-right">전월</th>
                     <th className="py-2 text-right">변화</th>
