@@ -33,6 +33,7 @@ import {
 } from "@/lib/format";
 import {
   loadBHPartnerMap,
+  loadBHPartners,
   loadBHSales,
   isBHDataAvailable,
   type BHPartnerSale,
@@ -51,9 +52,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     isBHDataAvailable(),
   ]);
 
-  const [partnerMap, bhSalesCur, bhSalesPrev] = bhAvailable
-    ? await Promise.all([loadBHPartnerMap(), loadBHSales(ym), loadBHSales(prevYM)])
-    : [new Map(), [] as BHPartnerSale[], [] as BHPartnerSale[]];
+  const [partnerMap, bhPartners, bhSalesCur, bhSalesPrev] = bhAvailable
+    ? await Promise.all([loadBHPartnerMap(), loadBHPartners(), loadBHSales(ym), loadBHSales(prevYM)])
+    : [new Map(), [], [] as BHPartnerSale[], [] as BHPartnerSale[]];
 
   const insights = computeBaqueroHouseInsights(cube, ym, bhAvailable ? bhSalesCur : undefined);
 
@@ -156,19 +157,17 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
   const partnerRefRevenue = bhSalesCur.reduce((s, r) => s + r.paymentAmount, 0);
   const partnerRefRevenuePrev = bhSalesPrev.reduce((s, r) => s + r.paymentAmount, 0);
   const totalCommission = bhSalesCur.reduce((s, r) => s + r.estimatedCommission, 0);
-  const paidCount = bhSalesCur.filter((r) => r.commissionPaid).length;
   const totalSaleCount = bhSalesCur.length;
 
   // 파트너별 추천 실적
-  const refByPartner = new Map<string, { revenue: number; commission: number; qty: number; paid: number; total: number }>();
+  const refByPartner = new Map<string, { revenue: number; commission: number; qty: number; total: number }>();
   for (const s of bhSalesCur) {
     if (!s.partnerName) continue;
-    const c = refByPartner.get(s.partnerName) ?? { revenue: 0, commission: 0, qty: 0, paid: 0, total: 0 };
+    const c = refByPartner.get(s.partnerName) ?? { revenue: 0, commission: 0, qty: 0, total: 0 };
     c.revenue += s.paymentAmount;
     c.commission += s.estimatedCommission;
     c.qty += s.quantity;
     c.total++;
-    if (s.commissionPaid) c.paid++;
     refByPartner.set(s.partnerName, c);
   }
   const partnerRefList = [...refByPartner.entries()]
@@ -237,9 +236,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           highlight
         />
         <MetricCard
-          label="활성 파트너 샵"
-          current={shops.length}
-          comparisons={[{ label: COMPARE_LABEL.prevMonth, prev: shopPrevMap.size }]}
+          label="등록 파트너"
+          current={bhAvailable ? bhPartners.length : shops.length}
+          comparisons={[]}
           unit="qty"
           unitSuffix="곳"
         />
@@ -271,7 +270,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <div className="text-[11px] text-muted-foreground">파트너 추천 매출</div>
                 <div className="text-lg font-semibold tabular-nums">{formatKRWLong(partnerRefRevenue)}</div>
@@ -295,15 +294,6 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                 <div className="text-lg font-semibold tabular-nums">{formatKRWLong(totalCommission)}</div>
                 <div className="text-[11px] text-muted-foreground">
                   {totalSaleCount}건 주문
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] text-muted-foreground">커미션 지급률</div>
-                <div className="text-lg font-semibold tabular-nums">
-                  {totalSaleCount > 0 ? formatPctAbs(paidCount / totalSaleCount) : "—"}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {paidCount}건 지급 / {totalSaleCount - paidCount}건 미지급
                 </div>
               </div>
             </div>
@@ -399,7 +389,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           <CardHeader>
             <CardTitle>파트너별 추천 실적</CardTitle>
             <div className="text-[11px] text-muted-foreground">
-              파트너 추천 링크 경유 매출 · 예상 커미션 · 지급 상태
+              파트너 추천 링크 경유 매출 · 예상 커미션
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -413,7 +403,6 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                     <th className="py-2 text-right">추천 매출</th>
                     <th className="py-2 text-right">예상 커미션</th>
                     <th className="py-2 text-right">주문 건수</th>
-                    <th className="py-2 text-right">지급 상태</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -435,17 +424,6 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(pr.revenue)}</td>
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(pr.commission)}</td>
                         <td className="py-2 text-right tabular-nums">{formatInt(pr.total)}건</td>
-                        <td className="py-2 text-right">
-                          {pr.paid === pr.total ? (
-                            <span className="text-emerald-700 text-[11px]">전액 지급</span>
-                          ) : pr.paid === 0 ? (
-                            <span className="text-rose-700 text-[11px]">미지급</span>
-                          ) : (
-                            <span className="text-amber-700 text-[11px]">
-                              {pr.paid}/{pr.total}건 지급
-                            </span>
-                          )}
-                        </td>
                       </tr>
                     );
                   })}

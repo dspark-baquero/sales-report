@@ -16,7 +16,6 @@ export type BHPartnerSale = {
   orderNo: string;
   paymentAmount: number;
   estimatedCommission: number;
-  commissionPaid: boolean;
   agency: string | null;
   agencyCommission: number;
   brand: string;
@@ -120,8 +119,7 @@ async function ensureLoaded(): Promise<Cached> {
         yearMonth: ym,
         orderNo: str(r.order_no),
         paymentAmount: num(r.payment_amount),
-        estimatedCommission: num(r.estimated_commission),
-        commissionPaid: str(r.commission_paid) === "지급완료",
+        estimatedCommission: num(r.estimated_commission_split),
         agency: str(r.agency) || null,
         agencyCommission: num(r.agency_commission),
         brand: str(r.brand),

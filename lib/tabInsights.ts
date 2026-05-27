@@ -438,7 +438,7 @@ export function computeExportInsights(cube: FactCube, ym: string): InsightBullet
 export function computeBaqueroHouseInsights(
   cube: FactCube,
   ym: string,
-  bhSales?: { paymentAmount: number; estimatedCommission: number; commissionPaid: boolean }[],
+  bhSales?: { paymentAmount: number }[],
 ): InsightBullet[] {
   const prevYM = prevMonth(ym);
   const out: InsightBullet[] = [];
@@ -475,18 +475,6 @@ export function computeBaqueroHouseInsights(
         severity: "info",
         category: "파트너 추천",
         text: `파트너 추천 매출 비율 ${formatPctAbs(ratio)} (${formatKRWShort(refRevenue)})`,
-      });
-    }
-    const unpaid = bhSales.filter((r) => !r.commissionPaid).length;
-    if (unpaid > 10) {
-      const unpaidCommission = bhSales
-        .filter((r) => !r.commissionPaid)
-        .reduce((s, r) => s + r.estimatedCommission, 0);
-      out.push({
-        severity: "warn",
-        category: "커미션",
-        text: `미지급 커미션 ${unpaid}건 (${formatKRWShort(unpaidCommission)})`,
-        weight: unpaidCommission,
       });
     }
   }
