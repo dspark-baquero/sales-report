@@ -35,6 +35,7 @@ import {
   loadBHPartnerMap,
   loadBHPartners,
   loadBHSales,
+  loadBHSalesRange,
   isBHDataAvailable,
   type BHPartnerSale,
 } from "@/lib/baquerohouse-data";
@@ -90,6 +91,18 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
   const fromYM = ymMinusMonths(ym, 11);
   const trendRows = await loadRangeRows(fromYM, ym);
   const monthly = monthlyRevenueOf(trendRows, fromYM, ym, (r) => r.channel === "바크로하우스");
+
+  // 12개월 파트너 추천 매출 (스택 차트용)
+  const bhSalesTrend = bhAvailable ? await loadBHSalesRange(fromYM, ym) : [];
+  const refByMonth = new Map<string, number>();
+  for (const s of bhSalesTrend) {
+    refByMonth.set(s.yearMonth, (refByMonth.get(s.yearMonth) ?? 0) + s.paymentAmount);
+  }
+  // 브랜드별 추천 매출
+  const refByBrand = new Map<string, number>();
+  for (const s of bhSalesCur) {
+    if (s.brand) refByBrand.set(s.brand, (refByBrand.get(s.brand) ?? 0) + s.paymentAmount);
+  }
 
   // 파트너 샵(거래처)별 실적 + 담당 영업사원
   const shopMap = new Map<string, { revenue: number; qty: number; dealer: string }>();
@@ -498,17 +511,36 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
       <Card>
         <CardHeader>
           <CardTitle>최근 12개월 매출 추이</CardTitle>
+          {bhAvailable && (
+            <div className="text-[11px] text-muted-foreground">
+              전체 매출 중 파트너 추천 매출 비율을 색상으로 구분
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <BarChart
             categories={monthly.map((m) =>
               formatYM(m.yearMonth).replace("년 ", "/").replace("월", ""),
             )}
-            series={[
+            series={bhAvailable ? [
+              {
+                name: "추천 매출",
+                values: monthly.map((m) => refByMonth.get(m.yearMonth) ?? 0),
+                color: "#e11d48",
+                stack: "revenue",
+              },
+              {
+                name: "일반 매출",
+                values: monthly.map((m) => Math.max(0, m.revenue - (refByMonth.get(m.yearMonth) ?? 0))),
+                color: "#fecdd3",
+                stack: "revenue",
+              },
+            ] : [
               { name: "바크로하우스", values: monthly.map((m) => m.revenue), color: "#e11d48" },
             ]}
             height={280}
             yLabel="실매출"
+            showStackTotals={bhAvailable}
           />
         </CardContent>
       </Card>
@@ -521,12 +553,26 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           <CardContent>
             <BarChart
               categories={brands.map((b) => b.brand)}
-              series={[
+              series={bhAvailable ? [
+                {
+                  name: "추천 매출",
+                  values: brands.map((b) => refByBrand.get(b.brand) ?? 0),
+                  color: "#e11d48",
+                  stack: "revenue",
+                },
+                {
+                  name: "일반 매출",
+                  values: brands.map((b) => Math.max(0, b.revenue - (refByBrand.get(b.brand) ?? 0))),
+                  color: "#fecdd3",
+                  stack: "revenue",
+                },
+              ] : [
                 { name: "실매출", values: brands.map((b) => b.revenue), color: "#e11d48" },
               ]}
               height={240}
               horizontal
               yLabel="실매출"
+              showStackTotals={bhAvailable}
             />
           </CardContent>
         </Card>
