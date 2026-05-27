@@ -57,7 +57,11 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     ? await Promise.all([loadBHPartnerMap(), loadBHPartners(), loadBHSales(ym), loadBHSales(prevYM)])
     : [new Map(), [], [] as BHPartnerSale[], [] as BHPartnerSale[]];
 
-  const insights = computeBaqueroHouseInsights(cube, ym, bhAvailable ? bhSalesCur : undefined);
+  const insights = computeBaqueroHouseInsights(cube, ym, bhAvailable ? {
+    salesCur: bhSalesCur,
+    salesPrev: bhSalesPrev,
+    partnerMap,
+  } : undefined);
 
   const { qStart } = quarterOf(ym);
   const prevQ = prevQuarter(ym);

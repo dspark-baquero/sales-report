@@ -435,14 +435,37 @@ export function computeExportInsights(cube: FactCube, ym: string): InsightBullet
 }
 
 // ── 바크로하우스 탭 ──────────────────────────────────────
+type BHPartnerData = {
+  salesCur: { partnerName: string; paymentAmount: number; brand: string }[];
+  salesPrev: { partnerName: string; paymentAmount: number; brand: string }[];
+  partnerMap: Map<string, { salesRep: string; agencyLinker: string | null }>;
+};
+
+function groupByKey(
+  sales: { partnerName: string; paymentAmount: number }[],
+  keyFn: (name: string) => string,
+): Map<string, { revenue: number }> {
+  const m = new Map<string, { revenue: number }>();
+  for (const s of sales) {
+    if (!s.partnerName) continue;
+    const k = keyFn(s.partnerName);
+    const c = m.get(k) ?? { revenue: 0 };
+    c.revenue += s.paymentAmount;
+    m.set(k, c);
+  }
+  return m;
+}
+
 export function computeBaqueroHouseInsights(
   cube: FactCube,
   ym: string,
-  bhSales?: { paymentAmount: number }[],
+  partnerData?: BHPartnerData,
 ): InsightBullet[] {
   const prevYM = prevMonth(ym);
+  const prevYearYM = prevYearSameMonth(ym);
   const out: InsightBullet[] = [];
 
+  // 1. 전체 매출 전월 대비
   const curCells = cubeMonthChannelCells(cube, ym);
   const prevCells = cubeMonthChannelCells(cube, prevYM);
   const curRev = curCells.get("바크로하우스")?.revenue ?? 0;
@@ -450,36 +473,103 @@ export function computeBaqueroHouseInsights(
   const tb = totalChangeBullet(curRev, prevRev, "전월", "바크로하우스");
   if (tb) out.push(tb);
 
-  const allCustCur = cubeMonthCustomerCells(cube, ym);
-  const allCustPrev = cubeMonthCustomerCells(cube, prevYM);
-  const bhCustCur = new Map<string, { revenue: number }>();
-  const bhCustPrev = new Map<string, { revenue: number }>();
-  for (const [c, cell] of allCustCur) {
-    if (cube.customerToChannel?.get(c) === "바크로하우스") bhCustCur.set(c, { revenue: cell.revenue });
+  // 2. 전년 동월 대비
+  const prevYearCells = cubeMonthChannelCells(cube, prevYearYM);
+  const prevYearRev = prevYearCells.get("바크로하우스")?.revenue ?? 0;
+  if (prevYearRev > 0) {
+    const yb = totalChangeBullet(curRev, prevYearRev, "전년 동월", "바크로하우스");
+    if (yb) out.push(yb);
   }
-  for (const [c, cell] of allCustPrev) {
-    if (cube.customerToChannel?.get(c) === "바크로하우스") bhCustPrev.set(c, { revenue: cell.revenue });
-  }
-  out.push(...topMoversFromCells(bhCustCur, bhCustPrev, {
-    categoryLabel: "파트너 샵",
-    minAbsDiff: 500_000,
-    minPct: 0.15,
-    maxBullets: 4,
-  }));
 
-  if (bhSales && bhSales.length > 0) {
-    const refRevenue = bhSales.reduce((s, r) => s + r.paymentAmount, 0);
+  if (partnerData && partnerData.salesCur.length > 0) {
+    const { salesCur, salesPrev, partnerMap } = partnerData;
+
+    // 3. 파트너 추천 매출 비율
+    const refRevenue = salesCur.reduce((s, r) => s + r.paymentAmount, 0);
     if (curRev > 0) {
-      const ratio = refRevenue / curRev;
       out.push({
         severity: "info",
         category: "파트너 추천",
-        text: `파트너 추천 매출 비율 ${formatPctAbs(ratio)} (${formatKRWShort(refRevenue)})`,
+        text: `파트너 추천 매출 비율 ${formatPctAbs(refRevenue / curRev)} (${formatKRWShort(refRevenue)})`,
       });
     }
+
+    // 4. 파트너 빅 무버
+    const partnerCur = groupByKey(salesCur, (n) => n);
+    const partnerPrev = groupByKey(salesPrev, (n) => n);
+    out.push(...topMoversFromCells(partnerCur, partnerPrev, {
+      categoryLabel: "파트너",
+      minAbsDiff: 100_000,
+      minPct: 0.2,
+      maxBullets: 3,
+    }));
+
+    // 5. 신규/이탈 파트너
+    const newPartners = [...partnerCur.keys()].filter((p) => !partnerPrev.has(p));
+    const lostPartners = [...partnerPrev.keys()].filter((p) => !partnerCur.has(p));
+    if (newPartners.length > 0) {
+      const topNew = newPartners
+        .map((p) => ({ name: p, rev: partnerCur.get(p)!.revenue }))
+        .sort((a, b) => b.rev - a.rev);
+      out.push({
+        severity: "positive",
+        category: "신규 파트너",
+        text: `신규 파트너 ${newPartners.length}개 (${topNew[0].name} ${formatKRWShort(topNew[0].rev)}${newPartners.length > 1 ? ` 외 ${newPartners.length - 1}개` : ""})`,
+        weight: topNew[0].rev,
+      });
+    }
+    if (lostPartners.length > 0) {
+      const topLost = lostPartners
+        .map((p) => ({ name: p, rev: partnerPrev.get(p)!.revenue }))
+        .sort((a, b) => b.rev - a.rev);
+      out.push({
+        severity: lostPartners.length >= 3 ? "critical" : "warn",
+        category: "이탈 파트너",
+        text: `이탈 파트너 ${lostPartners.length}개 (${topLost[0].name} 전월 ${formatKRWShort(topLost[0].rev)}${lostPartners.length > 1 ? ` 외 ${lostPartners.length - 1}개` : ""})`,
+        weight: topLost[0].rev,
+      });
+    }
+
+    // 6. 브랜드별 추천 매출 변화
+    const brandCurMap = new Map<string, { revenue: number }>();
+    const brandPrevMap = new Map<string, { revenue: number }>();
+    for (const s of salesCur) {
+      if (!s.brand) continue;
+      const c = brandCurMap.get(s.brand) ?? { revenue: 0 };
+      c.revenue += s.paymentAmount;
+      brandCurMap.set(s.brand, c);
+    }
+    for (const s of salesPrev) {
+      if (!s.brand) continue;
+      const c = brandPrevMap.get(s.brand) ?? { revenue: 0 };
+      c.revenue += s.paymentAmount;
+      brandPrevMap.set(s.brand, c);
+    }
+    out.push(...topMoversFromCells(brandCurMap, brandPrevMap, {
+      categoryLabel: "브랜드 추천",
+      minAbsDiff: 50_000,
+      minPct: 0.2,
+      maxBullets: 2,
+    }));
+
+    // 7. 영업사원/대리점별 변화
+    function repKey(name: string): string {
+      const p = partnerMap.get(name);
+      if (!p) return "미지정";
+      if (p.agencyLinker && p.agencyLinker !== "본사") return p.agencyLinker;
+      return p.salesRep || "미지정";
+    }
+    const repCur = groupByKey(salesCur, repKey);
+    const repPrev = groupByKey(salesPrev, repKey);
+    out.push(...topMoversFromCells(repCur, repPrev, {
+      categoryLabel: "담당자",
+      minAbsDiff: 100_000,
+      minPct: 0.2,
+      maxBullets: 2,
+    }));
   }
 
-  return rankBullets(out).slice(0, 8);
+  return rankBullets(out).slice(0, 10);
 }
 
 // ── 대리점 탭 ──────────────────────────────────────────
