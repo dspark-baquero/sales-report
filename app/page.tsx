@@ -4,13 +4,15 @@ import { resolveMonth } from "@/lib/months";
 import {
   kpi,
   ymMinusMonths,
-  monthlyByCategory,
   topNCustomersWithPrev,
   nonRevenueSummary,
   categoryRevenue,
+  enumerateMonths,
 } from "@/lib/aggregate";
 import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { ytdCategoryDetailSeries, ytdAchievementOverall } from "@/lib/ytd";
 import {
   topMovers,
   sleepingReturned,
@@ -25,7 +27,7 @@ import {
   quarterProgress,
 } from "@/lib/compare";
 import { loadTargets } from "@/lib/targets";
-import { COMPARE_LABEL, CATEGORY_COLOR } from "@/lib/labels";
+import { COMPARE_LABEL } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +41,15 @@ import {
 } from "@/lib/format";
 
 type SearchParams = Promise<{ month?: string }>;
+
+const DETAIL_CHANNELS = [
+  { key: "B2B", color: "#8b5cf6" },
+  { key: "대리점", color: "#a78bfa" },
+  { key: "B2C", color: "#10b981" },
+  { key: "바크로하우스", color: "#6ee7b7" },
+  { key: "면세점", color: "#f59e0b" },
+  { key: "수출", color: "#0ea5e9" },
+] as const;
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
@@ -60,9 +71,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   const k = kpi(cur);
   const kPrevMo = kpi(prevMo);
-  const kPrevYr = kpi(prevYr);
-  const kCurQ = kpi(curQ);
-  const kPrevQ = kpi(prevQRows);
 
   const catCur = categoryRevenue(cur);
   const catPrevMo = categoryRevenue(prevMo);
@@ -80,11 +88,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   const agencyCur = cur.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
   const agencyPrevMo = prevMo.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
-  const agencyPrevYr = prevYr.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
 
   const bhCur = cur.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
   const bhPrevMo = prevMo.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
-  const bhPrevYr = prevYr.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
 
   // 채널별 목표 (prospective 제외)
   const { targetsForMonthWithProspective } = await import("@/lib/targets");
@@ -98,12 +104,32 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const agencyTarget = ta.filter((t) => t.customerKey === "대리점" && !t.prospective).reduce((s, t) => s + t.target, 0);
   const bhTarget = ta.filter((t) => t.customerKey === "바크로하우스" && !t.prospective).reduce((s, t) => s + t.target, 0);
 
-  // 12개월 카테고리 스택
+  // YTD 달성률
+  const [yearStr] = ym.split("-");
+  const ytdStart = `${yearStr}-01`;
+  const ytdRangeRows = await loadRangeRows(ytdStart, ym);
+
+  // 12개월 카테고리 스택 (6채널 분리)
   const fromYM = ymMinusMonths(ym, 11);
   const rangeRows12 = await loadRangeRows(fromYM, ym);
-  const stack = monthlyByCategory(rangeRows12, fromYM, ym);
-  const months = stack.map((s) => s.yearMonth);
-  const categories: ("B2B" | "B2C" | "면세점" | "수출")[] = ["B2B", "B2C", "면세점", "수출"];
+  const stackMonths = enumerateMonths(fromYM, ym);
+
+  const monthlyDetail = stackMonths.map((m) => {
+    const b2bTotal = cube.byMonthCategory.get(m)?.get("B2B")?.revenue ?? 0;
+    const agency = cube.byMonthB2bType.get(m)?.get("대리점")?.revenue ?? 0;
+    const b2cTotal = cube.byMonthCategory.get(m)?.get("B2C")?.revenue ?? 0;
+    const chMap = cube.byMonthChannel.get(m);
+    const bh = (chMap?.get("바크로하우스")?.revenue ?? 0) + (chMap?.get("바크로하우스 스마트스토어")?.revenue ?? 0);
+    return {
+      ym: m,
+      B2B: b2bTotal - agency,
+      대리점: agency,
+      B2C: b2cTotal - bh,
+      바크로하우스: bh,
+      면세점: cube.byMonthCategory.get(m)?.get("면세점")?.revenue ?? 0,
+      수출: cube.byMonthCategory.get(m)?.get("수출")?.revenue ?? 0,
+    };
+  });
 
   const topCustomers = topNCustomersWithPrev(cur, prevMo, 5);
 
@@ -132,22 +158,16 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
       <TabInsights bullets={insights.slice(0, 5)} />
 
-      {/* 2. KPI 카드 — 전체 + 채널별 (목표 달성률 포함) */}
-      <MetricCard
-        label="전체 실매출"
-        current={k.revenue}
-        comparisons={[
-          { label: COMPARE_LABEL.prevMonth, prev: kPrevMo.revenue },
-          {
-            label: COMPARE_LABEL.curQuarter,
-            prev: kPrevQ.revenue,
-            note: `${qProg}/3개월 진행`,
-          },
-          { label: COMPARE_LABEL.prevYear, prev: kPrevYr.revenue },
-        ]}
-        target={{ value: totalTarget, label: "이번달 목표 합계" }}
-        highlight
+      {/* 2. YTD 월별 매출 추이 (6채널 분리) */}
+      <YearToDateChart
+        ym={ym}
+        series={ytdCategoryDetailSeries(cube, ym)}
+        caption="채널별 (B2B / 대리점 / B2C / 바크로하우스 / 면세점 / 수출)"
+        achievement={ytdAchievementOverall(ytdRangeRows, targets, ym)}
+        achievementLabel="전체"
       />
+
+      {/* 3. 채널별 KPI 카드 (목표 달성률 포함) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <MetricCard
           label="B2B"
@@ -199,19 +219,19 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         />
       </div>
 
-      {/* 3. 12개월 카테고리 스택바 */}
+      {/* 4. 12개월 채널별 매출 추이 (6채널 분리) */}
       <Card>
         <CardHeader>
-          <CardTitle>최근 12개월 카테고리별 매출 추이</CardTitle>
+          <CardTitle>최근 12개월 채널별 매출 추이</CardTitle>
         </CardHeader>
         <CardContent>
           <BarChart
-            categories={months.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
-            series={categories.map((c) => ({
-              name: c,
-              values: stack.map((s) => s.values[c]),
+            categories={stackMonths.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
+            series={DETAIL_CHANNELS.map((ch) => ({
+              name: ch.key,
+              values: monthlyDetail.map((d) => d[ch.key]),
               stack: "월합계",
-              color: CATEGORY_COLOR[c],
+              color: ch.color,
             }))}
             height={320}
             showLegend
@@ -220,7 +240,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </CardContent>
       </Card>
 
-      {/* 4. Top 5 거래처 */}
+      {/* 5. Top 5 거래처 */}
       <Card>
         <CardHeader>
           <CardTitle>이번달 상위 5 거래처 (전월 비교)</CardTitle>
@@ -272,7 +292,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </CardContent>
       </Card>
 
-      {/* 5. 거래처 변동 요약 */}
+      {/* 6. 거래처 변동 요약 */}
       <Card>
         <CardHeader>
           <CardTitle>거래처 변동 요약</CardTitle>
@@ -342,7 +362,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </CardContent>
       </Card>
 
-      {/* 6. 비매출 출고 1줄 요약 */}
+      {/* 7. 비매출 출고 1줄 요약 */}
       <div className="text-xs text-muted-foreground px-1">
         비매출 출고: 이번달 {formatInt(nrCur.totalRows)}건 · {formatInt(nrCur.totalQty)}개 · 원가 합계{" "}
         {formatKRWLong(nrCur.totalCost)} (전월 {formatInt(nrPrev.totalRows)}건 ·{" "}
