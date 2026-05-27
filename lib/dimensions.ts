@@ -323,6 +323,55 @@ export function generalMallChannels(rows: SalesRow[]) {
     .sort((a, b) => b.revenue - a.revenue);
 }
 
+// 자사 공식몰 채널별 표 (바크로하우스는 별도 탭이므로 제외)
+export function officialMallChannels(rows: SalesRow[]) {
+  const m = new Map<string, { revenue: number; qty: number; orderAmount: number; settlement: number; fee: number }>();
+  for (const r of revenueRows(rows.filter((x) => x.channelGroup === "자사 공식몰" && x.channel !== "바크로하우스"))) {
+    const cur = m.get(r.channel) ?? { revenue: 0, qty: 0, orderAmount: 0, settlement: 0, fee: 0 };
+    cur.revenue += r.realRevenue;
+    cur.qty += r.qty;
+    cur.orderAmount += r.orderAmount;
+    cur.settlement += r.settlement;
+    cur.fee += r.fee;
+    m.set(r.channel, cur);
+  }
+  return [...m.entries()]
+    .map(([channel, v]) => ({
+      channel,
+      ...v,
+      feeRate: v.orderAmount > 0 ? v.fee / v.orderAmount : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+// 소호몰 브랜드별 표
+export function sohoMallBrands(rows: SalesRow[]) {
+  const m = new Map<string, { revenue: number; qty: number }>();
+  for (const r of revenueRows(rows.filter((x) => x.channelGroup === "소호몰"))) {
+    const cur = m.get(r.brand) ?? { revenue: 0, qty: 0 };
+    cur.revenue += r.realRevenue;
+    cur.qty += r.qty;
+    m.set(r.brand, cur);
+  }
+  return [...m.entries()]
+    .map(([brand, v]) => ({ brand, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+// 임직원/패밀리 채널별 표
+export function staffChannels(rows: SalesRow[]) {
+  const m = new Map<string, { revenue: number; qty: number }>();
+  for (const r of revenueRows(rows.filter((x) => x.channelGroup === "임직원/패밀리"))) {
+    const cur = m.get(r.channel) ?? { revenue: 0, qty: 0 };
+    cur.revenue += r.realRevenue;
+    cur.qty += r.qty;
+    m.set(r.channel, cur);
+  }
+  return [...m.entries()]
+    .map(([channel, v]) => ({ channel, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
 // ── 면세점 ──────────────────────────────────────────────
 export function dutyFreeRows(rows: SalesRow[]): SalesRow[] {
   return rows.filter((r) => r.category === "면세점");

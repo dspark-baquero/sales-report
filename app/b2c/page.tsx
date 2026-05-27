@@ -22,6 +22,9 @@ import {
   brandChannelGroupBreakdown,
   brandOfficialTrend,
   generalMallChannels,
+  officialMallChannels,
+  sohoMallBrands,
+  staffChannels,
 } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
 import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
@@ -33,6 +36,7 @@ import { BarChart } from "@/components/charts/BarChart";
 import { LineChart } from "@/components/charts/LineChart";
 import {
   formatKRWLong,
+  formatKRWShort,
   formatInt,
   formatYM,
   formatPctAbs,
@@ -66,9 +70,9 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const kCurQ = kpi(b2cRows(curQ));
   const kPrevQ = kpi(b2cRows(prevQRows));
 
-  // B2C 목표 합계 (공식몰+종합몰+소호몰+바크로하우스+올리브영(추진)+링커(추진))
+  // B2C 목표 합계 (공식몰+종합몰+소호몰+올리브영(추진)+링커(추진)) — 바크로하우스는 별도 탭
   const ta = targetsForMonthWithProspective(targets, ym);
-  const b2cKeys = ["공식몰", "종합몰", "소호몰", "바크로하우스", "올리브영", "링커"];
+  const b2cKeys = ["공식몰", "종합몰", "소호몰", "올리브영", "링커"];
   const b2cTarget = ta
     .filter((t) => t.division === "국내" && b2cKeys.includes(t.customerKey))
     .reduce((s, t) => s + t.target, 0);
@@ -79,6 +83,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
     for (const r of cur) {
       if (r.category !== "B2C") continue;
       if (r.isNonRevenue) continue;
+      if (r.channel === "바크로하우스") continue;
       out[r.channelGroup] = (out[r.channelGroup] ?? 0) + r.realRevenue;
     }
     return out;
@@ -88,6 +93,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
     for (const r of prevMo) {
       if (r.category !== "B2C") continue;
       if (r.isNonRevenue) continue;
+      if (r.channel === "바크로하우스") continue;
       out[r.channelGroup] = (out[r.channelGroup] ?? 0) + r.realRevenue;
     }
     return out;
@@ -120,9 +126,35 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const officialTrends = brandOfficialTrend(rangeRows, fromYM, ym);
   const trendMonths = officialTrends[0]?.months ?? [];
 
+  // 자사 공식몰 채널별
+  const offMall = officialMallChannels(cur);
+  const offMallPrev = new Map(officialMallChannels(prevMo).map((g) => [g.channel, g]));
+
+  // 공식몰 채널별 12개월 추이
+  const officialChannelNames = [...new Set(
+    rangeRows
+      .filter((r) => r.channelGroup === "자사 공식몰" && !r.isNonRevenue && r.channel !== "바크로하우스")
+      .map((r) => r.channel),
+  )];
+
   // 종합몰
   const genMall = generalMallChannels(cur);
   const genMallPrev = new Map(generalMallChannels(prevMo).map((g) => [g.channel, g]));
+
+  // 소호몰 브랜드별
+  const soho = sohoMallBrands(cur);
+  const sohoPrev = new Map(sohoMallBrands(prevMo).map((s) => [s.brand, s.revenue]));
+
+  // 소호몰 12개월 브랜드별 추이
+  const sohoBrands = [...new Set(
+    rangeRows
+      .filter((r) => r.channelGroup === "소호몰" && !r.isNonRevenue)
+      .map((r) => r.brand),
+  )];
+
+  // 임직원/패밀리
+  const staff = staffChannels(cur);
+  const staffPrev = new Map(staffChannels(prevMo).map((s) => [s.channel, s.revenue]));
 
   const groupKeys = ["자사 공식몰", "종합몰", "소호몰", "임직원/패밀리", "기타"];
 
@@ -157,10 +189,10 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           rangeRows,
           targets,
           ym,
-          ["공식몰", "종합몰", "소호몰", "바크로하우스", "올리브영", "링커"],
-          (r) => r.category === "B2C",
+          ["공식몰", "종합몰", "소호몰", "올리브영", "링커"],
+          (r) => r.category === "B2C" && r.channel !== "바크로하우스",
         )}
-        achievementLabel="B2C (공식몰·종합몰·소호몰·바크로하우스·올리브영·링커)"
+        achievementLabel="B2C (공식몰·종합몰·소호몰·올리브영·링커)"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -340,6 +372,59 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
         </CardContent>
       </Card>
 
+      {/* 자사 공식몰 채널별 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>자사 공식몰 채널별 (이번달)</CardTitle>
+          <div className="text-[11px] text-muted-foreground">
+            브랜드별 공식몰/스마트스토어 개별 실적
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="px-4 pb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] text-muted-foreground border-b">
+                  <th className="py-2">채널</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
+                  <th className="py-2 text-right">정산매출</th>
+                  <th className="py-2 text-right">수량</th>
+                  <th className="py-2 text-right">전월 매출</th>
+                  <th className="py-2 text-right">변화</th>
+                </tr>
+              </thead>
+              <tbody>
+                {offMall.map((g) => {
+                  const pm = offMallPrev.get(g.channel)?.revenue ?? 0;
+                  const ch = buildChange(g.revenue, pm, "전월");
+                  const cls =
+                    ch.direction === "up" || ch.direction === "new"
+                      ? "text-emerald-700"
+                      : ch.direction === "down" || ch.direction === "lost"
+                        ? "text-rose-700"
+                        : "text-muted-foreground";
+                  return (
+                    <tr key={g.channel} className="border-b last:border-0">
+                      <td className="py-2 font-medium">{g.channel}</td>
+                      <td className="py-2 text-right tabular-nums">{formatKRWLong(g.revenue)}</td>
+                      <td className="py-2 text-right tabular-nums">{formatKRWLong(g.settlement)}</td>
+                      <td className="py-2 text-right tabular-nums">{formatInt(g.qty)}</td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {pm > 0 ? formatKRWLong(pm) : "—"}
+                      </td>
+                      <td className={`py-2 text-right tabular-nums ${cls}`}>
+                        <div>{ch.diffText}</div>
+                        <div className="text-[10px]">{ch.pctText}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 자사 공식몰 12개월 추이 */}
       <Card>
         <CardHeader>
@@ -358,6 +443,36 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           />
         </CardContent>
       </Card>
+
+      {/* 공식몰 채널별 12개월 스택 */}
+      {officialChannelNames.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>자사 공식몰 채널별 12개월 추이</CardTitle>
+            <div className="text-[11px] text-muted-foreground">채널별 매출 비중 변화</div>
+          </CardHeader>
+          <CardContent>
+            <BarChart
+              categories={trendMonths.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
+              series={officialChannelNames.map((ch, i) => ({
+                name: ch,
+                values: trendMonths.map((m) => {
+                  let sum = 0;
+                  for (const r of rangeRows) {
+                    if (r.channel === ch && r.yearMonth === m && !r.isNonRevenue) sum += r.realRevenue;
+                  }
+                  return sum;
+                }),
+                stack: "official",
+                color: ["#8b5cf6", "#6366f1", "#a855f7", "#c084fc", "#818cf8", "#e879f9", "#d946ef"][i % 7],
+              }))}
+              height={320}
+              yLabel="실매출"
+              showStackTotals
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* 종합몰 채널별 표 */}
       <Card>
@@ -413,6 +528,136 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           </div>
         </CardContent>
       </Card>
+
+      {/* 소호몰 브랜드별 */}
+      {soho.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>소호몰 브랜드별 (이번달)</CardTitle>
+            <div className="text-[11px] text-muted-foreground">소호몰 (사입 후 재판매) 브랜드 구성</div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-muted-foreground border-b">
+                    <th className="py-2">브랜드</th>
+                    <th className="py-2 text-right">이번달 실매출</th>
+                    <th className="py-2 text-right">수량</th>
+                    <th className="py-2 text-right">전월</th>
+                    <th className="py-2 text-right">변화</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {soho.map((s) => {
+                    const pm = sohoPrev.get(s.brand) ?? 0;
+                    const ch = buildChange(s.revenue, pm, "전월");
+                    const cls =
+                      ch.direction === "up" || ch.direction === "new"
+                        ? "text-emerald-700"
+                        : ch.direction === "down" || ch.direction === "lost"
+                          ? "text-rose-700"
+                          : "text-muted-foreground";
+                    return (
+                      <tr key={s.brand} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{s.brand}</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(s.revenue)}</td>
+                        <td className="py-2 text-right tabular-nums">{formatInt(s.qty)}</td>
+                        <td className="py-2 text-right tabular-nums text-muted-foreground">
+                          {pm > 0 ? formatKRWLong(pm) : "—"}
+                        </td>
+                        <td className={`py-2 text-right tabular-nums ${cls}`}>
+                          <div>{ch.diffText}</div>
+                          <div className="text-[10px]">{ch.pctText}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 소호몰 12개월 브랜드별 추이 */}
+      {sohoBrands.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>소호몰 12개월 브랜드별 추이</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarChart
+              categories={trendMonths.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
+              series={sohoBrands.map((brand) => ({
+                name: brand,
+                values: trendMonths.map((m) => {
+                  let sum = 0;
+                  for (const r of rangeRows) {
+                    if (r.channelGroup === "소호몰" && r.brand === brand && r.yearMonth === m && !r.isNonRevenue) sum += r.realRevenue;
+                  }
+                  return sum;
+                }),
+                stack: "soho",
+                color: BRAND_COLOR[brand] ?? "#9ca3af",
+              }))}
+              height={280}
+              yLabel="실매출"
+              showStackTotals
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 임직원/패밀리 */}
+      {staff.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>임직원/패밀리 채널별 (이번달)</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-muted-foreground border-b">
+                    <th className="py-2">채널</th>
+                    <th className="py-2 text-right">이번달 실매출</th>
+                    <th className="py-2 text-right">수량</th>
+                    <th className="py-2 text-right">전월</th>
+                    <th className="py-2 text-right">변화</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map((s) => {
+                    const pm = staffPrev.get(s.channel) ?? 0;
+                    const ch = buildChange(s.revenue, pm, "전월");
+                    const cls =
+                      ch.direction === "up" || ch.direction === "new"
+                        ? "text-emerald-700"
+                        : ch.direction === "down" || ch.direction === "lost"
+                          ? "text-rose-700"
+                          : "text-muted-foreground";
+                    return (
+                      <tr key={s.channel} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{s.channel}</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(s.revenue)}</td>
+                        <td className="py-2 text-right tabular-nums">{formatInt(s.qty)}</td>
+                        <td className="py-2 text-right tabular-nums text-muted-foreground">
+                          {pm > 0 ? formatKRWLong(pm) : "—"}
+                        </td>
+                        <td className={`py-2 text-right tabular-nums ${cls}`}>
+                          <div>{ch.diffText}</div>
+                          <div className="text-[10px]">{ch.pctText}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Top 20 제품 */}
       <Card>

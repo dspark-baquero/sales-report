@@ -22,8 +22,8 @@ import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
+import { DonutChart } from "@/components/charts/DonutChart";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -98,6 +98,19 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
     custPrevMap.set(r.customer, (custPrevMap.get(r.customer) ?? 0) + r.realRevenue);
   }
 
+  // 대리점 색상 (매출 순)
+  const AGENCY_PALETTE = ["#8b5cf6", "#6366f1", "#ec4899", "#f59e0b", "#10b981", "#0ea5e9", "#f97316", "#64748b"];
+  const agencyColorMap = new Map<string, string>();
+  agencyCustomers.forEach((c, i) => agencyColorMap.set(c.customer, AGENCY_PALETTE[i % AGENCY_PALETTE.length]));
+
+  // 대리점별 월별 매출 매트릭스 (12개월 + YTD용)
+  const agencyMonthlyMap = new Map<string, Map<string, number>>();
+  for (const r of revenueRows(b2bAgencyRows(trendRows))) {
+    const byMonth = agencyMonthlyMap.get(r.customer) ?? new Map<string, number>();
+    byMonth.set(r.yearMonth, (byMonth.get(r.yearMonth) ?? 0) + r.realRevenue);
+    agencyMonthlyMap.set(r.customer, byMonth);
+  }
+
   // 브랜드 분해
   const brandMap = new Map<string, number>();
   for (const r of revenueRows(agCur)) {
@@ -106,6 +119,14 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
   const agencyBrands = [...brandMap.entries()]
     .map(([brand, revenue]) => ({ brand, revenue }))
     .sort((a, b) => b.revenue - a.revenue);
+
+  // 브랜드 × 대리점 매트릭스
+  const brandAgencyMatrix = new Map<string, Map<string, number>>();
+  for (const r of revenueRows(agCur)) {
+    const bMap = brandAgencyMatrix.get(r.brand) ?? new Map<string, number>();
+    bMap.set(r.customer, (bMap.get(r.customer) ?? 0) + r.realRevenue);
+    brandAgencyMatrix.set(r.brand, bMap);
+  }
 
   // 변화 요인
   const customerContribs = attributeChange(agCur, agPrevMo, (r) => r.customer || null);
@@ -145,16 +166,13 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
     ym,
   );
 
-  // YTD 시리즈 (대리점 월별)
+  // YTD 시리즈 (대리점별 스택)
   const months = ytdMonths(ym);
-  const ytdSeries: YTDSeries[] = [{
-    name: "대리점",
-    color: "#8b5cf6",
-    values: months.map((m) => {
-      const cell = cube.byMonthB2bType.get(m)?.get("대리점");
-      return cell?.revenue ?? 0;
-    }),
-  }];
+  const ytdSeries: YTDSeries[] = agencyCustomers.map((c) => ({
+    name: c.customer,
+    color: agencyColorMap.get(c.customer),
+    values: months.map((m) => agencyMonthlyMap.get(c.customer)?.get(m) ?? 0),
+  }));
 
   // YTD 달성
   const ytdAch = buildYTDAchievement(trendRows, targets, ym, {
@@ -308,6 +326,72 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
         </Card>
       )}
 
+      {/* 대리점 비중 도넛 + 브랜드 구성 매트릭스 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>대리점별 매출 비중</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              items={agencyCustomers.map((c) => ({
+                name: c.customer,
+                value: c.revenue,
+                color: agencyColorMap.get(c.customer),
+              }))}
+              height={300}
+              showCenter={{ label: "대리점 합계", value: formatKRWShort(k.revenue) }}
+            />
+          </CardContent>
+        </Card>
+
+        {agencyBrands.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>대리점 × 브랜드 매트릭스</CardTitle>
+              <div className="text-[11px] text-muted-foreground">이번달 대리점별 브랜드 취급 현황</div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="px-4 pb-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-muted-foreground border-b">
+                      <th className="py-2">대리점</th>
+                      {agencyBrands.map((b) => (
+                        <th key={b.brand} className="py-2 text-right">{b.brand}</th>
+                      ))}
+                      <th className="py-2 text-right font-semibold">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agencyCustomers.map((c) => {
+                      const total = agencyBrands.reduce((s, b) => s + (brandAgencyMatrix.get(b.brand)?.get(c.customer) ?? 0), 0);
+                      return (
+                        <tr key={c.customer} className="border-b last:border-0">
+                          <td className="py-2 font-medium">
+                            <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: agencyColorMap.get(c.customer) }} />
+                            {c.customer}
+                          </td>
+                          {agencyBrands.map((b) => {
+                            const v = brandAgencyMatrix.get(b.brand)?.get(c.customer) ?? 0;
+                            return (
+                              <td key={b.brand} className="py-2 text-right tabular-nums text-muted-foreground">
+                                {v > 0 ? formatKRWShort(v) : "—"}
+                              </td>
+                            );
+                          })}
+                          <td className="py-2 text-right tabular-nums font-semibold">{formatKRWShort(total)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>거래처별 실적</CardTitle>
@@ -364,18 +448,23 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
 
       <Card>
         <CardHeader>
-          <CardTitle>최근 12개월 대리점 매출 추이</CardTitle>
+          <CardTitle>최근 12개월 대리점별 매출 추이</CardTitle>
+          <div className="text-[11px] text-muted-foreground">대리점별 스택 — 전체 대비 비중 변화 파악</div>
         </CardHeader>
         <CardContent>
           <BarChart
             categories={monthly.map((m) =>
               formatYM(m.yearMonth).replace("년 ", "/").replace("월", ""),
             )}
-            series={[
-              { name: "대리점 실매출", values: monthly.map((m) => m.revenue), color: "#8b5cf6" },
-            ]}
-            height={280}
+            series={agencyCustomers.map((c) => ({
+              name: c.customer,
+              values: monthly.map((m) => agencyMonthlyMap.get(c.customer)?.get(m.yearMonth) ?? 0),
+              color: agencyColorMap.get(c.customer),
+              stack: "agency",
+            }))}
+            height={320}
             yLabel="실매출"
+            showStackTotals
           />
         </CardContent>
       </Card>
@@ -383,17 +472,22 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
       {agencyBrands.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>브랜드별 매출</CardTitle>
+            <CardTitle>브랜드별 매출 (대리점 구분)</CardTitle>
+            <div className="text-[11px] text-muted-foreground">브랜드별 대리점 비중 — 어느 대리점이 어떤 브랜드를 주력하는지</div>
           </CardHeader>
           <CardContent>
             <BarChart
               categories={agencyBrands.map((b) => b.brand)}
-              series={[
-                { name: "실매출", values: agencyBrands.map((b) => b.revenue), color: "#8b5cf6" },
-              ]}
-              height={240}
+              series={agencyCustomers.map((c) => ({
+                name: c.customer,
+                values: agencyBrands.map((b) => brandAgencyMatrix.get(b.brand)?.get(c.customer) ?? 0),
+                color: agencyColorMap.get(c.customer),
+                stack: "brand",
+              }))}
+              height={Math.max(240, agencyBrands.length * 36)}
               horizontal
               yLabel="실매출"
+              showStackTotals
             />
           </CardContent>
         </Card>

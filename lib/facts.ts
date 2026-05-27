@@ -239,9 +239,8 @@ export function buildFactCube(rows: SalesRow[]): FactCube {
     addRow(ensure(ensure(cube.byMonthBrandHouse, ym, () => new Map()), r.brandHouse, newCell), r);
     if (r.customer) addRow(ensure(ensure(cube.byMonthCustomer, ym, () => new Map()), r.customer, newCell), r);
 
-    if (r.category === "B2B" && r.dealer) {
+    if (r.category === "B2B" && r.dealer && r.b2bCustomerType !== "대리점") {
       addRow(ensure(ensure(cube.byMonthDealer, ym, () => new Map()), r.dealer, newCell), r);
-      // 딜러 → 활성 거래처 Set
       const dCustMap = ensure(cube.byMonthDealerCustomers, ym, () => new Map<string, Set<string>>());
       const set = ensure(dCustMap, r.dealer, () => new Set<string>());
       if (r.customer) set.add(r.customer);
