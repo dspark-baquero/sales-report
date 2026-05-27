@@ -136,11 +136,14 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
 
   // YTD 시리즈
   const months = ytdMonths(ym);
-  const ytdSeries: YTDSeries[] = [{
-    name: "바크로하우스",
-    color: "#e11d48",
-    values: months.map((m) => cube.byMonthChannel.get(m)?.get("바크로하우스")?.revenue ?? 0),
-  }];
+  const ytdTotalValues = months.map((m) => cube.byMonthChannel.get(m)?.get("바크로하우스")?.revenue ?? 0);
+  const ytdRefValues = months.map((m) => refByMonth.get(m) ?? 0);
+  const ytdSeries: YTDSeries[] = bhAvailable
+    ? [
+        { name: "추천 매출", color: "#e11d48", values: ytdRefValues },
+        { name: "일반 매출", color: "#fecdd3", values: months.map((m, i) => Math.max(0, ytdTotalValues[i] - ytdRefValues[i])) },
+      ]
+    : [{ name: "바크로하우스", color: "#e11d48", values: ytdTotalValues }];
 
   // YTD 달성
   const ytdAch = buildYTDAchievement(trendRows, targets, ym, {
@@ -344,7 +347,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
         contribs={shopContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="메인 매출 데이터 기준"
+        hint={bhAvailable && k.revenue > 0
+          ? `이번달 추천 매출 비율 ${formatPctAbs(partnerRefRevenue / k.revenue)}`
+          : "메인 매출 데이터 기준"}
       />
 
       {bhAvailable && partnerContribs.length > 0 && (
