@@ -70,9 +70,9 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const kCurQ = kpi(b2cRows(curQ));
   const kPrevQ = kpi(b2cRows(prevQRows));
 
-  // B2C 목표 합계 (공식몰+종합몰+소호몰+올리브영(추진)+링커(추진)) — 바크로하우스는 별도 탭
+  // B2C 목표 합계 (공식몰+종합몰+소호몰+기타+올리브영(추진)+링커(추진)) — 바크로하우스는 별도 탭
   const ta = targetsForMonthWithProspective(targets, ym);
-  const b2cKeys = ["공식몰", "종합몰", "소호몰", "올리브영", "링커"];
+  const b2cKeys = ["공식몰", "종합몰", "소호몰", "기타", "올리브영", "링커"];
   const b2cTarget = ta
     .filter((t) => t.division === "국내" && b2cKeys.includes(t.customerKey))
     .reduce((s, t) => s + t.target, 0);
@@ -189,10 +189,10 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           rangeRows,
           targets,
           ym,
-          ["공식몰", "종합몰", "소호몰", "올리브영", "링커"],
+          ["공식몰", "종합몰", "소호몰", "기타", "올리브영", "링커"],
           (r) => r.category === "B2C" && r.channel !== "바크로하우스",
         )}
-        achievementLabel="B2C (공식몰·종합몰·소호몰·올리브영·링커)"
+        achievementLabel="B2C (공식몰·종합몰·소호몰·기타·올리브영·링커)"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -491,7 +491,6 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
                   <th className="py-2 text-right">이번달 실매출</th>
                   <th className="py-2 text-right">정산매출</th>
                   <th className="py-2 text-right">수량</th>
-                  <th className="py-2 text-right">수수료율</th>
                   <th className="py-2 text-right">전월 매출</th>
                   <th className="py-2 text-right">변화</th>
                 </tr>
@@ -512,7 +511,6 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(g.revenue)}</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(g.settlement)}</td>
                       <td className="py-2 text-right tabular-nums">{formatInt(g.qty)}</td>
-                      <td className="py-2 text-right tabular-nums">{formatPctAbs(g.feeRate, 1)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
                         {pm > 0 ? formatKRWLong(pm) : "—"}
                       </td>
