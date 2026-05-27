@@ -13,7 +13,7 @@ import {
   quarterProgress,
 } from "@/lib/compare";
 import { baqueroHouseRows } from "@/lib/dimensions";
-import { attributeChange } from "@/lib/changeAttribution";
+import { attributeChange, type ChangeContribution } from "@/lib/changeAttribution";
 import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
@@ -174,6 +174,32 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.revenue - a.revenue);
 
+  // 전월 파트너별 추천 실적 (변화 요인용)
+  const refByPartnerPrev = new Map<string, number>();
+  for (const s of bhSalesPrev) {
+    if (!s.partnerName) continue;
+    refByPartnerPrev.set(s.partnerName, (refByPartnerPrev.get(s.partnerName) ?? 0) + s.paymentAmount);
+  }
+
+  // 파트너 추천 매출 변화 요인
+  const partnerContribs: ChangeContribution[] = (() => {
+    const allPartners = new Set([...refByPartner.keys(), ...refByPartnerPrev.keys()]);
+    const result: ChangeContribution[] = [];
+    for (const p of allPartners) {
+      const cur = refByPartner.get(p)?.revenue ?? 0;
+      const prev = refByPartnerPrev.get(p) ?? 0;
+      const diff = cur - prev;
+      const pct = prev > 0 ? diff / prev : null;
+      const type: ChangeContribution["type"] =
+        prev === 0 && cur > 0 ? "신규"
+        : cur === 0 && prev > 0 ? "이탈"
+        : Math.abs(diff) / Math.max(1, Math.abs(prev)) <= 0.02 ? "유지"
+        : diff > 0 ? "증가" : "감소";
+      result.push({ entity: p, current: cur, prev, diff, pct, type });
+    }
+    return result.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  })();
+
   // 등급별 분석
   const gradeMap = new Map<string, { count: number; revenue: number }>();
   for (const pr of partnerRefList) {
@@ -302,14 +328,26 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
       )}
 
       <ChangeBreakdown
-        title="전월 대비 파트너 샵 변화 요인"
+        title="전월 대비 전체 매출 변화 요인"
         prevTotal={kPrevMo.revenue}
         curTotal={k.revenue}
         contribs={shopContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="파트너 샵(거래처) 단위 분해"
+        hint="메인 매출 데이터 기준"
       />
+
+      {bhAvailable && partnerContribs.length > 0 && (
+        <ChangeBreakdown
+          title="전월 대비 파트너 추천 매출 변화 요인"
+          prevTotal={partnerRefRevenuePrev}
+          curTotal={partnerRefRevenue}
+          contribs={partnerContribs}
+          topN={5}
+          prevLabel={COMPARE_LABEL.prevMonth}
+          hint={`파트너 매출 기준 · 이번달 ${refByPartner.size}개 · 전월 ${refByPartnerPrev.size}개`}
+        />
+      )}
 
       <Card>
         <CardHeader>
