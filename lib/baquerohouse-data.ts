@@ -54,14 +54,16 @@ function num(v: unknown): number {
 }
 
 function parseDate(v: unknown): { date: string; ym: string } {
-  const s = str(v);
-  const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return { date: `${m[1]}-${m[2]}-${m[3]}`, ym: `${m[1]}-${m[2]}` };
-  const m2 = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
-  if (m2) {
-    const mm = m2[2].padStart(2, "0");
-    const dd = m2[3].padStart(2, "0");
-    return { date: `${m2[1]}-${mm}-${dd}`, ym: `${m2[1]}-${mm}` };
+  const s = str(v).trim();
+  const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m1) return { date: `${m1[1]}-${m1[2]}-${m1[3]}`, ym: `${m1[1]}-${m1[2]}` };
+  const m2 = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m2) return { date: `${m2[1]}-${m2[2]}-${m2[3]}`, ym: `${m2[1]}-${m2[2]}` };
+  const m3 = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (m3) {
+    const mm = m3[2].padStart(2, "0");
+    const dd = m3[3].padStart(2, "0");
+    return { date: `${m3[1]}-${mm}-${dd}`, ym: `${m3[1]}-${mm}` };
   }
   if (typeof v === "object" && v !== null && "value" in (v as Record<string, unknown>)) {
     return parseDate((v as { value: unknown }).value);
