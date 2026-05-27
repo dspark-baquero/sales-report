@@ -109,24 +109,6 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     shopPrevMap.set(r.customer, (shopPrevMap.get(r.customer) ?? 0) + r.realRevenue);
   }
 
-  // 영업사원별 집계
-  const dealerMap = new Map<string, { revenue: number; shops: Set<string> }>();
-  for (const r of revenueRows(bhCur)) {
-    const d = dealerMap.get(r.dealer) ?? { revenue: 0, shops: new Set() };
-    d.revenue += r.realRevenue;
-    d.shops.add(r.customer);
-    dealerMap.set(r.dealer, d);
-  }
-  const dealers = [...dealerMap.entries()]
-    .map(([dealer, v]) => ({ dealer, revenue: v.revenue, shops: v.shops.size }))
-    .filter((d) => d.revenue > 0)
-    .sort((a, b) => b.revenue - a.revenue);
-
-  const dealerPrevMap = new Map<string, number>();
-  for (const r of revenueRows(bhPrevMo)) {
-    dealerPrevMap.set(r.dealer, (dealerPrevMap.get(r.dealer) ?? 0) + r.realRevenue);
-  }
-
   // 브랜드 분해
   const brandMap = new Map<string, number>();
   for (const r of revenueRows(bhCur)) {
@@ -200,6 +182,34 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     return result.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
   })();
 
+  // 영업사원별 실적 (파트너 매출 기준)
+  const salesRepMap = new Map<string, { revenue: number; commission: number; partners: Set<string> }>();
+  for (const s of bhSalesCur) {
+    if (!s.partnerName) continue;
+    const rep = partnerMap.get(s.partnerName)?.salesRep || "미지정";
+    const c = salesRepMap.get(rep) ?? { revenue: 0, commission: 0, partners: new Set() };
+    c.revenue += s.paymentAmount;
+    c.commission += s.estimatedCommission;
+    c.partners.add(s.partnerName);
+    salesRepMap.set(rep, c);
+  }
+  const salesRepPrevMap = new Map<string, number>();
+  for (const s of bhSalesPrev) {
+    if (!s.partnerName) continue;
+    const rep = partnerMap.get(s.partnerName)?.salesRep || "미지정";
+    salesRepPrevMap.set(rep, (salesRepPrevMap.get(rep) ?? 0) + s.paymentAmount);
+  }
+  const salesRepList = [...salesRepMap.entries()]
+    .map(([salesRep, v]) => ({
+      salesRep,
+      revenue: v.revenue,
+      commission: v.commission,
+      partners: v.partners.size,
+      prevRevenue: salesRepPrevMap.get(salesRep) ?? 0,
+    }))
+    .filter((sr) => sr.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue);
+
   // 등급별 분석
   const gradeMap = new Map<string, { count: number; revenue: number }>();
   for (const pr of partnerRefList) {
@@ -213,19 +223,6 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
   const gradeList = [...gradeMap.entries()]
     .map(([grade, v]) => ({ grade, ...v }))
     .sort((a, b) => b.revenue - a.revenue);
-
-  // 대리점 경유 현황
-  const agencyMap = new Map<string, { partners: Set<string>; commission: number }>();
-  for (const s of bhSalesCur) {
-    if (!s.agency) continue;
-    const a = agencyMap.get(s.agency) ?? { partners: new Set(), commission: 0 };
-    if (s.partnerName) a.partners.add(s.partnerName);
-    a.commission += s.agencyCommission;
-    agencyMap.set(s.agency, a);
-  }
-  const agencyList = [...agencyMap.entries()]
-    .map(([agency, v]) => ({ agency, partners: v.partners.size, commission: v.commission }))
-    .sort((a, b) => b.commission - a.commission);
 
   return (
     <div className="space-y-6">
@@ -445,45 +442,12 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
         </Card>
       )}
 
-      {bhAvailable && agencyList.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>대리점 경유 현황</CardTitle>
-            <div className="text-[11px] text-muted-foreground">
-              대리점을 통해 연결된 파트너의 매출 및 대리점 커미션
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] text-muted-foreground border-b">
-                    <th className="py-2">대리점</th>
-                    <th className="py-2 text-right">연결 파트너</th>
-                    <th className="py-2 text-right">대리점 커미션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {agencyList.map((a) => (
-                    <tr key={a.agency} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{a.agency}</td>
-                      <td className="py-2 text-right tabular-nums">{a.partners}개</td>
-                      <td className="py-2 text-right tabular-nums">{formatKRWLong(a.commission)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {dealers.length > 0 && (
+      {bhAvailable && salesRepList.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>영업사원별 실적</CardTitle>
             <div className="text-[11px] text-muted-foreground">
-              파트너 샵 담당 영업사원 기준 집계
+              파트너 매출 기준 · 영업사원별 추천 매출 및 담당 파트너
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -495,13 +459,13 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                     <th className="py-2 text-right">이번달</th>
                     <th className="py-2 text-right">전월</th>
                     <th className="py-2 text-right">변화</th>
-                    <th className="py-2 text-right">담당 샵</th>
+                    <th className="py-2 text-right">예상 커미션</th>
+                    <th className="py-2 text-right">담당 파트너</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dealers.map((d) => {
-                    const prevRev = dealerPrevMap.get(d.dealer) ?? 0;
-                    const ch = buildChange(d.revenue, prevRev, "전월");
+                  {salesRepList.map((sr) => {
+                    const ch = buildChange(sr.revenue, sr.prevRevenue, "전월");
                     const cls =
                       ch.direction === "up" || ch.direction === "new"
                         ? "text-emerald-700"
@@ -509,17 +473,18 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                           ? "text-rose-700"
                           : "text-muted-foreground";
                     return (
-                      <tr key={d.dealer} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{d.dealer}</td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWLong(d.revenue)}</td>
+                      <tr key={sr.salesRep} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{sr.salesRep}</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(sr.revenue)}</td>
                         <td className="py-2 text-right tabular-nums text-muted-foreground">
-                          {prevRev > 0 ? formatKRWLong(prevRev) : "—"}
+                          {sr.prevRevenue > 0 ? formatKRWLong(sr.prevRevenue) : "—"}
                         </td>
                         <td className={`py-2 text-right tabular-nums ${cls}`}>
                           <div>{ch.diffText}</div>
                           <div className="text-[10px]">{ch.pctText}</div>
                         </td>
-                        <td className="py-2 text-right tabular-nums">{formatInt(d.shops)}개</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(sr.commission)}</td>
+                        <td className="py-2 text-right tabular-nums">{sr.partners}개</td>
                       </tr>
                     );
                   })}
