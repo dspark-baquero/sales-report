@@ -1,81 +1,82 @@
-import fs from "fs";
-import path from "path";
-import Link from "next/link";
-import { marked } from "marked";
-import { loadFactCube, loadRangeRows } from "@/lib/load";
+import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { ymMinusMonths } from "@/lib/aggregate";
+import { prevMonth } from "@/lib/compare";
 import {
   newProducts,
   decliningProducts,
-  weekdayPattern,
+  weekdayComparison,
   customerConcentration,
   brandChannelGroupHeatmap,
   discountFeeByChannelGroup,
-  bestWorstChannelGroups,
 } from "@/lib/insights";
-import {
-  quarterlyCliff,
-  sleepingReturned,
-  lostKeyAccounts,
-  newAccounts,
-} from "@/lib/accountAnalysis";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
 import { HeatmapChart } from "@/components/charts/HeatmapChart";
-import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategorySeries, ytdAchievementOverall } from "@/lib/ytd";
-import { loadTargets } from "@/lib/targets";
 import {
   formatKRWLong,
-  formatKRWShort,
   formatInt,
   formatYM,
-  formatPct,
   formatPctAbs,
-  buildChange,
 } from "@/lib/format";
+import type { SalesRow } from "@/lib/load";
 
 type SearchParams = Promise<{ month?: string }>;
 
 export default async function InsightsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const [ym, cube, targets] = await Promise.all([
-    resolveMonth(sp.month),
+  const ym = await resolveMonth(sp.month);
+  const prevYM = prevMonth(ym);
+
+  const [cube, curRows, prevMoRows, rangeRows] = await Promise.all([
     loadFactCube(),
-    loadTargets(),
+    loadMonthRows(ym),
+    loadMonthRows(prevYM),
+    loadRangeRows(ymMinusMonths(ym, 13), ym),
   ]);
-  // Load rows spanning 13 months back through current — covers all insight functions
-  const rangeRows = await loadRangeRows(ymMinusMonths(ym, 13), ym);
 
-  // 사람 코멘트
-  const insightsPath = path.join(process.cwd(), "insights", `${ym}.md`);
-  let humanComment: string | null = null;
-  if (fs.existsSync(insightsPath)) {
-    const md = fs.readFileSync(insightsPath, "utf8");
-    humanComment = marked.parse(md, { async: false }) as string;
-  }
+  const revRows = curRows.filter((r) => !r.isNonRevenue);
+  const curTotal = revRows.reduce((s, r) => s + r.realRevenue, 0);
 
-  const bw = bestWorstChannelGroups(rangeRows, ym);
-  const np = newProducts(rangeRows, ym);
-  const dec = decliningProducts(rangeRows, ym);
-  const weekday = weekdayPattern(rangeRows, ym);
+  // 데이터 품질
+  const nonRevenue = curRows.filter((r) => r.isNonRevenue).length;
+  const costMissing = revRows.filter((r) => r.cost === null).length;
+
+  // 기존 insights 함수
   const conc = customerConcentration(rangeRows, ym);
   const heat = brandChannelGroupHeatmap(rangeRows, ym);
   const df = discountFeeByChannelGroup(rangeRows, ym);
+  const np = newProducts(rangeRows, ym);
+  const dec = decliningProducts(rangeRows, ym);
+  const weekday = weekdayComparison(rangeRows, ym);
 
-  // 거래처 심층 자동 분석 (큐브 기반)
-  const cliff = quarterlyCliff(cube, ym);
-  const sleeping = sleepingReturned(cube, ym, { minRevenue: 1_000_000 });
-  const lostKey = lostKeyAccounts(cube, ym, { lookback: "quarter", topN: 10 });
-  const newAcc = newAccounts(cube, ym, 6);
+  // 신제품 합산 매출 비중
+  const newProductTotal = np.reduce((s, p) => s + p.revenue, 0);
 
-  // 데이터 품질
-  const monthRows = rangeRows.filter((r) => r.yearMonth === ym);
-  const revRows = monthRows.filter((r) => !r.isNonRevenue);
-  const costMissing = revRows.filter((r) => r.cost === null).length;
-  const nonRevenue = monthRows.filter((r) => r.isNonRevenue).length;
+  // 할인율 전월 비교 데이터
+  const prevDiscountMap = (() => {
+    const m = new Map<string, { discount: number; orderAmount: number }>();
+    for (const r of prevMoRows) {
+      if (r.isNonRevenue) continue;
+      const cur = m.get(r.channelGroup) ?? { discount: 0, orderAmount: 0 };
+      cur.discount += r.discount;
+      cur.orderAmount += r.orderAmount;
+      m.set(r.channelGroup, cur);
+    }
+    return new Map(
+      [...m.entries()].map(([g, v]) => [
+        g,
+        v.orderAmount > 0 ? v.discount / v.orderAmount : 0,
+      ]),
+    );
+  })();
+
+  // 이상치 거래
+  const bigDeals = curRows
+    .filter((r) => !r.isNonRevenue && r.realRevenue >= 100_000_000)
+    .sort((a, b) => b.realRevenue - a.realRevenue)
+    .slice(0, 20);
 
   const heatmapData = heat.values.flatMap((row, bi) =>
     row.map((v, gi) => ({ x: gi, y: bi, value: v })),
@@ -84,210 +85,13 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 심층 자동 분석</h2>
+        <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 심층 분석</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          헤더 / 거래처 변동 / SKU / 채널 / 데이터 품질 — 휴리스틱 기반 자동 통계 (각 탭 상단의 인사이트보다 깊은 표 형태)
+          데이터 품질 · 거래처 집중도 · 채널 수익성 · 제품 포트폴리오 · 이상치 — 다른 탭에서 다루지 않는 전사 구조 분석
         </p>
       </div>
 
-      <YearToDateChart
-        ym={ym}
-        series={ytdCategorySeries(cube, ym)}
-        caption="대분류별 (B2B / B2C / 면세점) — 심층 표 해석의 기준선"
-        achievement={ytdAchievementOverall(rangeRows, targets, ym)}
-        achievementLabel="전체 국내"
-      />
-
-      {/* 거래처 심층 — 분기 절벽 / 동면 복귀 / 핵심 이탈 / 신규 진입 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className={cliff.length > 0 ? "border-rose-200" : undefined}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>분기 절벽 거래처 (지난 분기 상위 → 이번 분기 -40%↓)</CardTitle>
-              <Badge variant={cliff.length > 0 ? "negative" : "muted"}>{cliff.length}개</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              {cliff.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-2">해당 없음 — 안정적</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] text-muted-foreground border-b">
-                      <th className="py-2">#</th>
-                      <th className="py-2">거래처</th>
-                      <th className="py-2 text-right">지난 분기</th>
-                      <th className="py-2 text-right">이번 분기 누적</th>
-                      <th className="py-2 text-right">변화율</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cliff.slice(0, 15).map((c) => (
-                      <tr key={c.customer} className="border-b last:border-0">
-                        <td className="py-2 text-muted-foreground tabular-nums">#{c.prevRank}</td>
-                        <td className="py-2">
-                          <Link
-                            href={`/accounts?customer=${encodeURIComponent(c.customer)}&month=${ym}`}
-                            className="hover:underline"
-                          >
-                            {c.customer}
-                          </Link>
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-muted-foreground">
-                          {formatKRWShort(c.prevQuarterRevenue)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWShort(c.curQuarterAccum)}</td>
-                        <td className="py-2 text-right tabular-nums text-rose-700">{formatPct(c.pct)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>동면 거래처 복귀 (직전 3개월 무거래 → 이번달)</CardTitle>
-              <Badge variant="info">{sleeping.length}개</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              {sleeping.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-2">해당 없음</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] text-muted-foreground border-b">
-                      <th className="py-2">거래처</th>
-                      <th className="py-2 text-right">이번달</th>
-                      <th className="py-2 text-right">동면</th>
-                      <th className="py-2">마지막 활성</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sleeping.slice(0, 15).map((s) => (
-                      <tr key={s.customer} className="border-b last:border-0">
-                        <td className="py-2">
-                          <Link
-                            href={`/accounts?customer=${encodeURIComponent(s.customer)}&month=${ym}`}
-                            className="hover:underline"
-                          >
-                            {s.customer}
-                          </Link>
-                        </td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWShort(s.returnedRevenue)}</td>
-                        <td className="py-2 text-right tabular-nums text-violet-700">{s.silentMonths}개월</td>
-                        <td className="py-2 text-muted-foreground tabular-nums text-xs">
-                          {s.lastActiveMonth ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className={lostKey.length > 0 ? "border-rose-200" : undefined}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>상실된 핵심 거래처 (지난 분기 상위 10 → 이번달 0)</CardTitle>
-              <Badge variant={lostKey.length > 0 ? "negative" : "muted"}>{lostKey.length}개</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              {lostKey.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-2">해당 없음</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] text-muted-foreground border-b">
-                      <th className="py-2">#</th>
-                      <th className="py-2">거래처</th>
-                      <th className="py-2 text-right">지난 분기 매출</th>
-                      <th className="py-2">마지막</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lostKey.map((l) => (
-                      <tr key={l.customer} className="border-b last:border-0">
-                        <td className="py-2 text-muted-foreground tabular-nums">#{l.baselineRank}</td>
-                        <td className="py-2">
-                          <Link
-                            href={`/accounts?customer=${encodeURIComponent(l.customer)}&month=${ym}`}
-                            className="hover:underline"
-                          >
-                            {l.customer}
-                          </Link>
-                        </td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWLong(l.baselineRevenue)}</td>
-                        <td className="py-2 text-muted-foreground tabular-nums text-xs">
-                          {l.lastSeenMonth ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>신규 진입 거래처 (직전 6개월 무거래 → 이번달 첫 매출)</CardTitle>
-              <Badge variant="info">{newAcc.length}개</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              {newAcc.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-2">해당 없음</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] text-muted-foreground border-b">
-                      <th className="py-2">거래처</th>
-                      <th className="py-2">카테고리</th>
-                      <th className="py-2">브랜드</th>
-                      <th className="py-2 text-right">이번달</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {newAcc.slice(0, 15).map((n) => (
-                      <tr key={n.customer} className="border-b last:border-0">
-                        <td className="py-2">
-                          <Link
-                            href={`/accounts?customer=${encodeURIComponent(n.customer)}&month=${ym}`}
-                            className="hover:underline"
-                          >
-                            {n.customer}
-                          </Link>
-                        </td>
-                        <td className="py-2 text-xs text-muted-foreground">{n.category ?? "—"}</td>
-                        <td className="py-2 text-xs text-muted-foreground">{n.brand ?? "—"}</td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWShort(n.currentRevenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 데이터 품질 */}
+      {/* 1. 데이터 품질 */}
       <Card>
         <CardHeader>
           <CardTitle>데이터 품질 점검</CardTitle>
@@ -320,97 +124,127 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         </CardContent>
       </Card>
 
-      {/* 베스트/워스트 채널그룹 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>이번달 상승 채널그룹 (전월 대비)</CardTitle>
-              <Badge variant="positive">상승 Top 3</Badge>
+      {/* 2. 거래처 집중도 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>거래처 집중도</CardTitle>
+          <div className="text-[11px] text-muted-foreground">
+            상위 거래처 의존도 + 허핀달-허쉬만 집중지수
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-6 text-sm">
+            <div>
+              <div className="text-[11px] text-muted-foreground">상위 10 거래처 비중</div>
+              <div className="text-2xl font-semibold tabular-nums">
+                {formatPctAbs(conc.top10Pct)}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {formatKRWLong(conc.top10)} / {formatKRWLong(conc.total)}
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] text-muted-foreground border-b">
-                    <th className="py-2">채널그룹</th>
-                    <th className="py-2 text-right">이번달</th>
-                    <th className="py-2 text-right">전월</th>
-                    <th className="py-2 text-right">증가</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bw.best.map((b) => {
-                    const ch = buildChange(b.current, b.prev, "전월");
-                    return (
-                      <tr key={b.group} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{b.group}</td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWLong(b.current)}</td>
-                        <td className="py-2 text-right tabular-nums text-muted-foreground">
-                          {formatKRWLong(b.prev)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-emerald-700">
-                          <div>{ch.diffText}</div>
-                          <div className="text-[10px]">{ch.pctText}</div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div>
+              <div className="text-[11px] text-muted-foreground">집중지수 (HHI)</div>
+              <div className="text-2xl font-semibold tabular-nums">{conc.hhi.toFixed(0)}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {conc.hhi < 1500 ? "낮음 (분산 거래)" : conc.hhi < 2500 ? "중간" : "높음 (집중 거래)"}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>이번달 하락 채널그룹 (전월 대비)</CardTitle>
-              <Badge variant="negative">하락 Top 3</Badge>
+            <div>
+              <div className="text-[11px] text-muted-foreground">활성 거래처 수</div>
+              <div className="text-2xl font-semibold tabular-nums">
+                {formatInt(conc.customerCount)}개
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="px-4 pb-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] text-muted-foreground border-b">
-                    <th className="py-2">채널그룹</th>
-                    <th className="py-2 text-right">이번달</th>
-                    <th className="py-2 text-right">전월</th>
-                    <th className="py-2 text-right">감소</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bw.worst.map((b) => {
-                    const ch = buildChange(b.current, b.prev, "전월");
-                    return (
-                      <tr key={b.group} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{b.group}</td>
-                        <td className="py-2 text-right tabular-nums">{formatKRWLong(b.current)}</td>
-                        <td className="py-2 text-right tabular-nums text-muted-foreground">
-                          {formatKRWLong(b.prev)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-rose-700">
-                          <div>{ch.diffText}</div>
-                          <div className="text-[10px]">{ch.pctText}</div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* 신제품 / 이탈 SKU */}
+      {/* 3. 브랜드 × 채널그룹 히트맵 */}
+      {heat.brands.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>브랜드 × 채널그룹 히트맵 (이번달 실매출)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HeatmapChart
+              xCategories={heat.groups}
+              yCategories={heat.brands}
+              data={heatmapData}
+              height={Math.max(280, heat.brands.length * 40)}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 4. 채널그룹별 할인율/수수료율 + 전월 변화 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>채널그룹별 할인율 / 수수료율</CardTitle>
+          <div className="text-[11px] text-muted-foreground">전월 대비 할인율 변화 포함</div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="px-4 pb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] text-muted-foreground border-b">
+                  <th className="py-2">채널그룹</th>
+                  <th className="py-2 text-right">실매출</th>
+                  <th className="py-2 text-right">할인율</th>
+                  <th className="py-2 text-right">전월 할인율</th>
+                  <th className="py-2 text-right">차이</th>
+                  <th className="py-2 text-right">수수료율</th>
+                  <th className="py-2 text-right">정산매출</th>
+                </tr>
+              </thead>
+              <tbody>
+                {df.map((g) => {
+                  const prevDisc = prevDiscountMap.get(g.group) ?? 0;
+                  const discDiff = g.discountRate - prevDisc;
+                  const cls =
+                    discDiff > 0.005
+                      ? "text-rose-700"
+                      : discDiff < -0.005
+                        ? "text-emerald-700"
+                        : "text-muted-foreground";
+                  return (
+                    <tr key={g.group} className="border-b last:border-0">
+                      <td className="py-2 font-medium">{g.group}</td>
+                      <td className="py-2 text-right tabular-nums">{formatKRWLong(g.revenue)}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        {formatPctAbs(g.discountRate, 1)}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {formatPctAbs(prevDisc, 1)}
+                      </td>
+                      <td className={`py-2 text-right tabular-nums ${cls}`}>
+                        {discDiff > 0 ? "+" : ""}
+                        {(discDiff * 100).toFixed(2)}%p
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{formatPctAbs(g.feeRate, 1)}</td>
+                      <td className="py-2 text-right tabular-nums">{formatKRWLong(g.settlement)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5. 신제품 효과 + 6. 이탈 위험 SKU */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>신제품 (직전 13개월 무매출 → 이번달)</CardTitle>
-              <Badge variant="info">{np.length}개</Badge>
+              <CardTitle>신제품 효과 (직전 13개월 무매출 → 이번달)</CardTitle>
+              <Badge variant="info">{np.length}개 SKU</Badge>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              신제품 합산 매출: <span className="font-semibold">{formatKRWLong(newProductTotal)}</span>
+              {curTotal > 0 && (
+                <> (전체의 {formatPctAbs(newProductTotal / curTotal, 1)})</>
+              )}
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -490,131 +324,60 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
         </Card>
       </div>
 
-      {/* 요일별 + 거래처 집중도 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>요일별 매출 패턴</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BarChart
-              categories={weekday.map((w) => `${w.day}요일`)}
-              series={[
-                {
-                  name: "실매출",
-                  values: weekday.map((w) => w.revenue),
-                  color: "#6366f1",
-                },
-              ]}
-              height={240}
-              showLegend={false}
-              yLabel="실매출"
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>거래처 집중도</CardTitle>
-            <div className="text-[11px] text-muted-foreground">
-              상위 거래처 의존도 + 집중지수
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="text-[11px] text-muted-foreground">상위 10 거래처 비중</div>
-                <div className="text-2xl font-semibold tabular-nums">
-                  {formatPctAbs(conc.top10Pct)}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] text-muted-foreground">거래처 집중지수</div>
-                <div className="text-lg font-semibold tabular-nums">{conc.hhi.toFixed(0)}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {conc.hhi < 1500 ? "낮음 (분산 거래)" : conc.hhi < 2500 ? "중간" : "높음 (집중 거래)"}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] text-muted-foreground">활성 거래처 수</div>
-                <div className="text-lg font-semibold tabular-nums">
-                  {formatInt(conc.customerCount)}개
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 브랜드 × 채널그룹 히트맵 */}
-      {heat.brands.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>브랜드 × 채널그룹 히트맵 (이번달 실매출)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <HeatmapChart
-              xCategories={heat.groups}
-              yCategories={heat.brands}
-              data={heatmapData}
-              height={Math.max(280, heat.brands.length * 40)}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 채널그룹별 할인율/수수료율 */}
+      {/* 7. 요일별 매출 패턴 */}
       <Card>
         <CardHeader>
-          <CardTitle>채널그룹별 할인율 / 수수료율</CardTitle>
+          <CardTitle>요일별 매출 패턴 (이번달 vs 직전 3개월 평균)</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="px-4 pb-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-2">채널그룹</th>
-                  <th className="py-2 text-right">실매출</th>
-                  <th className="py-2 text-right">주문금액</th>
-                  <th className="py-2 text-right">할인율</th>
-                  <th className="py-2 text-right">수수료율</th>
-                  <th className="py-2 text-right">정산매출</th>
-                </tr>
-              </thead>
-              <tbody>
-                {df.map((g) => (
-                  <tr key={g.group} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{g.group}</td>
-                    <td className="py-2 text-right tabular-nums">{formatKRWLong(g.revenue)}</td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">
-                      {formatKRWLong(g.orderAmount)}
-                    </td>
-                    <td className="py-2 text-right tabular-nums">
-                      {formatPctAbs(g.discountRate, 1)}
-                    </td>
-                    <td className="py-2 text-right tabular-nums">{formatPctAbs(g.feeRate, 1)}</td>
-                    <td className="py-2 text-right tabular-nums">{formatKRWLong(g.settlement)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <CardContent>
+          <BarChart
+            categories={weekday.map((w) => `${w.day}요일`)}
+            series={[
+              { name: "이번달", values: weekday.map((w) => w.current), color: "#0f172a" },
+              { name: "직전 3개월 평균", values: weekday.map((w) => w.pastAvg), color: "#cbd5e1" },
+            ]}
+            height={240}
+            yLabel="실매출"
+          />
         </CardContent>
       </Card>
 
-      {/* 사람 코멘트 — 옵션. insights/{ym}.md 가 있을 때만 노출 */}
-      {humanComment && (
+      {/* 8. 이상치 거래 */}
+      {bigDeals.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>이번 달 사람 코멘트 (수기 작성)</CardTitle>
+            <CardTitle>이상치 거래 (단일 1억원 이상)</CardTitle>
             <div className="text-[11px] text-muted-foreground">
-              insights/{ym}.md 파일 — 자동 분석으로 잡히지 않는 맥락(특이 발주, 영업 액션포인트 등)을 기록
+              {bigDeals.length}건 — 임원 보고 시 별도 확인 권장
             </div>
           </CardHeader>
-          <CardContent>
-            <article
-              className="prose prose-sm max-w-none [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:mt-4 [&_h2]:mt-4 [&_h3]:mt-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-3 [&_blockquote]:text-neutral-500"
-              dangerouslySetInnerHTML={{ __html: humanComment }}
-            />
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-muted-foreground border-b">
+                    <th className="py-2">날짜</th>
+                    <th className="py-2">거래처</th>
+                    <th className="py-2">제품</th>
+                    <th className="py-2">브랜드</th>
+                    <th className="py-2 text-right">실매출</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bigDeals.map((r, i) => (
+                    <tr key={`${r.orderNo}-${i}`} className="border-b last:border-0">
+                      <td className="py-2 text-muted-foreground tabular-nums">
+                        {r.date.toISOString().slice(0, 10)}
+                      </td>
+                      <td className="py-2">{r.customer}</td>
+                      <td className="py-2 max-w-[260px] truncate">{r.productName}</td>
+                      <td className="py-2 text-muted-foreground">{r.brand}</td>
+                      <td className="py-2 text-right tabular-nums">{formatKRWLong(r.realRevenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       )}

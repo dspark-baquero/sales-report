@@ -25,7 +25,7 @@ export function newProducts(rows: SalesRow[], ym: string) {
   return [...curMap.values()]
     .filter((p) => p.revenue > 0)
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 10);
+    .slice(0, 15);
 }
 
 // 이탈 위험 SKU: 직전 3개월 평균 대비 이번달 -50% 이상
@@ -64,18 +64,27 @@ export function decliningProducts(rows: SalesRow[], ym: string) {
   return out.sort((a, b) => a.pct - b.pct).slice(0, 10);
 }
 
-// 요일별 매출 패턴 (월~일)
-export function weekdayPattern(rows: SalesRow[], ym: string) {
-  const r = revenueRows(filterMonth(rows, ym));
-  const buckets = [0, 0, 0, 0, 0, 0, 0]; // 일=0 ... 토=6
-  for (const x of r) {
-    const w = x.date.getUTCDay();
-    buckets[w] += x.realRevenue;
-  }
-  // 표시 순서: 월~일
+// 요일별 매출 패턴 비교 (이번달 vs 직전 3개월 평균)
+export function weekdayComparison(rows: SalesRow[], ym: string) {
+  const curRows = revenueRows(filterMonth(rows, ym));
+  const past3Start = ymMinusMonths(ym, 3);
+  const prevYM = ymMinusMonths(ym, 1);
+  const pastRows = revenueRows(filterRange(rows, past3Start, prevYM));
+
+  const curBuckets = [0, 0, 0, 0, 0, 0, 0];
+  for (const x of curRows) curBuckets[x.date.getUTCDay()] += x.realRevenue;
+
+  const pastBuckets = [0, 0, 0, 0, 0, 0, 0];
+  for (const x of pastRows) pastBuckets[x.date.getUTCDay()] += x.realRevenue;
+  const pastMonths = new Set(pastRows.map((r) => r.yearMonth)).size || 1;
+
   const order = [1, 2, 3, 4, 5, 6, 0];
   const labels = ["월", "화", "수", "목", "금", "토", "일"];
-  return order.map((i, idx) => ({ day: labels[idx], revenue: buckets[i] }));
+  return order.map((i, idx) => ({
+    day: labels[idx],
+    current: curBuckets[i],
+    pastAvg: pastBuckets[i] / pastMonths,
+  }));
 }
 
 // Top10 거래처 집중도 (매출 비중)
@@ -150,24 +159,3 @@ export function discountFeeByChannelGroup(rows: SalesRow[], ym: string) {
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-// 이번달 베스트/워스트 채널그룹 (전월 대비 매출 변화액)
-export function bestWorstChannelGroups(rows: SalesRow[], ym: string) {
-  const cur = revenueRows(filterMonth(rows, ym));
-  const prevYM = ymMinusMonths(ym, 1);
-  const prev = revenueRows(filterMonth(rows, prevYM));
-  const c = new Map<string, number>();
-  const p = new Map<string, number>();
-  for (const x of cur) c.set(x.channelGroup, (c.get(x.channelGroup) ?? 0) + x.realRevenue);
-  for (const x of prev) p.set(x.channelGroup, (p.get(x.channelGroup) ?? 0) + x.realRevenue);
-  const groups = new Set([...c.keys(), ...p.keys()]);
-  const out = [...groups].map((g) => {
-    const cv = c.get(g) ?? 0;
-    const pv = p.get(g) ?? 0;
-    return { group: g, current: cv, prev: pv, diff: cv - pv, pct: pv > 0 ? (cv - pv) / pv : null };
-  });
-  const sorted = out.sort((a, b) => b.diff - a.diff);
-  return {
-    best: sorted.slice(0, 3),
-    worst: sorted.slice().reverse().slice(0, 3),
-  };
-}

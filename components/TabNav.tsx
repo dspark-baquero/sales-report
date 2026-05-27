@@ -14,7 +14,6 @@ const TABS = [
   { href: "/duty-free", label: "면세점" },
   { href: "/brand", label: "브랜드 분석" },
   { href: "/accounts", label: "거래처 분석" },
-  { href: "/changes", label: "변동 분석" },
   { href: "/insights", label: "심층 분석" },
 ];
 

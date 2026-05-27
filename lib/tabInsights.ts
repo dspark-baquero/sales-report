@@ -699,45 +699,6 @@ export function computeBrandInsights(cube: FactCube, ym: string, brand: string):
   return rankBullets(out).slice(0, 5);
 }
 
-// ── 변동 분석 탭 ────────────────────────────────────────
-export function computeChangesInsights(cube: FactCube, ym: string): InsightBullet[] {
-  const prevYM = prevMonth(ym);
-  const out: InsightBullet[] = [];
-
-  // 종합 탭과 유사하지만 더 분해 차원에 집중
-  const curRev = cubeMonthKpi(cube, ym).revenue;
-  const prevRev = cubeMonthKpi(cube, prevYM).revenue;
-  const tb = totalChangeBullet(curRev, prevRev, "전월");
-  if (tb) out.push(tb);
-
-  // 가장 큰 거래처 빅 무버
-  const movers = topMovers(cube, ym, prevYM, 5);
-  for (const g of movers.gainers.slice(0, 2)) {
-    if (g.diff < 5_000_000) continue;
-    const ct = changeText(g.customer, g.current, g.prev);
-    out.push({
-      severity: "positive",
-      category: "거래처 상승",
-      text: ct.text,
-      weight: Math.abs(g.diff),
-      href: `/accounts?customer=${encodeURIComponent(g.customer)}&month=${ym}`,
-    });
-  }
-  for (const d of movers.decliners.slice(0, 2)) {
-    if (d.diff > -5_000_000) continue;
-    const ct = changeText(d.customer, d.current, d.prev);
-    out.push({
-      severity: pickSeverity(d.pct ?? -0.5, false, d.current === 0),
-      category: "거래처 하락",
-      text: ct.text,
-      weight: Math.abs(d.diff),
-      href: `/accounts?customer=${encodeURIComponent(d.customer)}&month=${ym}`,
-    });
-  }
-
-  return rankBullets(out).slice(0, 6);
-}
-
 // ── 목표 달성 탭 ──────────────────────────────────────
 // targets 데이터를 받아서 휴리스틱.
 import type { TargetRowWithActual, PeriodAgg } from "./targets";
