@@ -13,6 +13,22 @@
 
 ## 버전 이력
 
+### v5.2 (2026-05-27)
+전 탭 제품 분석 + 브랜드 탭 고도화.
+- 6개 채널탭(B2C/B2B/대리점/면세점/해외영업/바크로하우스)에 상위 20 제품 테이블 추가 (이번달·전월비교·올해 누적)
+- `TopProductsTable` 공유 컴포넌트 + `topNProductsEnhanced()` 함수 (YTD 포함)
+- 브랜드 분석 탭: 수출 카테고리 반영, 카테고리별 목표 달성률 테이블, 채널 상세 테이블 추가
+
+### v5.1 (2026-05-27)
+B2C·대리점 탭 고도화 + FactCube 버그 수정.
+- 목표달성 탭 기간별(월/분기/반기/연간) 매트릭스 + 상세 대시보드
+- B2B·대리점 탭에 영업사원/대리점별 월간 목표 달성 현황 (`dealer_targets` BigQuery 테이블)
+- B2C 탭: 자사 공식몰 채널별·소호몰 브랜드별·임직원패밀리 테이블 및 12개월 스택 차트
+- 대리점 탭: 모든 차트를 대리점별 스택으로 변환 + 도넛 차트 + 브랜드×대리점 매트릭스
+- FactCube B2B 딜러 차원에서 대리점 매출 제외 (b2bCustomerType !== "대리점")
+- B2C 탭에서 바크로하우스 완전 제외 (별도 탭 분리, 스마트스토어는 유지)
+- B2C 목표 합계에 기타 채널 추가, 종합몰 수수료율 컬럼 제거
+
 ### v5.0 (2026-05)
 탭 구조 개편 (9 → 11탭).
 - 해외영업(`/export`) 탭 신설 — 국가별 매출, 12개월 추이, 국가×브랜드 매트릭스, 목표 달성
@@ -56,19 +72,15 @@ CSV → BigQuery 데이터 소스 전환.
 
 ---
 
-## 최근 수정 (2026-05-26)
+## 최근 수정 (2026-05-27)
 
 | 커밋 | 내용 |
 |---|---|
-| `6449d47` | 탭 구조 개편 — 해외영업·대리점 신설, B2B 대리점 분리, 종합에 수출 추가 |
-| `5609d7e` | `target.csv` 삭제 — BigQuery `targets` 테이블로 이전 완료 |
-| `7c5a7c4` | 죽은 코드 정리 + target.csv → BigQuery 전환 |
-| `9ee9f0e` | `sales.csv` 삭제 + `.gitignore` 추가 |
-| `6542abd` | BigQuery 영어 컬럼명 → 한국어 매핑 (`BQ_COL_MAP`) |
-| `224444a` | BigQuery DATE 객체 `.value` 변환 + `resolveMonth` 빈 배열 방어 |
-| `35fc88c` | Auth.js `trustHost: true` — Cloud Run UntrustedHost 에러 수정 |
-| `4d4a048` | GitHub Actions 워크플로우 삭제 — Cloud Run 소스 기반 직접 연동 |
-| `6848ab6` | Cloudflare Workers → Google Cloud Run 전환 |
+| `2228b70` | 브랜드 분석 탭 고도화 — 수출 포함, 카테고리 목표 달성, 채널 상세, YTD 제품 |
+| `0c64133` | 전 탭 상위 20 제품 테이블 추가 (이번달·전월·올해 누적) |
+| `5c991a3` | B2C 종합몰 수수료율 컬럼 제거 + 기타 채널 목표 합산 |
+| `b5a3996` | B2C 공식몰·소호몰·임직원 카드 + 바크로하우스 제외 + 대리점 스택 차트 |
+| `f5e4c44` | 목표달성 탭 기간별 매트릭스 + B2B·대리점 담당자 목표 달성 |
 
 ---
 
@@ -86,6 +98,7 @@ CSV → BigQuery 데이터 소스 전환.
 - 데이터셋: `dashboard_1`
 - 매출 테이블: `매출통계` (영어 컬럼명 — `bigquery-provider.ts`에서 한국어로 매핑)
 - 목표 테이블: `targets` (brand, division, customer_key, month, target_amount)
+- 담당자 목표 테이블: `dealer_targets` (name, type, month, target)
 - 매출 컬럼: `channel, date, order_number, product_name, product_code, quantity, net_sales, order_amount, discount_amount, commission, shipping_fee, settlement, dealer, client, client_type, cost, brand`
 - 비용: 무료 등급 범위 내 (쿼리 ~32MB/회, 월 1TB 무료)
 
