@@ -4,6 +4,7 @@ import {
   kpi,
   ymMinusMonths,
   monthlyRevenueOf,
+  topNProductsEnhanced,
 } from "@/lib/aggregate";
 import { computeB2BInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
@@ -38,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -169,6 +171,9 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const ytdMonths = enumerateMonths(annualStart, ym);
   const ytdB2bRows = await loadRangeRows(annualStart, ym);
   const ytdNonAgency = b2bNonAgencyRows(ytdB2bRows);
+
+  // Top 20 제품
+  const topProducts = topNProductsEnhanced(b2bNonAgencyRows(cur), b2bNonAgencyRows(prevMo), ytdNonAgency, 20);
 
   const monthDealerActual = new Map<string, number>();
   for (const d of byDealerCur) monthDealerActual.set(d.dealer, d.revenue);
@@ -860,6 +865,8 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           </div>
         </CardContent>
       </Card>
+
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (B2B, 대리점 제외)" />
     </div>
   );
 }

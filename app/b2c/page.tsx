@@ -7,7 +7,7 @@ import { ytdChannelGroupSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd"
 import {
   kpi,
   ymMinusMonths,
-  topNProductsWithPrev,
+  topNProductsEnhanced,
 } from "@/lib/aggregate";
 import {
   prevMonth,
@@ -34,6 +34,7 @@ import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart } from "@/components/charts/BarChart";
 import { LineChart } from "@/components/charts/LineChart";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -159,7 +160,9 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const groupKeys = ["자사 공식몰", "종합몰", "소호몰", "임직원/패밀리", "기타"];
 
   // Top 제품
-  const topProducts = topNProductsWithPrev(b2cRows(cur), b2cRows(prevMo), 20);
+  const ytdStart = `${ym.split("-")[0]}-01`;
+  const ytdB2c = b2cRows(rangeRows.filter((r) => r.yearMonth >= ytdStart));
+  const topProducts = topNProductsEnhanced(b2cRows(cur), b2cRows(prevMo), ytdB2c, 20);
 
   // 변화 요인 — 채널 단위
   const channelContribs = attributeChange(b2cRows(cur), b2cRows(prevMo), (r) => r.channel || null);
@@ -657,57 +660,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
         </Card>
       )}
 
-      {/* Top 20 제품 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>이번달 상위 20 제품 (B2C 전체, 전월 비교)</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="px-4 pb-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-2">#</th>
-                  <th className="py-2">제품</th>
-                  <th className="py-2 text-right">수량</th>
-                  <th className="py-2 text-right">이번달</th>
-                  <th className="py-2 text-right">전월</th>
-                  <th className="py-2 text-right">변화</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topProducts.map((p, i) => {
-                  const ch = buildChange(p.current, p.prev, "전월");
-                  const cls =
-                    ch.direction === "up" || ch.direction === "new"
-                      ? "text-emerald-700"
-                      : ch.direction === "down" || ch.direction === "lost"
-                        ? "text-rose-700"
-                        : "text-muted-foreground";
-                  return (
-                    <tr key={p.productName} className="border-b last:border-0">
-                      <td className="py-2 text-muted-foreground">{i + 1}</td>
-                      <td className="py-2 max-w-[400px] truncate">
-                        <span className="text-muted-foreground text-xs mr-1">[{p.brand}]</span>
-                        {p.productName}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">{formatInt(p.qty)}</td>
-                      <td className="py-2 text-right tabular-nums">{formatKRWLong(p.current)}</td>
-                      <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {p.prev > 0 ? formatKRWLong(p.prev) : "—"}
-                      </td>
-                      <td className={`py-2 text-right tabular-nums ${cls}`}>
-                        <div>{ch.diffText}</div>
-                        <div className="text-[10px]">{ch.pctText}</div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (B2C 전체)" />
     </div>
   );
 }

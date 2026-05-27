@@ -1,6 +1,6 @@
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
-import { kpi, ymMinusMonths, monthlyRevenueOf } from "@/lib/aggregate";
+import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/lib/aggregate";
 import { computeAgencyInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -137,6 +138,9 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
   const ytdAgMonths = enumerateMonths(annualStart, ym);
   const ytdAgRows = await loadRangeRows(annualStart, ym);
   const ytdAgencyAll = b2bAgencyRows(ytdAgRows);
+
+  // Top 20 제품
+  const topProducts = topNProductsEnhanced(agCur, agPrevMo, ytdAgencyAll, 20);
 
   const monthAgActual = new Map<string, number>();
   for (const c of agencyCustomers) monthAgActual.set(c.customer, c.revenue);
@@ -576,6 +580,8 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
           </CardContent>
         </Card>
       </div>
+
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (대리점)" />
     </div>
   );
 }

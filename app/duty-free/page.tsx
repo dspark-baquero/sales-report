@@ -7,6 +7,7 @@ import {
   dailyRevenue,
   dailyCumulative,
   weeklyRevenue,
+  topNProductsEnhanced,
 } from "@/lib/aggregate";
 import { computeDutyFreeInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
@@ -32,6 +33,7 @@ import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import {
   formatKRWLong,
   formatInt,
@@ -119,6 +121,11 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
 
   // 주차별
   const weekly = weeklyRevenue(dutyFreeRows(cur));
+
+  // Top 20 제품
+  const ytdStart = `${ym.split("-")[0]}-01`;
+  const ytdDf = dutyFreeRows(trendRows.filter((r) => r.yearMonth >= ytdStart));
+  const topProducts = topNProductsEnhanced(dutyFreeRows(cur), dutyFreeRows(prevMo), ytdDf, 20);
 
   // 변화 요인 — 거래처 단위
   const customerContribs = attributeChange(
@@ -404,6 +411,8 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
           />
         </CardContent>
       </Card>
+
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (면세점)" />
     </div>
   );
 }

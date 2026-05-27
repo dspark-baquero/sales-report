@@ -1,6 +1,6 @@
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
-import { kpi, ymMinusMonths, monthlyRevenueOf } from "@/lib/aggregate";
+import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/lib/aggregate";
 import { computeBaqueroHouseInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
@@ -20,6 +20,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart } from "@/components/charts/BarChart";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import { revenueRows } from "@/lib/aggregate";
 
 import {
@@ -91,10 +92,15 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     .filter((t) => t.division === "국내" && t.customerKey === "바크로하우스")
     .reduce((s, t) => s + t.target, 0);
 
+  // Top 20 제품
+  const ytdStart = `${ym.split("-")[0]}-01`;
+
   // 12개월 추이
   const fromYM = ymMinusMonths(ym, 11);
   const trendRows = await loadRangeRows(fromYM, ym);
   const monthly = monthlyRevenueOf(trendRows, fromYM, ym, (r) => r.channel === "바크로하우스");
+  const ytdBh = baqueroHouseRows(trendRows.filter((r) => r.yearMonth >= ytdStart));
+  const topProducts = topNProductsEnhanced(bhCur, bhPrevMo, ytdBh, 20);
 
   // 12개월 파트너 추천 매출 (스택 차트용)
   const bhSalesTrend = bhAvailable ? await loadBHSalesRange(fromYM, ym) : [];
@@ -598,6 +604,8 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           </CardContent>
         </Card>
       )}
+
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (바크로하우스)" />
     </div>
   );
 }

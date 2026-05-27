@@ -1,6 +1,6 @@
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
-import { kpi, ymMinusMonths, monthlyRevenueOf } from "@/lib/aggregate";
+import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/lib/aggregate";
 import { computeExportInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
@@ -27,6 +27,7 @@ import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -102,6 +103,11 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
   // 거래처별
   const customers = exportCustomers(cur);
   const customersPrev = new Map(exportCustomers(prevMo).map((c) => [c.customer, c.revenue]));
+
+  // Top 20 제품
+  const ytdStart = `${ym.split("-")[0]}-01`;
+  const ytdExp = exportRows(trendRows.filter((r) => r.yearMonth >= ytdStart));
+  const topProducts = topNProductsEnhanced(exportRows(cur), exportRows(prevMo), ytdExp, 20);
 
   // 변화 요인 — 국가 단위
   const countryContribs = attributeChange(
@@ -374,6 +380,8 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
           </div>
         </CardContent>
       </Card>
+
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (해외영업)" />
     </div>
   );
 }

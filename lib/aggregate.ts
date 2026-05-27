@@ -304,6 +304,57 @@ export function topNProductsWithPrev(
     .slice(0, n);
 }
 
+export type TopProduct = {
+  productName: string;
+  brand: string;
+  current: number;
+  prev: number;
+  diff: number;
+  pct: number | null;
+  qty: number;
+  ytdRevenue: number;
+  ytdQty: number;
+};
+
+export function topNProductsEnhanced(
+  curRows: SalesRow[],
+  prevRows: SalesRow[],
+  ytdRows: SalesRow[],
+  n = 20,
+): TopProduct[] {
+  const curMap = new Map<string, { revenue: number; qty: number; brand: string }>();
+  for (const r of revenueRows(curRows)) {
+    if (!r.productName) continue;
+    const cur = curMap.get(r.productName) ?? { revenue: 0, qty: 0, brand: r.brand };
+    cur.revenue += r.realRevenue;
+    cur.qty += r.qty;
+    curMap.set(r.productName, cur);
+  }
+  const prevMap = new Map<string, number>();
+  for (const r of revenueRows(prevRows)) {
+    if (!r.productName) continue;
+    prevMap.set(r.productName, (prevMap.get(r.productName) ?? 0) + r.realRevenue);
+  }
+  const ytdMap = new Map<string, { revenue: number; qty: number }>();
+  for (const r of revenueRows(ytdRows)) {
+    if (!r.productName) continue;
+    const cur = ytdMap.get(r.productName) ?? { revenue: 0, qty: 0 };
+    cur.revenue += r.realRevenue;
+    cur.qty += r.qty;
+    ytdMap.set(r.productName, cur);
+  }
+  return [...curMap.entries()]
+    .map(([productName, v]) => {
+      const prev = prevMap.get(productName) ?? 0;
+      const diff = v.revenue - prev;
+      const pct = prev !== 0 ? diff / Math.abs(prev) : null;
+      const ytd = ytdMap.get(productName) ?? { revenue: 0, qty: 0 };
+      return { productName, brand: v.brand, current: v.revenue, prev, diff, pct, qty: v.qty, ytdRevenue: ytd.revenue, ytdQty: ytd.qty };
+    })
+    .sort((a, b) => b.current - a.current)
+    .slice(0, n);
+}
+
 // ── 임의 그룹키 매출 합계 ───────────────────────────
 export function revenueBySegment<K extends string>(
   rows: SalesRow[],
