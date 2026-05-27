@@ -740,8 +740,8 @@ export function computeChangesInsights(cube: FactCube, ym: string): InsightBulle
 
 // ── 목표 달성 탭 ──────────────────────────────────────
 // targets 데이터를 받아서 휴리스틱.
-import type { TargetRowWithActual } from "./targets";
-export function computeTargetsInsights(targetsActuals: TargetRowWithActual[], ym: string): InsightBullet[] {
+import type { TargetRowWithActual, PeriodAgg } from "./targets";
+export function computeTargetsInsights(targetsActuals: TargetRowWithActual[], ym: string, periods?: PeriodAgg[]): InsightBullet[] {
   const out: InsightBullet[] = [];
   const curMonth = targetsActuals.filter((t) => t.yearMonth === ym && !t.prospective);
   const total = curMonth.reduce((s, t) => s + t.target, 0);
@@ -790,16 +790,58 @@ export function computeTargetsInsights(targetsActuals: TargetRowWithActual[], ym
   // 신규 추진 채널 진척
   const prosp = targetsActuals.filter((t) => t.yearMonth === ym && t.prospective);
   if (prosp.length > 0) {
-    const total = prosp.reduce((s, t) => s + t.target, 0);
+    const prospTotal = prosp.reduce((s, t) => s + t.target, 0);
     out.push({
       severity: "info",
       category: "신규 추진",
-      text: `신규 추진 채널 ${prosp.length}건 (목표 합계 ${formatKRWShort(total)}) — 매칭 sales 데이터 없음`,
-      weight: total,
+      text: `신규 추진 채널 ${prosp.length}건 (목표 합계 ${formatKRWShort(prospTotal)}) — 매칭 sales 데이터 없음`,
+      weight: prospTotal,
     });
   }
 
-  return rankBullets(out).slice(0, 6);
+  // 기간별 인사이트 (periods 전달 시)
+  if (periods && periods.length >= 4) {
+    const [, pQ, pH, pA] = periods;
+
+    if (pQ.totalRate !== null) {
+      out.push({
+        severity: pQ.totalRate >= 1 ? "positive" : pQ.totalRate >= 0.85 ? "info" : pQ.totalRate >= 0.7 ? "warn" : "critical",
+        category: "분기 달성",
+        text: `${pQ.label} 종합 달성률 ${formatPctAbs(pQ.totalRate, 1)} (실적 ${formatKRWShort(pQ.totalActual)} / 목표 ${formatKRWShort(pQ.totalTarget)})`,
+        weight: Math.abs(pQ.totalActual - pQ.totalTarget),
+      });
+    }
+
+    if (pH.totalRate !== null) {
+      out.push({
+        severity: pH.totalRate >= 1 ? "positive" : pH.totalRate >= 0.85 ? "info" : pH.totalRate >= 0.7 ? "warn" : "critical",
+        category: "반기 달성",
+        text: `${pH.label} 누적 달성률 ${formatPctAbs(pH.totalRate, 1)} (실적 ${formatKRWShort(pH.totalActual)} / 목표 ${formatKRWShort(pH.totalTarget)})`,
+        weight: Math.abs(pH.totalActual - pH.totalTarget),
+      });
+    }
+
+    // 전 기간 70% 미만 채널 감지
+    const allChannelKeys = new Set(periods.flatMap((p) => p.byChannel.filter((c) => !c.prospective && c.target > 0).map((c) => `${c.division}|${c.customerKey}`)));
+    const persistentUnder: string[] = [];
+    for (const ck of allChannelKeys) {
+      const allUnder = periods.every((p) => {
+        const ch = p.byChannel.find((c) => `${c.division}|${c.customerKey}` === ck);
+        return ch && ch.target > 0 && ch.rate !== null && ch.rate < 0.7;
+      });
+      if (allUnder) persistentUnder.push(ck.split("|")[1]);
+    }
+    if (persistentUnder.length > 0) {
+      out.push({
+        severity: "critical",
+        category: "지속 미달",
+        text: `${persistentUnder.slice(0, 3).join(", ")}${persistentUnder.length > 3 ? ` 외 ${persistentUnder.length - 3}건` : ""} — 월/분기/반기/연간 모두 70% 미만`,
+        weight: 999_999_999,
+      });
+    }
+  }
+
+  return rankBullets(out).slice(0, 8);
 }
 
 // ── 거래처 분석 탭 ─────────────────────────────────────

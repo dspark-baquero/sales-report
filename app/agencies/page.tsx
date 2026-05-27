@@ -15,10 +15,13 @@ import {
 import { b2bAgencyRows, b2bNewLost } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
 import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
+import { loadDealerTargets, buildDealerAchievements } from "@/lib/dealer-targets";
+import { enumerateMonths } from "@/lib/aggregate";
 import { COMPARE_LABEL } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
 import {
@@ -38,7 +41,7 @@ type SearchParams = Promise<{ month?: string }>;
 export default async function AgenciesPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const ym = await resolveMonth(sp.month);
-  const [cube, targets] = await Promise.all([loadFactCube(), loadTargets()]);
+  const [cube, targets, dealerTargets] = await Promise.all([loadFactCube(), loadTargets(), loadDealerTargets()]);
   const insights = computeAgencyInsights(cube, ym);
 
   const { qStart } = quarterOf(ym);
@@ -106,6 +109,32 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
 
   // 변화 요인
   const customerContribs = attributeChange(agCur, agPrevMo, (r) => r.customer || null);
+
+  // ── 대리점별 목표 달성 ──
+  const [yearStr] = ym.split("-");
+  const annualStart = `${yearStr}-01`;
+  const ytdAgMonths = enumerateMonths(annualStart, ym);
+  const ytdAgRows = await loadRangeRows(annualStart, ym);
+  const ytdAgencyAll = b2bAgencyRows(ytdAgRows);
+
+  const monthAgActual = new Map<string, number>();
+  for (const c of agencyCustomers) monthAgActual.set(c.customer, c.revenue);
+
+  const ytdAgActual = new Map<string, number>();
+  for (const r of ytdAgencyAll) {
+    if (r.isNonRevenue) continue;
+    ytdAgActual.set(r.customer, (ytdAgActual.get(r.customer) ?? 0) + r.realRevenue);
+  }
+
+  const agencyAch = buildDealerAchievements(
+    dealerTargets, monthAgActual, ytdAgActual, ym, ytdAgMonths, "대리점",
+  );
+  const agencyAchTotal = {
+    monthTarget: agencyAch.reduce((s, d) => s + d.monthTarget, 0),
+    monthActual: agencyAch.reduce((s, d) => s + d.monthActual, 0),
+    ytdTarget: agencyAch.reduce((s, d) => s + d.ytdTarget, 0),
+    ytdActual: agencyAch.reduce((s, d) => s + d.ytdActual, 0),
+  };
 
   // 신규/이탈 (대리점 필터 적용한 rows 전체 범위 필요)
   const allAgRows = b2bAgencyRows(trendRows);
@@ -206,6 +235,78 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
         prevLabel={COMPARE_LABEL.prevMonth}
         hint="대리점 거래처 단위 분해"
       />
+
+      {/* 대리점별 목표 달성 현황 */}
+      {agencyAch.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>대리점별 목표 달성 현황</CardTitle>
+              {agencyAchTotal.monthTarget > 0 && (
+                <Badge variant={agencyAchTotal.monthActual >= agencyAchTotal.monthTarget ? "positive" : agencyAchTotal.monthActual >= agencyAchTotal.monthTarget * 0.7 ? "warn" : "negative"}>
+                  종합 {formatPctAbs(agencyAchTotal.monthActual / agencyAchTotal.monthTarget, 1)}
+                </Badge>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              이번달 목표 {formatKRWLong(agencyAchTotal.monthTarget)} · 실적 {formatKRWLong(agencyAchTotal.monthActual)} · 누적 달성률 {agencyAchTotal.ytdTarget > 0 ? formatPctAbs(agencyAchTotal.ytdActual / agencyAchTotal.ytdTarget, 1) : "—"}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <BarChart
+              categories={agencyAch.map((d) => d.name)}
+              series={[
+                { name: "목표", values: agencyAch.map((d) => d.monthTarget), color: "#cbd5e1" },
+                { name: "실적", values: agencyAch.map((d) => d.monthActual), color: "#8b5cf6" },
+              ]}
+              height={Math.max(200, agencyAch.length * 38)}
+              horizontal
+              showValueLabels
+              yLabel="실매출"
+            />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-muted-foreground border-b">
+                    <th className="py-2">대리점</th>
+                    <th className="py-2 text-right">이번달 목표</th>
+                    <th className="py-2 text-right">이번달 실적</th>
+                    <th className="py-2 text-right">달성률</th>
+                    <th className="py-2 text-right">차이</th>
+                    <th className="py-2 text-right">누적 목표</th>
+                    <th className="py-2 text-right">누적 실적</th>
+                    <th className="py-2 text-right">누적 달성률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agencyAch.map((d) => {
+                    const diff = d.monthActual - d.monthTarget;
+                    const mCls = d.monthRate === null ? "" : d.monthRate >= 1 ? "text-emerald-700 font-semibold" : d.monthRate >= 0.7 ? "text-amber-600" : "text-rose-700 font-semibold";
+                    const yCls = d.ytdRate === null ? "" : d.ytdRate >= 1 ? "text-emerald-700" : d.ytdRate >= 0.7 ? "text-amber-600" : "text-rose-700";
+                    const diffCls = diff >= 0 ? "text-emerald-700" : "text-rose-700";
+                    return (
+                      <tr key={d.name} className="border-b last:border-0">
+                        <td className="py-2 font-medium">
+                          <Link href={`/accounts?customer=${encodeURIComponent(d.name)}&month=${ym}`} className="hover:underline">
+                            {d.name}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(d.monthTarget)}</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(d.monthActual)}</td>
+                        <td className={`py-2 text-right tabular-nums ${mCls}`}>{d.monthRate !== null ? formatPctAbs(d.monthRate, 1) : "—"}</td>
+                        <td className={`py-2 text-right tabular-nums ${diffCls}`}>{diff >= 0 ? "+" : ""}{formatKRWLong(Math.abs(diff))}</td>
+                        <td className="py-2 text-right tabular-nums text-muted-foreground">{formatKRWLong(d.ytdTarget)}</td>
+                        <td className="py-2 text-right tabular-nums">{formatKRWLong(d.ytdActual)}</td>
+                        <td className={`py-2 text-right tabular-nums ${yCls}`}>{d.ytdRate !== null ? formatPctAbs(d.ytdRate, 1) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

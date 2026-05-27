@@ -40,6 +40,19 @@ export function prevQuarter(yearMonth: string): { qStart: string; qEnd: string }
   };
 }
 
+// 반기 = 1~6 / 7~12
+export function halfYearOf(yearMonth: string): { hStart: string; hEnd: string; hNumber: 1 | 2 } {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const h: 1 | 2 = m <= 6 ? 1 : 2;
+  const startM = h === 1 ? 1 : 7;
+  const endM = h === 1 ? 6 : 12;
+  return {
+    hStart: `${y}-${String(startM).padStart(2, "0")}`,
+    hEnd: `${y}-${String(endM).padStart(2, "0")}`,
+    hNumber: h,
+  };
+}
+
 // 분기 진행률 (1, 2, 3 중 몇 번째 달까지 들어왔나)
 export function quarterProgress(yearMonth: string): number {
   const [, m] = yearMonth.split("-").map(Number);

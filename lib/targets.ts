@@ -401,3 +401,91 @@ export function buildTargetActuals(
     return { ...t, actual, rate, prospective: rule.prospective };
   });
 }
+
+// ── 기간별 집계 (목표달성 탭 고도화) ──────────────────
+export type PeriodAggRow = {
+  division: Division;
+  customerKey: string;
+  target: number;
+  actual: number;
+  rate: number | null;
+  prospective: boolean;
+};
+
+export type PeriodAggBrand = {
+  brand: string;
+  target: number;
+  actual: number;
+  rate: number | null;
+};
+
+export type PeriodAgg = {
+  label: string;
+  periodDesc: string;
+  totalTarget: number;
+  totalActual: number;
+  totalRate: number | null;
+  byChannel: PeriodAggRow[];
+  byBrand: PeriodAggBrand[];
+};
+
+export function buildPeriodAgg(
+  label: string,
+  periodDesc: string,
+  targets: TargetRow[],
+  monthSlices: Map<string, SalesRow[]>,
+  months: string[],
+): PeriodAgg {
+  const chanMap = new Map<string, { division: Division; customerKey: string; target: number; actual: number; prospective: boolean }>();
+  const brandMap = new Map<string, { target: number; actual: number }>();
+
+  for (const ym of months) {
+    const rows = monthSlices.get(ym);
+    if (!rows) continue;
+    const ta = buildTargetActuals(targets, rows, ym);
+    for (const t of ta) {
+      const ck = `${t.division}|${t.customerKey}`;
+      const cur = chanMap.get(ck) ?? { division: t.division, customerKey: t.customerKey, target: 0, actual: 0, prospective: t.prospective };
+      cur.target += t.target;
+      cur.actual += t.actual;
+      chanMap.set(ck, cur);
+
+      if (!t.prospective) {
+        const bc = brandMap.get(t.brand) ?? { target: 0, actual: 0 };
+        bc.target += t.target;
+        bc.actual += t.actual;
+        brandMap.set(t.brand, bc);
+      }
+    }
+  }
+
+  const byChannel: PeriodAggRow[] = [...chanMap.values()]
+    .map((c) => ({
+      ...c,
+      rate: c.target > 0 ? c.actual / c.target : null,
+    }))
+    .filter((c) => c.target > 0 || c.actual > 0 || c.prospective)
+    .sort((a, b) => b.target - a.target);
+
+  const byBrand: PeriodAggBrand[] = [...brandMap.entries()]
+    .map(([brand, v]) => ({
+      brand,
+      ...v,
+      rate: v.target > 0 ? v.actual / v.target : null,
+    }))
+    .filter((b) => b.target > 0 || b.actual > 0)
+    .sort((a, b) => b.target - a.target);
+
+  const totalTarget = byChannel.reduce((s, c) => s + c.target, 0);
+  const totalActual = byChannel.reduce((s, c) => s + (c.prospective ? 0 : c.actual), 0);
+
+  return {
+    label,
+    periodDesc,
+    totalTarget,
+    totalActual,
+    totalRate: totalTarget > 0 ? totalActual / totalTarget : null,
+    byChannel,
+    byBrand,
+  };
+}

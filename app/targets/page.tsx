@@ -1,8 +1,8 @@
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { enumerateMonths } from "@/lib/aggregate";
-import { quarterOf } from "@/lib/compare";
-import { loadTargets, buildTargetActuals, isProspectiveKey } from "@/lib/targets";
+import { quarterOf, halfYearOf } from "@/lib/compare";
+import { loadTargets, buildTargetActuals, buildPeriodAgg, isProspectiveKey } from "@/lib/targets";
 import { computeTargetsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
@@ -11,13 +11,14 @@ import { TargetGauge } from "@/components/TargetGauge";
 import { AnnualProgressCard } from "@/components/AnnualProgressCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart } from "@/components/charts/BarChart";
 import {
   formatKRWLong,
   formatPctAbs,
   formatYM,
   buildAchievement,
 } from "@/lib/format";
+import { AchievementMatrix } from "./AchievementMatrix";
+import { AchievementDashboard } from "./AchievementDashboard";
 import { TargetsTable } from "./TargetsTable";
 
 type SearchParams = Promise<{ month?: string }>;
@@ -25,92 +26,75 @@ type SearchParams = Promise<{ month?: string }>;
 export default async function TargetsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const ym = await resolveMonth(sp.month);
-  const { qStart } = quarterOf(ym);
+  const { qStart, qNumber } = quarterOf(ym);
+  const { hStart, hNumber } = halfYearOf(ym);
 
-  const [cube, targets, cur] = await Promise.all([
-    loadFactCube(),
-    loadTargets(),
-    loadMonthRows(ym),
-  ]);
-
-  // 이번달 매트릭스
-  const monthRows = buildTargetActuals(targets, cur, ym);
-  const insights = computeTargetsInsights(monthRows, ym);
-
-  // 이번분기 누적 — 분기 시작월~이번달의 모든 target/actual 누적
-  const quarterMonths: string[] = [];
-  {
-    const [y, m] = ym.split("-").map(Number);
-    const [qy, qm] = qStart.split("-").map(Number);
-    let cy = qy, cm = qm;
-    while (cy < y || (cy === y && cm <= m)) {
-      quarterMonths.push(`${cy}-${String(cm).padStart(2, "0")}`);
-      cm++;
-      if (cm > 12) { cm = 1; cy++; }
-    }
-  }
-
-  // 분기 누적 (브랜드 × 거래처): 모든 분기 월 합산
-  const qMatrix = new Map<string, { brand: string; division: "국내" | "해외"; customerKey: string; target: number; actual: number; prospective: boolean }>();
-  const quarterMonthSlices = await Promise.all(quarterMonths.map((qym) => loadMonthRows(qym)));
-  for (let qi = 0; qi < quarterMonths.length; qi++) {
-    const qym = quarterMonths[qi];
-    const monthSliceRows = quarterMonthSlices[qi];
-    const ta = buildTargetActuals(targets, monthSliceRows, qym);
-    for (const t of ta) {
-      const key = `${t.brand}|${t.division}|${t.customerKey}`;
-      const cur = qMatrix.get(key) ?? {
-        brand: t.brand,
-        division: t.division,
-        customerKey: t.customerKey,
-        target: 0,
-        actual: 0,
-        prospective: t.prospective,
-      };
-      cur.target += t.target;
-      cur.actual += t.actual;
-      qMatrix.set(key, cur);
-    }
-  }
-
-  // 이번달 종합
-  const monthTargetTotal = monthRows.reduce((s, t) => s + t.target, 0);
-  const monthActualTotal = monthRows.reduce((s, t) => s + t.actual, 0);
-  const quarterTargetTotal = [...qMatrix.values()].reduce((s, t) => s + t.target, 0);
-  const quarterActualTotal = [...qMatrix.values()].reduce((s, t) => s + t.actual, 0);
-
-  // ── 연간 / 연 누적(YTD) ─────────────────────────────────
   const [yearStr, monthStr] = ym.split("-");
   const monthNum = Number(monthStr);
   const annualStart = `${yearStr}-01`;
   const annualEnd = `${yearStr}-12`;
-  const ytdMonths = enumerateMonths(annualStart, ym);     // 1월~이번달
+
+  const [cube, targets] = await Promise.all([
+    loadFactCube(),
+    loadTargets(),
+  ]);
+
+  // ── 모든 YTD 월을 한번에 로드 (1월~이번달) → 기간별 서브셋으로 재사용 ──
+  const ytdMonths = enumerateMonths(annualStart, ym);
+  const ytdSlices = await Promise.all(ytdMonths.map((m) => loadMonthRows(m)));
+  const monthSlices = new Map<string, Awaited<ReturnType<typeof loadMonthRows>>>();
+  for (let i = 0; i < ytdMonths.length; i++) {
+    monthSlices.set(ytdMonths[i], ytdSlices[i]);
+  }
+
+  // 기간 산출
+  const quarterMonths = enumerateMonths(qStart, ym);
+  const halfYearMonths = enumerateMonths(hStart, ym);
+
+  // ── 4개 기간 PeriodAgg 생성 ──
+  const periodMonth = buildPeriodAgg(
+    "이번달",
+    formatYM(ym),
+    targets, monthSlices, [ym],
+  );
+  const periodQuarter = buildPeriodAgg(
+    "이번분기",
+    quarterMonths.length > 1 ? `${formatYM(quarterMonths[0])}~${formatYM(ym)}` : formatYM(ym),
+    targets, monthSlices, quarterMonths,
+  );
+  const periodHalf = buildPeriodAgg(
+    hNumber === 1 ? "상반기" : "하반기",
+    halfYearMonths.length > 1 ? `${formatYM(halfYearMonths[0])}~${formatYM(ym)}` : formatYM(ym),
+    targets, monthSlices, halfYearMonths,
+  );
+  const periodAnnual = buildPeriodAgg(
+    "연간 누적",
+    ytdMonths.length > 1 ? `${formatYM(ytdMonths[0])}~${formatYM(ym)}` : formatYM(ym),
+    targets, monthSlices, ytdMonths,
+  );
+
+  const periods = [periodMonth, periodQuarter, periodHalf, periodAnnual];
+
+  // ── 이번달 매트릭스 (미달/초과/신규 추진 등 기존 카드용) ──
+  const cur = monthSlices.get(ym) ?? [];
+  const monthRows = buildTargetActuals(targets, cur, ym);
+  const insights = computeTargetsInsights(monthRows, ym, periods);
+
+  // 연간 목표/YTD 실적 (AnnualProgressCard용)
   const ytdMonthSet = new Set(ytdMonths);
   const annualMonthSet = new Set(enumerateMonths(annualStart, annualEnd));
-
-  // YTD 실적 (1월~이번달, 비매출 제외)
   const ytdRangeRows = await loadRangeRows(annualStart, ym);
   const ytdActual = ytdRangeRows
     .filter((r) => !r.isNonRevenue)
     .reduce((s, r) => s + r.realRevenue, 0);
-
-  // 연 목표 / YTD 목표 (신규 추진 제외 — 매칭되는 sales가 없는 키는 페이스 평가에서 빠짐)
   const annualTarget = targets
-    .filter(
-      (t) =>
-        annualMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey),
-    )
+    .filter((t) => annualMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey))
     .reduce((s, t) => s + t.target, 0);
   const ytdTarget = targets
-    .filter(
-      (t) =>
-        ytdMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey),
-    )
+    .filter((t) => ytdMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey))
     .reduce((s, t) => s + t.target, 0);
 
   const prospective = monthRows.filter((t) => t.prospective && t.target > 0);
-
-  // 미달 / 초과 항목
   const withTargetActive = monthRows.filter((t) => t.target > 0 && !t.prospective);
   const underperform = withTargetActive
     .filter((t) => t.rate !== null && t.rate < 0.7)
@@ -119,55 +103,16 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
     .filter((t) => t.rate !== null && t.rate >= 1.1)
     .sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
 
-  // 브랜드 단위 집계 (게이지 그리드)
-  const brandAgg = new Map<string, { target: number; actual: number }>();
-  for (const t of monthRows) {
-    if (t.prospective) continue;
-    const cur = brandAgg.get(t.brand) ?? { target: 0, actual: 0 };
-    cur.target += t.target;
-    cur.actual += t.actual;
-    brandAgg.set(t.brand, cur);
-  }
-  const brandGauges = [...brandAgg.entries()]
-    .filter(([, v]) => v.target > 0 || v.actual > 0)
-    .sort((a, b) => b[1].target - a[1].target);
-
-  // 거래처 키 단위 집계
-  const keyAgg = new Map<string, { division: "국내" | "해외"; target: number; actual: number; prospective: boolean }>();
-  for (const t of monthRows) {
-    const k = `${t.division}|${t.customerKey}`;
-    const cur = keyAgg.get(k) ?? { division: t.division, target: 0, actual: 0, prospective: t.prospective };
-    cur.target += t.target;
-    cur.actual += t.actual;
-    keyAgg.set(k, cur);
-  }
-  const keyRows = [...keyAgg.entries()]
-    .map(([k, v]) => ({
-      key: k.split("|")[1],
-      ...v,
-      rate: v.target > 0 ? v.actual / v.target : null,
-    }))
-    .filter((x) => x.target > 0 || x.actual > 0 || x.prospective)
-    .sort((a, b) => b.target - a.target);
-
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 목표 달성 보고</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          target.csv 기반 (브랜드 × 구분 × 거래처 × 월) 목표 대비 이번달/분기 누적 달성률
+          목표 대비 채널별·기간별 달성률 — 이번달 / {qNumber}분기 / {hNumber === 1 ? "상" : "하"}반기 / 연간 누적
         </p>
       </div>
 
       <TabInsights bullets={insights} />
-
-      <YearToDateChart
-        ym={ym}
-        series={ytdCategorySeries(cube, ym)}
-        caption="대분류별 매출 흐름 — 목표 진척도 카드와 함께 보세요"
-        achievement={ytdAchievementOverall(ytdRangeRows, targets, ym)}
-        achievementLabel="전체 국내"
-      />
 
       {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -179,24 +124,38 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
           hint={`연 목표 ${formatKRWLong(annualTarget)} 중 ${monthNum}/12개월 진행`}
         />
         <TargetGauge
-          title={`연 누적 (YTD) 달성률`}
+          title="연 누적 달성률"
           actual={ytdActual}
           target={ytdTarget}
-          hint={`${yearStr}년 1~${monthNum}월 누적 (시점 기준 페이스 평가)`}
+          hint={`${yearStr}년 1~${monthNum}월 누적`}
         />
         <TargetGauge
-          title="이번분기 누적"
-          actual={quarterActualTotal}
-          target={quarterTargetTotal}
-          hint={`${quarterMonths[0]}~${ym}, ${quarterMonths.length}개월 누적`}
+          title={`${qNumber}분기 누적`}
+          actual={periodQuarter.totalActual}
+          target={periodQuarter.totalTarget}
+          hint={periodQuarter.periodDesc}
         />
         <TargetGauge
           title="이번달 종합"
-          actual={monthActualTotal}
-          target={monthTargetTotal}
-          hint="이번달 (브랜드 × 거래처) 합계"
+          actual={periodMonth.totalActual}
+          target={periodMonth.totalTarget}
+          hint={formatYM(ym)}
         />
       </div>
+
+      <YearToDateChart
+        ym={ym}
+        series={ytdCategorySeries(cube, ym)}
+        caption="대분류별 매출 흐름 — 목표 진척도 카드와 함께 보세요"
+        achievement={ytdAchievementOverall(ytdRangeRows, targets, ym)}
+        achievementLabel="전체 국내"
+      />
+
+      {/* 기간별 상세 탭 (게이지/차트) */}
+      <AchievementDashboard periods={periods} />
+
+      {/* 기간별 × 채널별 달성률 매트릭스 */}
+      <AchievementMatrix periods={periods} />
 
       {/* 미달 워닝 */}
       {underperform.length > 0 && (
@@ -329,57 +288,6 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
           </CardContent>
         </Card>
       )}
-
-      {/* 거래처 키별 막대 (목표 vs 실적) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>거래처별 목표 vs 실적</CardTitle>
-          <div className="text-[11px] text-muted-foreground">
-            이번달 (브랜드 합계) — 막대: 목표(연한) / 실적(진한)
-          </div>
-        </CardHeader>
-        <CardContent>
-          <BarChart
-            categories={keyRows.map((r) => r.key)}
-            series={[
-              {
-                name: "목표",
-                values: keyRows.map((r) => r.target),
-                color: "#cbd5e1",
-              },
-              {
-                name: "실적",
-                values: keyRows.map((r) => r.actual),
-                color: "#0f172a",
-              },
-            ]}
-            height={Math.max(280, keyRows.length * 32)}
-            horizontal
-            yLabel="실매출"
-            showValueLabels
-          />
-        </CardContent>
-      </Card>
-
-      {/* 브랜드별 게이지 그리드 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>브랜드별 이번달 달성률</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {brandGauges.map(([brand, v]) => (
-              <TargetGauge
-                key={brand}
-                title={brand}
-                actual={v.actual}
-                target={v.target}
-                hint={`목표 ${formatKRWLong(v.target)}`}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* 전체 매트릭스 표 (정렬 가능) */}
       <Card>
