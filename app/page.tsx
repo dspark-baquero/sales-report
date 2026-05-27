@@ -86,16 +86,17 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const bhPrevMo = prevMo.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
   const bhPrevYr = prevYr.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
 
-  // 채널별 목표
-  const ymTargets = targets.filter((t) => t.yearMonth === ym);
-  const b2bKeys = new Set(["병원", "피부관리실"]);
+  // 채널별 목표 (prospective 제외)
+  const { targetsForMonthWithProspective } = await import("@/lib/targets");
+  const ta = targetsForMonthWithProspective(targets, ym);
+  const b2bKeys = new Set(["병원", "피부관리실", "직거래처"]);
   const b2cKeys = new Set(["공식몰", "종합몰", "소호몰"]);
-  const b2bTarget = ymTargets.filter((t) => t.division === "국내" && b2bKeys.has(t.customerKey)).reduce((s, t) => s + t.target, 0);
-  const b2cTarget = ymTargets.filter((t) => t.division === "국내" && b2cKeys.has(t.customerKey)).reduce((s, t) => s + t.target, 0);
-  const dutyTarget = ymTargets.filter((t) => t.division === "국내" && t.customerKey === "면세점").reduce((s, t) => s + t.target, 0);
-  const exportTarget = ymTargets.filter((t) => t.division === "해외").reduce((s, t) => s + t.target, 0);
-  const agencyTarget = ymTargets.filter((t) => t.division === "국내" && t.customerKey === "대리점").reduce((s, t) => s + t.target, 0);
-  const bhTarget = ymTargets.filter((t) => t.division === "국내" && t.customerKey === "바크로하우스").reduce((s, t) => s + t.target, 0);
+  const b2bTarget = ta.filter((t) => b2bKeys.has(t.customerKey) && !t.prospective).reduce((s, t) => s + t.target, 0);
+  const b2cTarget = ta.filter((t) => b2cKeys.has(t.customerKey) && !t.prospective).reduce((s, t) => s + t.target, 0);
+  const dutyTarget = ta.filter((t) => t.customerKey === "면세점" && !t.prospective).reduce((s, t) => s + t.target, 0);
+  const exportTarget = ta.filter((t) => t.division === "해외" && !t.prospective).reduce((s, t) => s + t.target, 0);
+  const agencyTarget = ta.filter((t) => t.customerKey === "대리점" && !t.prospective).reduce((s, t) => s + t.target, 0);
+  const bhTarget = ta.filter((t) => t.customerKey === "바크로하우스" && !t.prospective).reduce((s, t) => s + t.target, 0);
 
   // 12개월 카테고리 스택
   const fromYM = ymMinusMonths(ym, 11);
@@ -150,9 +151,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <MetricCard
           label="B2B"
-          current={catCur["B2B"]}
+          current={catCur["B2B"] - agencyCur}
           comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2B"] },
+            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2B"] - agencyPrevMo },
           ]}
           target={b2bTarget > 0 ? { value: b2bTarget, label: "B2B 목표" } : undefined}
         />
@@ -166,9 +167,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         />
         <MetricCard
           label="B2C"
-          current={catCur["B2C"]}
+          current={catCur["B2C"] - bhCur}
           comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2C"] },
+            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2C"] - bhPrevMo },
           ]}
           target={b2cTarget > 0 ? { value: b2cTarget, label: "B2C 목표" } : undefined}
         />
