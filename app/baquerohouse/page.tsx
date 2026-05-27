@@ -378,6 +378,8 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                 <thead>
                   <tr className="text-left text-[11px] text-muted-foreground border-b">
                     <th className="py-2">파트너</th>
+                    <th className="py-2">담당자</th>
+                    <th className="py-2">대리점</th>
                     <th className="py-2">등급</th>
                     <th className="py-2 text-right">커미션 비율</th>
                     <th className="py-2 text-right">추천 매출</th>
@@ -391,6 +393,8 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
                     return (
                       <tr key={pr.name} className="border-b last:border-0">
                         <td className="py-2 font-medium">{pr.name}</td>
+                        <td className="py-2 text-muted-foreground">{partner?.salesRep || "—"}</td>
+                        <td className="py-2 text-muted-foreground">{partner?.agencyLinker || "—"}</td>
                         <td className="py-2">
                           {partner?.grade ? (
                             <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-muted">
