@@ -363,7 +363,7 @@ export function computeB2BInsights(cube: FactCube, ym: string): InsightBullet[] 
     out.push({
       severity: totalLost > totalNew ? "warn" : "info",
       category: "거래처 변동",
-      text: `직전 3개월 거래 ${totalLost}개이 이번달 매출 0`,
+      text: `직전 3개월 거래 ${totalLost}개가 이번달 매출 0`,
       weight: totalLost,
     });
   }
@@ -741,7 +741,7 @@ export function computeAccountsInsights(cube: FactCube, ym: string, customer: st
       out.push({
         severity: "critical",
         category: "핵심 이탈",
-        text: `지난 분기 상위 거래처 중 ${lost.length}개이 이번달 매출 0`,
+        text: `지난 분기 상위 거래처 중 ${lost.length}개가 이번달 매출 0`,
         weight: lost.reduce((s, l) => s + l.baselineRevenue, 0),
       });
     }
