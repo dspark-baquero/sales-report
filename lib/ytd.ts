@@ -36,6 +36,54 @@ export function ytdCategorySeries(cube: FactCube, ym: string): YTDSeries[] {
   })).filter((s) => s.values.some((v) => v > 0));
 }
 
+// B2B→B2B(대리점 제외)+대리점, B2C→B2C(바크로하우스 제외)+바크로하우스 분리 버전
+export function ytdCategoryDetailSeries(cube: FactCube, ym: string): YTDSeries[] {
+  const months = ytdMonths(ym);
+
+  const agencyValues = months.map((m) =>
+    cube.byMonthB2bType.get(m)?.get("대리점")?.revenue ?? 0,
+  );
+  const bhChannels = ["바크로하우스", "바크로하우스 스마트스토어"];
+  const bhValues = months.map((m) => {
+    const chMap = cube.byMonthChannel.get(m);
+    if (!chMap) return 0;
+    return bhChannels.reduce((s, ch) => s + (chMap.get(ch)?.revenue ?? 0), 0);
+  });
+
+  const series: YTDSeries[] = [
+    {
+      name: "B2B",
+      color: CATEGORY_COLOR["B2B"],
+      values: months.map((m, i) => {
+        const total = cube.byMonthCategory.get(m)?.get("B2B")?.revenue ?? 0;
+        return total - agencyValues[i];
+      }),
+    },
+    { name: "대리점", color: "#a78bfa", values: agencyValues },
+    {
+      name: "B2C",
+      color: CATEGORY_COLOR["B2C"],
+      values: months.map((m, i) => {
+        const total = cube.byMonthCategory.get(m)?.get("B2C")?.revenue ?? 0;
+        return total - bhValues[i];
+      }),
+    },
+    { name: "바크로하우스", color: "#6ee7b7", values: bhValues },
+    {
+      name: "면세점",
+      color: CATEGORY_COLOR["면세점"],
+      values: months.map((m) => cube.byMonthCategory.get(m)?.get("면세점")?.revenue ?? 0),
+    },
+    {
+      name: "수출",
+      color: CATEGORY_COLOR["수출"],
+      values: months.map((m) => cube.byMonthCategory.get(m)?.get("수출")?.revenue ?? 0),
+    },
+  ];
+
+  return series.filter((s) => s.values.some((v) => v > 0));
+}
+
 const CHANNEL_GROUP_ORDER: ChannelGroup[] = [
   "자사 공식몰",
   "종합몰",
