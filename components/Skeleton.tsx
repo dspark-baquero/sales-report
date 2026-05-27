@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import type { CSSProperties } from "react";
+import { LoadingProgress } from "./LoadingProgress";
 
 // 단순 회색 박스 스켈레톤 (Tailwind animate-pulse).
 // loading.tsx 와 Suspense fallback에 사용.
@@ -7,14 +8,11 @@ export function Skeleton({ className, style }: { className?: string; style?: CSS
   return <div className={cn("bg-muted/60 rounded animate-pulse", className)} style={style} />;
 }
 
-// 페이지 레벨 — KPI 카드 + 차트 + 표 자리잡기
+// 페이지 레벨 — 프로그레스 바 + KPI 카드 + 차트 + 표 자리잡기
 export function PageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-baseline justify-between">
-        <Skeleton className="h-7 w-64" />
-        <Skeleton className="h-4 w-24" />
-      </div>
+      <LoadingProgress />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="rounded-lg border bg-card p-4 space-y-3">

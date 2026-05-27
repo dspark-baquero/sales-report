@@ -1,8 +1,8 @@
 import "./globals.css";
 import { TabNav } from "@/components/TabNav";
-import { MonthSelect } from "@/components/MonthSelect";
+import { MonthSelectLoader } from "@/components/MonthSelectLoader";
 import { PrintButton } from "@/components/PrintButton";
-import { availableMonths, defaultMonth } from "@/lib/months";
+import { Skeleton } from "@/components/Skeleton";
 import { auth, signOut } from "@/lib/auth";
 import { Suspense } from "react";
 
@@ -21,8 +21,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const months = (await availableMonths()).slice().reverse();
-  const fallback = await defaultMonth();
   return (
     <html lang="ko">
       <body className="min-h-screen bg-muted/30">
@@ -32,8 +30,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               바크로 매출 보고서
             </h1>
             <div className="flex items-center gap-2">
-              <Suspense fallback={null}>
-                <MonthSelect fallback={fallback} available={months} />
+              <Suspense fallback={<Skeleton className="h-9 w-[140px]" />}>
+                <MonthSelectLoader />
               </Suspense>
               <PrintButton />
               <div className="flex items-center gap-2 ml-2 pl-2 border-l">
