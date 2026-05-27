@@ -21,7 +21,7 @@ import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart } from "@/components/charts/BarChart";
 import { revenueRows } from "@/lib/aggregate";
-import Link from "next/link";
+
 import {
   formatKRWLong,
   formatKRWShort,
@@ -348,79 +348,6 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
           hint={`파트너 매출 기준 · 이번달 ${refByPartner.size}개 · 전월 ${refByPartnerPrev.size}개`}
         />
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>파트너 샵별 실적</CardTitle>
-          <div className="text-[11px] text-muted-foreground">
-            거래처 · 담당 영업사원 · 이번달/전월 실매출 비교
-            {bhAvailable && " · 등급(파트너 리스트 매칭)"}
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="px-4 pb-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-2">파트너 샵</th>
-                  {bhAvailable && <th className="py-2">등급</th>}
-                  <th className="py-2">담당자</th>
-                  <th className="py-2 text-right">이번달</th>
-                  <th className="py-2 text-right">전월</th>
-                  <th className="py-2 text-right">변화</th>
-                  <th className="py-2 text-right">수량</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shops.map((s) => {
-                  const prevRev = shopPrevMap.get(s.customer) ?? 0;
-                  const ch = buildChange(s.revenue, prevRev, "전월");
-                  const cls =
-                    ch.direction === "up" || ch.direction === "new"
-                      ? "text-emerald-700"
-                      : ch.direction === "down" || ch.direction === "lost"
-                        ? "text-rose-700"
-                        : "text-muted-foreground";
-                  const partner = partnerMap.get(s.customer);
-                  return (
-                    <tr key={s.customer} className="border-b last:border-0">
-                      <td className="py-2 font-medium">
-                        <Link
-                          href={`/accounts?customer=${encodeURIComponent(s.customer)}&month=${ym}`}
-                          className="hover:underline"
-                        >
-                          {s.customer}
-                        </Link>
-                      </td>
-                      {bhAvailable && (
-                        <td className="py-2">
-                          {partner ? (
-                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-muted">
-                              {partner.grade || "—"}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-[10px]">—</span>
-                          )}
-                        </td>
-                      )}
-                      <td className="py-2 text-muted-foreground">{s.dealer}</td>
-                      <td className="py-2 text-right tabular-nums">{formatKRWLong(s.revenue)}</td>
-                      <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {prevRev > 0 ? formatKRWLong(prevRev) : "—"}
-                      </td>
-                      <td className={`py-2 text-right tabular-nums ${cls}`}>
-                        <div>{ch.diffText}</div>
-                        <div className="text-[10px]">{ch.pctText}</div>
-                      </td>
-                      <td className="py-2 text-right tabular-nums">{formatInt(s.qty)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
 
       {bhAvailable && partnerRefList.length > 0 && (
         <Card>
