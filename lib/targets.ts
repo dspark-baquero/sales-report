@@ -261,6 +261,19 @@ export function exportMatchRule(customerKey: string): MatchRule {
       description: "동남아시아 (베트남 제외 — 태국·말레이시아·인도네시아 등)",
     };
   }
+  if (customerKey === "일본(돈키호테)") {
+    return {
+      customerKey,
+      division: "해외",
+      match: (brand) => (r) =>
+        r.brand === brand &&
+        r.category === "수출" &&
+        r.country === "일본" &&
+        (r.customer?.includes("돈키호테") || r.customer?.includes("ドンキ") || r.customer?.includes("Don Quijote")),
+      prospective: false,
+      description: "일본 돈키호테 전용 (매출 발생 시 거래처명으로 매칭)",
+    };
+  }
   if (customerKey === "기타") {
     return {
       customerKey,

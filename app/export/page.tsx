@@ -74,12 +74,27 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
   const trendRows = await loadRangeRows(fromYM, ym);
   const monthly = monthlyRevenueOf(trendRows, fromYM, ym, (r) => r.category === "수출");
 
-  // 국가별
-  const countries = revenueByCountry(cur);
+  // 국가별 (중국·베트남은 매출 0이어도 항상 표시)
+  const PINNED_COUNTRIES = ["중국", "베트남"];
+  const countriesRaw = revenueByCountry(cur);
+  const existingCountries = new Set(countriesRaw.map((c) => c.country));
+  const countries = [
+    ...countriesRaw,
+    ...PINNED_COUNTRIES
+      .filter((c) => !existingCountries.has(c))
+      .map((c) => ({ country: c, revenue: 0, qty: 0 })),
+  ];
   const countriesPrev = new Map(revenueByCountry(prevMo).map((c) => [c.country, c.revenue]));
 
-  // 국가별 12개월 추이
-  const countryTrend = countryMonthlyTrend(trendRows, fromYM, ym);
+  // 국가별 12개월 추이 (pinned 국가 항상 포함)
+  const countryTrendRaw = countryMonthlyTrend(trendRows, fromYM, ym);
+  const trendCountries = new Set(countryTrendRaw.map((c) => c.country));
+  const countryTrend = [
+    ...countryTrendRaw,
+    ...PINNED_COUNTRIES
+      .filter((c) => !trendCountries.has(c))
+      .map((c) => ({ country: c, months: countryTrendRaw[0]?.months ?? [], values: countryTrendRaw[0]?.months.map(() => 0) ?? [] })),
+  ];
 
   // 국가 × 브랜드 매트릭스
   const matrix = countryBrandMatrix(cur);
