@@ -5,8 +5,9 @@ import { TabInsights } from "@/components/TabInsights";
 import {
   ymMinusMonths,
   monthlyByCategory,
-  topNProductsWithPrev,
+  topNProductsEnhanced,
   enumerateMonths,
+  revenueRows,
 } from "@/lib/aggregate";
 import {
   prevMonth,
@@ -28,6 +29,7 @@ import { ytdCategoryForBrandSeries, ytdAchievementForBrand } from "@/lib/ytd";
 import { BarChart } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Treemap } from "@/components/charts/Treemap";
+import { TopProductsTable } from "@/components/TopProductsTable";
 import {
   formatKRWLong,
   formatKRWShort,
@@ -88,14 +90,22 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const monthsList = enumerateMonths(fromYM, ym);
   const rangeRows = await loadRangeRows(fromYM, ym);
   const stack = monthlyByCategory(rangeRows.filter(isBrand), fromYM, ym);
-  const categories: ("B2B" | "B2C" | "면세점")[] = ["B2B", "B2C", "면세점"];
+  const categories: ("수출" | "B2B" | "B2C" | "면세점")[] = ["수출", "B2B", "B2C", "면세점"];
 
-  // 카테고리 분포 (이번달)
+  // 카테고리 분포 (이번달 + 전월)
   const catDistribution = (() => {
-    const out: Record<string, number> = { B2B: 0, B2C: 0, 면세점: 0 };
+    const out: Record<string, number> = { 수출: 0, B2B: 0, B2C: 0, 면세점: 0 };
     for (const r of cur) {
       if (r.isNonRevenue) continue;
-      out[r.category] += r.realRevenue;
+      out[r.category] = (out[r.category] ?? 0) + r.realRevenue;
+    }
+    return out;
+  })();
+  const catDistPrev = (() => {
+    const out: Record<string, number> = { 수출: 0, B2B: 0, B2C: 0, 면세점: 0 };
+    for (const r of prevMo) {
+      if (r.isNonRevenue) continue;
+      out[r.category] = (out[r.category] ?? 0) + r.realRevenue;
     }
     return out;
   })();
@@ -116,8 +126,42 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
       .sort((a, b) => b.value - a.value);
   })();
 
-  // SKU 분석
-  const topSkus = topNProductsWithPrev(cur, prevMo, 15);
+  // 채널별 상세 (이번달 vs 전월)
+  const channelDetail = (() => {
+    const curMap = new Map<string, { revenue: number; qty: number }>();
+    for (const r of revenueRows(cur)) {
+      const key = r.category === "B2B"
+        ? `B2B · ${r.b2bCustomerType ?? "기타"}`
+        : r.category === "면세점"
+          ? `면세점 · ${r.customer || "기타"}`
+          : r.category === "수출"
+            ? `수출 · ${r.country || "기타"}`
+            : `B2C · ${r.channel || "기타"}`;
+      const c = curMap.get(key) ?? { revenue: 0, qty: 0 };
+      c.revenue += r.realRevenue;
+      c.qty += r.qty;
+      curMap.set(key, c);
+    }
+    const prevMap = new Map<string, number>();
+    for (const r of revenueRows(prevMo)) {
+      const key = r.category === "B2B"
+        ? `B2B · ${r.b2bCustomerType ?? "기타"}`
+        : r.category === "면세점"
+          ? `면세점 · ${r.customer || "기타"}`
+          : r.category === "수출"
+            ? `수출 · ${r.country || "기타"}`
+            : `B2C · ${r.channel || "기타"}`;
+      prevMap.set(key, (prevMap.get(key) ?? 0) + r.realRevenue);
+    }
+    return [...curMap.entries()]
+      .map(([channel, v]) => ({ channel, ...v, prev: prevMap.get(channel) ?? 0 }))
+      .sort((a, b) => b.revenue - a.revenue);
+  })();
+
+  // SKU 분석 (YTD 포함)
+  const ytdStart = `${ym.split("-")[0]}-01`;
+  const ytdBrand = rangeRows.filter((r) => isBrand(r) && r.yearMonth >= ytdStart);
+  const topSkus = topNProductsEnhanced(cur, prevMo, ytdBrand, 20);
 
   // 신규 SKU (이번달 첫 출고)
   const past6FromYM = ymMinusMonths(ym, 6);
@@ -179,6 +223,21 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const brandTarget = ta
     .filter((t) => t.brand === brand && !t.prospective)
     .reduce((s, t) => s + t.target, 0);
+
+  // 카테고리별 목표
+  const catTargets = new Map<string, number>();
+  for (const t of ta) {
+    if (t.brand !== brand || t.prospective) continue;
+    if (t.division === "해외") {
+      catTargets.set("수출", (catTargets.get("수출") ?? 0) + t.target);
+    } else if (t.customerKey === "면세점") {
+      catTargets.set("면세점", (catTargets.get("면세점") ?? 0) + t.target);
+    } else if (["병원", "피부관리실", "대리점", "직거래처"].includes(t.customerKey)) {
+      catTargets.set("B2B", (catTargets.get("B2B") ?? 0) + t.target);
+    } else {
+      catTargets.set("B2C", (catTargets.get("B2C") ?? 0) + t.target);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -257,7 +316,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         </CardContent>
       </Card>
 
-      {/* 카테고리 분포 + 채널 트리맵 */}
+      {/* 카테고리 분포 + 목표 달성률 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader>
@@ -265,11 +324,13 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
           </CardHeader>
           <CardContent>
             <DonutChart
-              items={categories.map((c) => ({
-                name: c,
-                value: catDistribution[c],
-                color: CATEGORY_COLOR[c],
-              }))}
+              items={categories
+                .filter((c) => catDistribution[c] > 0)
+                .map((c) => ({
+                  name: c,
+                  value: catDistribution[c],
+                  color: CATEGORY_COLOR[c],
+                }))}
               height={300}
               showCenter={{
                 label: "이번달 합계",
@@ -280,10 +341,126 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>이번달 채널/거래처 분포 (트리맵)</CardTitle>
+            <CardTitle>카테고리별 매출 · 목표 · 전월 비교</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-muted-foreground border-b">
+                    <th className="py-2">카테고리</th>
+                    <th className="py-2 text-right">이번달</th>
+                    <th className="py-2 text-right">전월</th>
+                    <th className="py-2 text-right">변화</th>
+                    <th className="py-2 text-right">목표</th>
+                    <th className="py-2 text-right">달성률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories
+                    .filter((c) => catDistribution[c] > 0 || catDistPrev[c] > 0 || (catTargets.get(c) ?? 0) > 0)
+                    .map((c) => {
+                      const rev = catDistribution[c];
+                      const prev = catDistPrev[c];
+                      const tgt = catTargets.get(c) ?? 0;
+                      const ch = buildChange(rev, prev, "전월");
+                      const cls =
+                        ch.direction === "up" || ch.direction === "new"
+                          ? "text-emerald-700"
+                          : ch.direction === "down" || ch.direction === "lost"
+                            ? "text-rose-700"
+                            : "text-muted-foreground";
+                      const rate = tgt > 0 ? rev / tgt : null;
+                      const achCls = rate === null
+                        ? "text-muted-foreground"
+                        : rate < 0.7
+                          ? "text-rose-700"
+                          : rate < 1
+                            ? "text-amber-600"
+                            : "text-emerald-700";
+                      return (
+                        <tr key={c} className="border-b last:border-0">
+                          <td className="py-2 font-medium">
+                            <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: CATEGORY_COLOR[c] ?? "#9ca3af" }} />
+                            {c}
+                          </td>
+                          <td className="py-2 text-right tabular-nums">{formatKRWLong(rev)}</td>
+                          <td className="py-2 text-right tabular-nums text-muted-foreground">
+                            {prev > 0 ? formatKRWLong(prev) : "—"}
+                          </td>
+                          <td className={`py-2 text-right tabular-nums ${cls}`}>
+                            <div>{ch.diffText}</div>
+                            <div className="text-[10px]">{ch.pctText}</div>
+                          </td>
+                          <td className="py-2 text-right tabular-nums">
+                            {tgt > 0 ? formatKRWLong(tgt) : "—"}
+                          </td>
+                          <td className={`py-2 text-right tabular-nums font-medium ${achCls}`}>
+                            {rate !== null ? formatPctAbs(rate, 1) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 채널/거래처 트리맵 + 상세 테이블 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>채널/거래처 분포 (트리맵)</CardTitle>
           </CardHeader>
           <CardContent>
-            <Treemap data={segments.slice(0, 30)} height={320} />
+            <Treemap data={segments.slice(0, 30)} height={340} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>채널별 매출 상세 (이번달)</CardTitle>
+            <div className="text-[11px] text-muted-foreground">카테고리 · 채널/거래처유형/국가 단위</div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="px-4 pb-4 overflow-x-auto max-h-[400px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="text-left text-[11px] text-muted-foreground border-b">
+                    <th className="py-2">채널</th>
+                    <th className="py-2 text-right">이번달</th>
+                    <th className="py-2 text-right">수량</th>
+                    <th className="py-2 text-right">전월</th>
+                    <th className="py-2 text-right">변화</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {channelDetail.slice(0, 25).map((d) => {
+                    const ch = buildChange(d.revenue, d.prev, "전월");
+                    const cls =
+                      ch.direction === "up" || ch.direction === "new"
+                        ? "text-emerald-700"
+                        : ch.direction === "down" || ch.direction === "lost"
+                          ? "text-rose-700"
+                          : "text-muted-foreground";
+                    return (
+                      <tr key={d.channel} className="border-b last:border-0">
+                        <td className="py-1.5 text-xs">{d.channel}</td>
+                        <td className="py-1.5 text-right tabular-nums">{formatKRWLong(d.revenue)}</td>
+                        <td className="py-1.5 text-right tabular-nums text-muted-foreground">{formatInt(d.qty)}</td>
+                        <td className="py-1.5 text-right tabular-nums text-muted-foreground">
+                          {d.prev > 0 ? formatKRWLong(d.prev) : "—"}
+                        </td>
+                        <td className={`py-1.5 text-right tabular-nums text-xs ${cls}`}>
+                          {ch.pctText}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -310,54 +487,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         hint="개별 제품(SKU) 단위 분해"
       />
 
-      {/* Top SKU + 신규 SKU + 단종 위험 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>이번달 상위 15 SKU (전월 비교)</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="px-4 pb-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-2">#</th>
-                  <th className="py-2">제품</th>
-                  <th className="py-2 text-right">수량</th>
-                  <th className="py-2 text-right">이번달</th>
-                  <th className="py-2 text-right">전월</th>
-                  <th className="py-2 text-right">변화</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topSkus.map((p, i) => {
-                  const ch = buildChange(p.current, p.prev, "전월");
-                  const cls =
-                    ch.direction === "up" || ch.direction === "new"
-                      ? "text-emerald-700"
-                      : ch.direction === "down" || ch.direction === "lost"
-                        ? "text-rose-700"
-                        : "text-muted-foreground";
-                  return (
-                    <tr key={p.productName} className="border-b last:border-0">
-                      <td className="py-2 text-muted-foreground">{i + 1}</td>
-                      <td className="py-2 max-w-[400px] truncate">{p.productName}</td>
-                      <td className="py-2 text-right tabular-nums">{formatInt(p.qty)}</td>
-                      <td className="py-2 text-right tabular-nums">{formatKRWLong(p.current)}</td>
-                      <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {p.prev > 0 ? formatKRWLong(p.prev) : "—"}
-                      </td>
-                      <td className={`py-2 text-right tabular-nums ${cls}`}>
-                        <div>{ch.diffText}</div>
-                        <div className="text-[10px]">{ch.pctText}</div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <TopProductsTable products={topSkus} title={`이번달 상위 20 제품 — ${brand}`} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
