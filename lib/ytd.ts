@@ -94,14 +94,25 @@ const CHANNEL_GROUP_ORDER: ChannelGroup[] = [
 
 export function ytdChannelGroupSeries(cube: FactCube, ym: string): YTDSeries[] {
   const months = ytdMonths(ym);
+  const bhChannels = new Set(["바크로하우스", "바크로하우스 스마트스토어"]);
+
+  const bhValues = months.map((m) => {
+    const chMap = cube.byMonthChannel.get(m);
+    if (!chMap) return 0;
+    let sum = 0;
+    for (const ch of bhChannels) sum += chMap.get(ch)?.revenue ?? 0;
+    return sum;
+  });
+
   return CHANNEL_GROUP_ORDER.map((g) => ({
     name: g,
     color: CHANNEL_GROUP_COLOR[g],
-    values: months.map((m) => {
+    values: months.map((m, i) => {
       const cell = cube.byMonthBrandChannelGroup.get(m);
       if (!cell) return 0;
       let sum = 0;
       for (const gm of cell.values()) sum += gm.get(g)?.revenue ?? 0;
+      if (g === "자사 공식몰") sum -= bhValues[i];
       return sum;
     }),
   })).filter((s) => s.values.some((v) => v > 0));
