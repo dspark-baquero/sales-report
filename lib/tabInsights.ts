@@ -17,8 +17,9 @@ import {
   cubeBrandSeries,
   cubeMonthProductCells,
 } from "./facts";
-import { ymMinusMonths } from "./aggregate";
+import { ymMinusMonths, enumerateMonths } from "./aggregate";
 import { prevMonth, prevYearSameMonth } from "./compare";
+import type { Category } from "@/config/mappings";
 import { formatKRWShort, formatPct, formatPctAbs } from "./format";
 import {
   sleepingReturned,
@@ -76,6 +77,26 @@ function changeText(label: string, cur: number, prev: number, opts?: { compareLa
     pct,
     diff,
   };
+}
+
+// 카테고리(B2B/B2C/면세점/수출) YTD 누적 vs 전년 동기 누적 비교.
+// 월별 등락은 노이즈가 많으므로 YTD 누적 흐름으로 보조 해석.
+function categoryYtdCompare(
+  cube: FactCube,
+  ym: string,
+  cat: Category,
+): { ytd: number; prevYtd: number; diff: number; pct: number | null } {
+  const [y] = ym.split("-").map(Number);
+  const months = enumerateMonths(`${y}-01`, ym);
+  let ytd = 0;
+  for (const m of months) ytd += cube.byMonthCategory.get(m)?.get(cat)?.revenue ?? 0;
+  const prevYm = prevYearSameMonth(ym);
+  const prevMonths = enumerateMonths(`${y - 1}-01`, prevYm);
+  let prevYtd = 0;
+  for (const m of prevMonths) prevYtd += cube.byMonthCategory.get(m)?.get(cat)?.revenue ?? 0;
+  const diff = ytd - prevYtd;
+  const pct = prevYtd !== 0 ? diff / Math.abs(prevYtd) : null;
+  return { ytd, prevYtd, diff, pct };
 }
 
 // 거래처 인사이트의 detail 라인에 YTD 누적 컨텍스트 1줄 추가.
@@ -187,10 +208,21 @@ export function computeOverviewInsights(cube: FactCube, ym: string): InsightBull
     const c = cubeMonthCategoryKpi(cube, ym, m.label as never).revenue;
     const p = cubeMonthCategoryKpi(cube, prevYM, m.label as never).revenue;
     const ct = changeText(`${m.label}`, c, p);
+    const yc = categoryYtdCompare(cube, ym, m.label as Category);
+    // 월 변동과 YTD 누적이 반대 방향이면 단발성 노이즈일 가능성 → info로 격하
+    const monthlyDown = m.diff < 0;
+    const ytdUp = yc.diff > 0 && yc.prevYtd > 0;
+    const ytdDown = yc.diff < 0 && yc.prevYtd > 0;
+    const oppositeYtd = (monthlyDown && ytdUp) || (!monthlyDown && ytdDown);
     out.push({
-      severity: pickSeverity(m.pct, false, false),
+      severity: oppositeYtd ? "info" : pickSeverity(m.pct, false, false),
       category: "카테고리",
       text: ct.text,
+      detail: buildYtdContextDetail(
+        yc,
+        oppositeYtd,
+        monthlyDown ? "월 하락이지만 YTD 누적은 상승 — 우려 낮음" : "월 상승이지만 YTD 누적은 하락 — 단발성 가능",
+      ),
       weight: Math.abs(m.diff),
     });
   }
