@@ -13,7 +13,12 @@ import { computeDutyFreeInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCustomerSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
+import {
+  ytdCustomerSeries,
+  ytdAchievementForCustomerKeys,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -135,6 +140,17 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
     (r) => r.customer || null,
   );
 
+  // 전년 동기 + 월별 목표 (면세점)
+  const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const dutyMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => t.division === "국내" && t.customerKey === "면세점",
+  });
+  const dutyMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.category === "면세점",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
@@ -160,6 +176,8 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
           (r) => r.category === "면세점",
         )}
         achievementLabel="면세점"
+        monthlyTargets={dutyMonthlyTargetsArr}
+        prevYearValues={dutyMonthlyPrevYearArr}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

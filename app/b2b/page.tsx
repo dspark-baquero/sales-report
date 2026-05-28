@@ -9,7 +9,12 @@ import {
 import { computeB2BInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdDealerSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
+import {
+  ytdDealerSeries,
+  ytdAchievementForCustomerKeys,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import { dealerBoard, dealerCustomerChurn, dealerQuarterCompare } from "@/lib/dealerAnalysis";
 import Link from "next/link";
 import { CustomerLink } from "@/components/CustomerLink";
@@ -209,6 +214,18 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
     (r) => r.customer || null,
   );
 
+  // 전년 동기 매출 + 월별 목표 (B2B 대리점 제외)
+  const prevYearStart = `${Number(yearStr) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const b2bKeySet = new Set(["병원", "피부관리실", "직거래처"]);
+  const b2bMonthlyTargets = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => b2bKeySet.has(t.customerKey),
+  });
+  const b2bMonthlyPrevYear = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.category === "B2B" && r.b2bCustomerType !== "대리점",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
@@ -234,6 +251,8 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
           (r) => r.category === "B2B" && r.b2bCustomerType !== "대리점",
         )}
         achievementLabel="B2B (대리점 제외)"
+        monthlyTargets={b2bMonthlyTargets}
+        prevYearValues={b2bMonthlyPrevYear}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

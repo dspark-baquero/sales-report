@@ -11,7 +11,7 @@ import { computeAccountsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerSelect } from "@/components/CustomerSelect";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCustomerSeries, ytdBrandForCustomerSeries } from "@/lib/ytd";
+import { ytdCustomerSeries, ytdBrandForCustomerSeries, ytdMonthlyPrevYear } from "@/lib/ytd";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -438,6 +438,15 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
 
   const monthRows = await loadMonthRows(ym);
 
+  // 전년 동기 (1년 전 1월~1년 전 ym월) — YTD 차트 라인 오버레이용
+  const prevYearStart = `${Number(ym.slice(0, 4)) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  // 거래처 선택 시: 그 거래처의 전년 매출 / 미선택 시: 전체 전년
+  const accountsPrevYearArr = customer
+    ? ytdMonthlyPrevYear(prevYearRangeRows, ym, { rowFilter: (r) => r.customer === customer })
+    : ytdMonthlyPrevYear(prevYearRangeRows, ym);
+
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between gap-4 flex-wrap">
@@ -462,12 +471,14 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
           ym={ym}
           series={ytdBrandForCustomerSeries(await loadRangeRows(`${ym.slice(0, 4)}-01`, ym), ym, customer)}
           caption={`${customer} 의 브랜드 Top 5 + 기타`}
+          prevYearValues={accountsPrevYearArr}
         />
       ) : (
         <YearToDateChart
           ym={ym}
           series={ytdCustomerSeries(cube, ym, 5)}
           caption="거래처 Top 5 + 기타 — 거래처를 선택하면 그 거래처의 브랜드 분해로 전환"
+          prevYearValues={accountsPrevYearArr}
         />
       )}
 

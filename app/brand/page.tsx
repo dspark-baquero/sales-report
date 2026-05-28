@@ -26,7 +26,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BrandSelect } from "@/components/BrandSelect";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategoryForBrandSeries, ytdAchievementForBrand } from "@/lib/ytd";
+import {
+  ytdCategoryForBrandSeries,
+  ytdAchievementForBrand,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import { BarChart } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Treemap } from "@/components/charts/Treemap";
@@ -225,6 +230,17 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
     .filter((t) => t.brand === brand && !t.prospective)
     .reduce((s, t) => s + t.target, 0);
 
+  // 전년 동기 + 월별 목표 (브랜드 단일)
+  const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const brandMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => t.brand === brand,
+  });
+  const brandMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.brand === brand,
+  });
+
   // 카테고리별 목표
   const catTargets = new Map<string, number>();
   for (const t of ta) {
@@ -263,6 +279,8 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         caption={`${brand} 의 대분류 (B2B / B2C / 면세점) 흐름`}
         achievement={ytdAchievementForBrand(rangeRows, targets, ym, brand)}
         achievementLabel={brand}
+        monthlyTargets={brandMonthlyTargetsArr}
+        prevYearValues={brandMonthlyPrevYearArr}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -12,6 +12,15 @@ export type BarSeries = {
   stack?: string;        // 같은 stack 값을 가진 series는 누적
 };
 
+// 막대 위에 겹쳐 그리는 라인 (예: 월별 목표, 전년 동기)
+export type LineOverlay = {
+  name: string;
+  values: number[];
+  color?: string;
+  dashed?: boolean;
+  symbol?: "diamond" | "circle" | "rect" | "triangle";
+};
+
 type BarChartProps = {
   categories: string[];
   series: BarSeries[];
@@ -22,6 +31,7 @@ type BarChartProps = {
   formatter?: (v: number) => string;
   showValueLabels?: boolean;
   showStackTotals?: boolean;   // 스택 막대의 합계를 막대 최상단에 표기
+  lineOverlays?: LineOverlay[]; // 막대 위에 겹쳐 그리는 라인 (vertical only)
   // categories가 거래처명일 때 ym을 전달하면 막대/카테고리 라벨 클릭 시 거래처 분석으로 이동
   customerLinkMonth?: string;
 };
@@ -36,6 +46,7 @@ export function BarChart({
   formatter,
   showValueLabels,
   showStackTotals,
+  lineOverlays,
   customerLinkMonth,
 }: BarChartProps) {
   const fmt = formatter ?? formatKRWLong;
@@ -90,7 +101,35 @@ export function BarChart({
     });
   }
 
-  const legendData = series.map((s) => s.name);
+  // 라인 오버레이 시리즈 (vertical only) — 합계 sum 계산에서 제외하기 위해 이름을 set으로 저장
+  const overlayNames = new Set<string>();
+  if (!horizontal && lineOverlays && lineOverlays.length > 0) {
+    for (const ov of lineOverlays) {
+      overlayNames.add(ov.name);
+      baseSeries.push({
+        type: "line",
+        name: ov.name,
+        data: ov.values,
+        smooth: false,
+        symbol: ov.symbol ?? "circle",
+        symbolSize: 8,
+        itemStyle: ov.color ? { color: ov.color } : undefined,
+        lineStyle: {
+          type: ov.dashed ? "dashed" : "solid",
+          width: 2,
+          color: ov.color,
+        },
+        z: 5,
+        emphasis: { focus: "series" },
+      });
+    }
+  }
+
+  const legendData = [
+    ...series.map((s) => s.name),
+    ...(lineOverlays ?? []).map((ov) => ov.name),
+  ];
+  const showLegendFinal = showLegend && (series.length > 1 || (lineOverlays?.length ?? 0) > 0);
 
   const router = useRouter();
   const onEvents = useMemo(() => {
@@ -109,10 +148,10 @@ export function BarChart({
       height={height}
       onEvents={onEvents}
       option={{
-        legend: showLegend && series.length > 1
+        legend: showLegendFinal
           ? { data: legendData, top: 0, type: "scroll" }
           : { show: false },
-        grid: { top: showLegend && series.length > 1 ? 30 : 10, left: 10, right: 30, bottom: 30, containLabel: true },
+        grid: { top: showLegendFinal ? 30 : 10, left: 10, right: 30, bottom: 30, containLabel: true },
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
@@ -121,17 +160,28 @@ export function BarChart({
               (p: any) => p.seriesName !== TOTAL_KEY,
             );
             const cat = arr[0]?.axisValueLabel ?? arr[0]?.name ?? "";
-            const lines = arr.map(
+            // 막대 시리즈와 라인 오버레이 시리즈를 구분해서 정렬 (라인은 항상 마지막에)
+            const barItems = arr.filter((p: any) => !overlayNames.has(p.seriesName));
+            const lineItems = arr.filter((p: any) => overlayNames.has(p.seriesName));
+            const barLines = barItems.map(
               (p: any) =>
                 `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.marker} ${p.seriesName}</span><span style="font-variant-numeric:tabular-nums">${fmt(p.value as number)}</span></div>`,
             );
-            const showSum = totals !== null && arr.length > 1;
+            const showSum = totals !== null && barItems.length > 1;
             const sumLine = showSum
               ? `<div style="display:flex;justify-content:space-between;gap:12px;margin-top:4px;padding-top:4px;border-top:1px solid #e5e7eb;font-weight:600"><span>합계</span><span style="font-variant-numeric:tabular-nums">${fmt(
-                  arr.reduce((s: number, p: any) => s + ((p.value as number) ?? 0), 0),
+                  barItems.reduce((s: number, p: any) => s + ((p.value as number) ?? 0), 0),
                 )}</span></div>`
               : "";
-            return `<div style="font-weight:600;margin-bottom:4px">${cat}</div>${lines.join("")}${sumLine}`;
+            const overlayLines = lineItems.length > 0
+              ? `<div style="margin-top:4px;padding-top:4px;border-top:1px solid #e5e7eb">${lineItems
+                  .map(
+                    (p: any) =>
+                      `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.marker} ${p.seriesName}</span><span style="font-variant-numeric:tabular-nums">${fmt(p.value as number)}</span></div>`,
+                  )
+                  .join("")}</div>`
+              : "";
+            return `<div style="font-weight:600;margin-bottom:4px">${cat}</div>${barLines.join("")}${sumLine}${overlayLines}`;
           },
         },
         xAxis: horizontal

@@ -5,7 +5,12 @@ import { computeExportInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCountrySeries, buildYTDAchievement } from "@/lib/ytd";
+import {
+  ytdCountrySeries,
+  buildYTDAchievement,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -123,6 +128,17 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
     targetFilter: (t) => t.division === "해외",
   });
 
+  // 전년 동기 + 월별 목표 (수출)
+  const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const exportMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => t.division === "해외",
+  });
+  const exportMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.category === "수출",
+  });
+
   // 목표 vs 실적 (국가별)
   const countryTargets = new Map<string, number>();
   for (const t of ta) {
@@ -147,6 +163,8 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
         caption="국가별 Top 5 + 기타"
         achievement={ytdAch}
         achievementLabel="수출 전체"
+        monthlyTargets={exportMonthlyTargetsArr}
+        prevYearValues={exportMonthlyPrevYearArr}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

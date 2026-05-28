@@ -4,7 +4,13 @@ import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/li
 import { computeBaqueroHouseInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { type YTDSeries, ytdMonths, buildYTDAchievement } from "@/lib/ytd";
+import {
+  type YTDSeries,
+  ytdMonths,
+  buildYTDAchievement,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -161,6 +167,17 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     targetFilter: (t) => t.division === "국내" && t.customerKey === "바크로하우스",
   });
 
+  // 전년 동기 + 월별 목표 (바크로하우스)
+  const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const bhMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => t.division === "국내" && t.customerKey === "바크로하우스",
+  });
+  const bhMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.channel === "바크로하우스",
+  });
+
   // ── 파트너 추천 매출 집계 ──
   const partnerRefRevenue = bhSalesCur.reduce((s, r) => s + r.paymentAmount, 0);
   const partnerRefRevenuePrev = bhSalesPrev.reduce((s, r) => s + r.paymentAmount, 0);
@@ -278,6 +295,8 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
         caption="바크로하우스 월별 매출"
         achievement={ytdAch}
         achievementLabel="바크로하우스"
+        monthlyTargets={bhMonthlyTargetsArr}
+        prevYearValues={bhMonthlyPrevYearArr}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

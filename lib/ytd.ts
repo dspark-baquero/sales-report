@@ -368,3 +368,48 @@ export function ytdAchievementForCustomerKeys(
     targetFilter: (t) => keySet.has(t.customerKey),
   });
 }
+
+// ── 월별 비교 오버레이 데이터 ─────────────────────────────
+// YTD 스택 차트 위에 그릴 "월별 목표"와 "전년 동기 매출" 두 라인 데이터.
+// ytdMonths(ym)와 1:1 정렬된 number[] 반환.
+
+// 각 월의 목표 합계 배열. prospective 키 자동 제외.
+export function ytdMonthlyTargets(
+  targets: TargetRow[],
+  ym: string,
+  opts?: { targetFilter?: (t: TargetRow) => boolean },
+): number[] {
+  const months = ytdMonths(ym);
+  const monthIdx = new Map(months.map((m, i) => [m, i]));
+  const out = months.map(() => 0);
+  for (const t of targets) {
+    const i = monthIdx.get(t.yearMonth);
+    if (i === undefined) continue;
+    if (isProspectiveKey(t.division, t.customerKey)) continue;
+    if (opts?.targetFilter && !opts.targetFilter(t)) continue;
+    out[i] += t.target;
+  }
+  return out;
+}
+
+// 각 월의 전년 동기 매출 배열. prevYearRows = 작년 1월~작년 (ym월) 매출.
+// 작년 r.yearMonth("2025-03")를 +1년 시프트해 olympics 슬롯("2026-03")에 합산.
+export function ytdMonthlyPrevYear(
+  prevYearRows: SalesRow[],
+  ym: string,
+  opts?: { rowFilter?: (r: SalesRow) => boolean },
+): number[] {
+  const months = ytdMonths(ym);
+  const monthIdx = new Map(months.map((m, i) => [m, i]));
+  const out = months.map(() => 0);
+  for (const r of prevYearRows) {
+    if (r.isNonRevenue) continue;
+    if (opts?.rowFilter && !opts.rowFilter(r)) continue;
+    const [y, m] = r.yearMonth.split("-");
+    const shifted = `${Number(y) + 1}-${m}`;
+    const i = monthIdx.get(shifted);
+    if (i === undefined) continue;
+    out[i] += r.realRevenue;
+  }
+  return out;
+}

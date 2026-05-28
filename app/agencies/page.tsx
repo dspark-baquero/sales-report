@@ -4,7 +4,13 @@ import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/li
 import { computeAgencyInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { type YTDSeries, ytdMonths, buildYTDAchievement } from "@/lib/ytd";
+import {
+  type YTDSeries,
+  ytdMonths,
+  buildYTDAchievement,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -184,6 +190,17 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
     targetFilter: (t) => t.division === "국내" && t.customerKey === "대리점",
   });
 
+  // 전년 동기 + 월별 목표 (대리점)
+  const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const agencyMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => t.division === "국내" && t.customerKey === "대리점",
+  });
+  const agencyMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.category === "B2B" && r.b2bCustomerType === "대리점",
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -201,6 +218,8 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
         caption="대리점 월별 매출"
         achievement={ytdAch}
         achievementLabel="대리점"
+        monthlyTargets={agencyMonthlyTargetsArr}
+        prevYearValues={agencyMonthlyPrevYearArr}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

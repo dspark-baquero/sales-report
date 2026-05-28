@@ -3,7 +3,12 @@ import { resolveMonth } from "@/lib/months";
 import { computeB2CInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdChannelGroupSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
+import {
+  ytdChannelGroupSeries,
+  ytdAchievementForCustomerKeys,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import {
   kpi,
   ymMinusMonths,
@@ -169,6 +174,18 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   // 변화 요인 — 브랜드 단위
   const brandContribs = attributeChange(b2cRows(cur), b2cRows(prevMo), (r) => r.brand || null);
 
+  // 전년 동기 + 월별 목표 (B2C — 바크로하우스 제외)
+  const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const b2cKeySet = new Set(b2cKeys);
+  const b2cMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => t.division === "국내" && b2cKeySet.has(t.customerKey),
+  });
+  const b2cMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.category === "B2C" && r.channel !== "바크로하우스",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
@@ -196,6 +213,8 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           (r) => r.category === "B2C" && r.channel !== "바크로하우스",
         )}
         achievementLabel="B2C (공식몰·종합몰·소호몰·기타·올리브영·링커)"
+        monthlyTargets={b2cMonthlyTargetsArr}
+        prevYearValues={b2cMonthlyPrevYearArr}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

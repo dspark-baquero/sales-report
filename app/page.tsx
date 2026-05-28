@@ -13,7 +13,12 @@ import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
-import { ytdCategoryDetailSeries, ytdAchievementOverall } from "@/lib/ytd";
+import {
+  ytdCategoryDetailSeries,
+  ytdAchievementOverall,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import {
   topMovers,
   sleepingReturned,
@@ -110,6 +115,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const ytdStart = `${yearStr}-01`;
   const ytdRangeRows = await loadRangeRows(ytdStart, ym);
 
+  // 전년 동기 (1년 전 1월 ~ 1년 전 ym월)
+  const prevYearStart = `${Number(yearStr) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
+  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+
+  // 월별 목표 (전체 국내) + 전년 동기 (전체)
+  const ytdMonthlyTargetsOverall = ytdMonthlyTargets(targets, ym);
+  const ytdMonthlyPrevYearOverall = ytdMonthlyPrevYear(prevYearRangeRows, ym);
+
   // 12개월 카테고리 스택 (6채널 분리)
   const fromYM = ymMinusMonths(ym, 11);
   const rangeRows12 = await loadRangeRows(fromYM, ym);
@@ -166,6 +180,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         caption="채널별 (B2B / 대리점 / B2C / 바크로하우스 / 면세점 / 수출)"
         achievement={ytdAchievementOverall(ytdRangeRows, targets, ym)}
         achievementLabel="전체"
+        monthlyTargets={ytdMonthlyTargetsOverall}
+        prevYearValues={ytdMonthlyPrevYearOverall}
       />
 
       {/* 3. 채널별 KPI 카드 (목표 달성률 포함) */}

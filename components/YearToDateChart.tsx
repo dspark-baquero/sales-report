@@ -3,7 +3,7 @@
 // achievement 가 주어지면 차트 옆에 누적 목표/실적/달성률 사이드 패널 노출.
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BarChart } from "@/components/charts/BarChart";
+import { BarChart, type LineOverlay } from "@/components/charts/BarChart";
 import { YTDAchievementPanel } from "@/components/YTDAchievementPanel";
 import { ytdMonthLabels } from "@/lib/ytd";
 import type { YTDSeries, YTDAchievement } from "@/lib/ytd";
@@ -16,6 +16,8 @@ type Props = {
   height?: number;
   achievement?: YTDAchievement | null;
   achievementLabel?: string;
+  monthlyTargets?: number[];    // length === ytdMonths(ym).length
+  prevYearValues?: number[];
 };
 
 export function YearToDateChart({
@@ -26,6 +28,8 @@ export function YearToDateChart({
   height = 320,
   achievement,
   achievementLabel,
+  monthlyTargets,
+  prevYearValues,
 }: Props) {
   const labels = ytdMonthLabels(ym);
   const year = ym.slice(0, 4);
@@ -37,6 +41,25 @@ export function YearToDateChart({
 
   const hasData = series.length > 0 && series.some((s) => s.values.some((v) => v > 0));
 
+  const overlays: LineOverlay[] = [];
+  if (monthlyTargets && monthlyTargets.some((v) => v > 0)) {
+    overlays.push({
+      name: "월별 목표",
+      values: monthlyTargets,
+      color: "#f59e0b",
+      symbol: "diamond",
+    });
+  }
+  if (prevYearValues && prevYearValues.some((v) => v > 0)) {
+    overlays.push({
+      name: "전년 동기",
+      values: prevYearValues,
+      color: "#94a3b8",
+      dashed: true,
+      symbol: "circle",
+    });
+  }
+
   const chart = hasData ? (
     <BarChart
       categories={labels}
@@ -47,9 +70,10 @@ export function YearToDateChart({
         stack: "ytd",
       }))}
       height={height}
-      showLegend={series.length > 1}
+      showLegend={series.length > 1 || overlays.length > 0}
       showValueLabels={false}
       showStackTotals
+      lineOverlays={overlays.length > 0 ? overlays : undefined}
     />
   ) : (
     <div className="text-sm text-muted-foreground py-12 text-center">
