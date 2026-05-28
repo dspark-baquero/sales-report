@@ -132,7 +132,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     };
   });
 
-  const topCustomers = topNCustomersWithPrev(cur, prevMo, 5);
+  const topCustomers = topNCustomersWithPrev(cur, prevMo, 10);
 
   // 거래처 변동 요약
   const movers = topMovers(cube, ym, prevMonth(ym), 5);
@@ -241,10 +241,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </CardContent>
       </Card>
 
-      {/* 5. Top 5 거래처 */}
+      {/* 5. Top 10 거래처 */}
       <Card>
         <CardHeader>
-          <CardTitle>이번달 상위 5 거래처 (전월 비교)</CardTitle>
+          <CardTitle>이번달 상위 10 거래처 (전월 비교)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="px-4 pb-4 overflow-x-auto">
