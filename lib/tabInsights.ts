@@ -26,6 +26,7 @@ import {
   newAccounts,
   lostKeyAccounts,
   quarterlyCliff,
+  customerYtdCompare,
 } from "./accountAnalysis";
 import { dealerCustomerChurn } from "./dealerAnalysis";
 
@@ -75,6 +76,19 @@ function changeText(label: string, cur: number, prev: number, opts?: { compareLa
     pct,
     diff,
   };
+}
+
+// 거래처 인사이트의 detail 라인에 YTD 누적 컨텍스트 1줄 추가.
+// 월 변동만 보면 노이즈로 오인할 수 있어 YTD 누적 vs 전년 동기 비교를 함께 노출.
+function buildYtdContextDetail(
+  yc: { ytd: number; prevYtd: number; diff: number; pct: number | null },
+  oppositeDirection: boolean,
+  oppositeNote: string,
+): string {
+  const head = yc.prevYtd > 0
+    ? `YTD 누적 ${formatKRWShort(yc.ytd)} · 전년 동기 ${formatKRWShort(yc.prevYtd)} (${formatPct(yc.pct ?? 0)})`
+    : `YTD 누적 ${formatKRWShort(yc.ytd)} (전년 동기 매출 없음)`;
+  return oppositeDirection ? `${head} — ${oppositeNote}` : head;
 }
 
 function pickSeverity(pct: number, isNew: boolean, isLost: boolean): Severity {
@@ -181,16 +195,21 @@ export function computeOverviewInsights(cube: FactCube, ym: string): InsightBull
     });
   }
 
-  // 거래처 변동 핵심
+  // 거래처 변동 핵심 — 월 변동 + YTD 누적 컨텍스트
+  // 월 변동과 YTD 방향이 반대면 단발성 가능성 → severity 격하(info).
   const movers = topMovers(cube, ym, prevYM, 3);
   if (movers.gainers.length > 0) {
     const g = movers.gainers[0];
     if (g.diff >= 10_000_000) {
       const ct = changeText(g.customer, g.current, g.prev);
+      const yc = customerYtdCompare(cube, g.customer, ym);
+      // 월별은 상승이지만 YTD 누적은 -면 일회성 spike → info
+      const oppositeYtd = yc.diff < 0 && yc.prevYtd > 0;
       out.push({
-        severity: "positive",
+        severity: oppositeYtd ? "info" : "positive",
         category: "거래처 상승",
         text: ct.text,
+        detail: buildYtdContextDetail(yc, oppositeYtd, "월 상승이지만 YTD 누적은 하락 — 단발성 가능"),
         weight: Math.abs(g.diff),
         href: `/accounts?customer=${encodeURIComponent(g.customer)}&month=${ym}`,
       });
@@ -200,10 +219,15 @@ export function computeOverviewInsights(cube: FactCube, ym: string): InsightBull
     const d = movers.decliners[0];
     if (d.diff <= -10_000_000) {
       const ct = changeText(d.customer, d.current, d.prev);
+      const yc = customerYtdCompare(cube, d.customer, ym);
+      // 월별은 하락이지만 YTD 누적은 +면 노이즈 가능성 → info로 격하
+      const oppositeYtd = yc.diff > 0 && yc.prevYtd > 0;
+      const baseSeverity = pickSeverity(d.pct ?? -0.5, false, d.current === 0);
       out.push({
-        severity: pickSeverity(d.pct ?? -0.5, false, d.current === 0),
+        severity: oppositeYtd ? "info" : baseSeverity,
         category: "거래처 하락",
         text: ct.text,
+        detail: buildYtdContextDetail(yc, oppositeYtd, "월 하락이지만 YTD 누적은 상승 — 우려 낮음"),
         weight: Math.abs(d.diff),
         href: `/accounts?customer=${encodeURIComponent(d.customer)}&month=${ym}`,
       });
@@ -813,19 +837,25 @@ export function computeAccountsInsights(cube: FactCube, ym: string, customer: st
     const movers = topMovers(cube, ym, prevMonth(ym), 3);
     if (movers.gainers[0]) {
       const g = movers.gainers[0];
+      const yc = customerYtdCompare(cube, g.customer, ym);
+      const oppositeYtd = yc.diff < 0 && yc.prevYtd > 0;
       out.push({
-        severity: "positive",
+        severity: oppositeYtd ? "info" : "positive",
         category: "최대 상승",
         text: `${g.customer} ${formatKRWShort(g.diff)} 증가`,
+        detail: buildYtdContextDetail(yc, oppositeYtd, "월 상승이지만 YTD 누적은 하락 — 단발성 가능"),
         weight: Math.abs(g.diff),
       });
     }
     if (movers.decliners[0]) {
       const d = movers.decliners[0];
+      const yc = customerYtdCompare(cube, d.customer, ym);
+      const oppositeYtd = yc.diff > 0 && yc.prevYtd > 0;
       out.push({
-        severity: "warn",
+        severity: oppositeYtd ? "info" : "warn",
         category: "최대 하락",
         text: `${d.customer} ${formatKRWShort(d.diff)} 감소`,
+        detail: buildYtdContextDetail(yc, oppositeYtd, "월 하락이지만 YTD 누적은 상승 — 우려 낮음"),
         weight: Math.abs(d.diff),
       });
     }
