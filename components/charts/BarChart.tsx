@@ -1,6 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { Chart } from "./ChartBase";
 import { formatKRWLong, formatKRWShort } from "@/lib/format";
+import { customerHref } from "@/components/CustomerLink";
 
 export type BarSeries = {
   name: string;
@@ -19,6 +22,8 @@ type BarChartProps = {
   formatter?: (v: number) => string;
   showValueLabels?: boolean;
   showStackTotals?: boolean;   // 스택 막대의 합계를 막대 최상단에 표기
+  // categories가 거래처명일 때 ym을 전달하면 막대/카테고리 라벨 클릭 시 거래처 분석으로 이동
+  customerLinkMonth?: string;
 };
 
 export function BarChart({
@@ -31,6 +36,7 @@ export function BarChart({
   formatter,
   showValueLabels,
   showStackTotals,
+  customerLinkMonth,
 }: BarChartProps) {
   const fmt = formatter ?? formatKRWLong;
   const axisFmt = formatKRWShort;
@@ -86,9 +92,22 @@ export function BarChart({
 
   const legendData = series.map((s) => s.name);
 
+  const router = useRouter();
+  const onEvents = useMemo(() => {
+    if (!customerLinkMonth) return undefined;
+    return {
+      click: (params: unknown) => {
+        const p = params as { name?: string; seriesName?: string };
+        if (!p?.name || p.seriesName === TOTAL_KEY) return;
+        router.push(customerHref(p.name, customerLinkMonth));
+      },
+    };
+  }, [customerLinkMonth, router]);
+
   return (
     <Chart
       height={height}
+      onEvents={onEvents}
       option={{
         legend: showLegend && series.length > 1
           ? { data: legendData, top: 0, type: "scroll" }

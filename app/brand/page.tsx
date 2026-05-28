@@ -2,6 +2,7 @@ import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { computeBrandInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { CustomerLink } from "@/components/CustomerLink";
 import {
   ymMinusMonths,
   monthlyByCategory,
@@ -413,9 +414,15 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         <Card>
           <CardHeader>
             <CardTitle>채널/거래처 분포 (트리맵)</CardTitle>
+            <div className="text-[11px] text-muted-foreground">면세점 거래처 노드 클릭 시 거래처 분석으로 이동</div>
           </CardHeader>
           <CardContent>
-            <Treemap data={segments.slice(0, 30)} height={340} />
+            <Treemap
+              data={segments.slice(0, 30)}
+              height={340}
+              customerLinkMonth={ym}
+              customerNamePrefix="면세점/"
+            />
           </CardContent>
         </Card>
         <Card>
@@ -444,9 +451,19 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
                         : ch.direction === "down" || ch.direction === "lost"
                           ? "text-rose-700"
                           : "text-muted-foreground";
+                    const dutyPrefix = "면세점 · ";
+                    const isDutyCustomer = d.channel.startsWith(dutyPrefix);
                     return (
                       <tr key={d.channel} className="border-b last:border-0">
-                        <td className="py-1.5 text-xs">{d.channel}</td>
+                        <td className="py-1.5 text-xs">
+                          {isDutyCustomer ? (
+                            <CustomerLink customer={d.channel.slice(dutyPrefix.length)} ym={ym}>
+                              {d.channel}
+                            </CustomerLink>
+                          ) : (
+                            d.channel
+                          )}
+                        </td>
                         <td className="py-1.5 text-right tabular-nums">{formatKRWLong(d.revenue)}</td>
                         <td className="py-1.5 text-right tabular-nums text-muted-foreground">{formatInt(d.qty)}</td>
                         <td className="py-1.5 text-right tabular-nums text-muted-foreground">

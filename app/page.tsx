@@ -11,6 +11,7 @@ import {
 } from "@/lib/aggregate";
 import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdCategoryDetailSeries, ytdAchievementOverall } from "@/lib/ytd";
 import {
@@ -340,7 +341,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
               <div className="text-lg font-semibold tabular-nums">{sleeping.length}건</div>
               {sleeping.length > 0 && (
                 <div className="text-[10px] text-muted-foreground">
-                  최대: {sleeping[0].customer}
+                  최대: <CustomerLink customer={sleeping[0].customer} ym={ym} />
                 </div>
               )}
             </div>

@@ -1,14 +1,19 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { Chart } from "./ChartBase";
 import { formatKRWLong, formatKRWShort } from "@/lib/format";
+import { customerHref } from "@/components/CustomerLink";
 import type { WaterfallStep } from "@/lib/changeAttribution";
 
 type WaterfallChartProps = {
   steps: WaterfallStep[];
   height?: number;
+  // 카테고리 라벨이 거래처명일 때 ym을 전달하면 막대 클릭 시 거래처 분석으로 이동
+  customerLinkMonth?: string;
 };
 
-export function WaterfallChart({ steps, height = 360 }: WaterfallChartProps) {
+export function WaterfallChart({ steps, height = 360, customerLinkMonth }: WaterfallChartProps) {
   // ECharts waterfall = stacked bars: 시작 누적값(투명) + 본 값(색).
   // type=start/end: 절대값. gain/loss: 누적 위에 ± 추가.
   const placeholder: number[] = [];
@@ -48,9 +53,24 @@ export function WaterfallChart({ steps, height = 360 }: WaterfallChartProps) {
     return "#94a3b8";
   };
 
+  const router = useRouter();
+  const onEvents = useMemo(() => {
+    if (!customerLinkMonth) return undefined;
+    return {
+      click: (params: unknown) => {
+        const p = params as { dataIndex?: number };
+        if (typeof p?.dataIndex !== "number") return;
+        const step = steps[p.dataIndex];
+        if (!step || step.type === "start" || step.type === "end") return;
+        router.push(customerHref(step.name, customerLinkMonth));
+      },
+    };
+  }, [customerLinkMonth, steps, router]);
+
   return (
     <Chart
       height={height}
+      onEvents={onEvents}
       option={{
         grid: { left: 70, right: 30, top: 30, bottom: 70, containLabel: true },
         tooltip: {

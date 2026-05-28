@@ -366,8 +366,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
         hint={bhAvailable && k.revenue > 0
-          ? `이번달 추천 매출 비율 ${formatPctAbs(partnerRefRevenue / k.revenue)}`
-          : "메인 매출 데이터 기준"}
+          ? `이번달 추천 매출 비율 ${formatPctAbs(partnerRefRevenue / k.revenue)} — 항목 클릭 시 거래처 분석으로 이동`
+          : "메인 매출 데이터 기준 — 항목 클릭 시 거래처 분석으로 이동"}
+        customerLinkMonth={ym}
       />
 
       {bhAvailable && partnerContribs.length > 0 && (

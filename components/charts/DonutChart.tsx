@@ -1,6 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { Chart } from "./ChartBase";
 import { formatKRWLong, formatPctAbs } from "@/lib/format";
+import { customerHref } from "@/components/CustomerLink";
 
 export type DonutItem = {
   name: string;
@@ -12,13 +15,27 @@ type DonutChartProps = {
   items: DonutItem[];
   height?: number;
   showCenter?: { label?: string; value?: string };
+  // items.name이 거래처명일 때 ym을 전달하면 조각 클릭 시 거래처 분석으로 이동
+  customerLinkMonth?: string;
 };
 
-export function DonutChart({ items, height = 280, showCenter }: DonutChartProps) {
+export function DonutChart({ items, height = 280, showCenter, customerLinkMonth }: DonutChartProps) {
   const total = items.reduce((s, i) => s + i.value, 0);
+  const router = useRouter();
+  const onEvents = useMemo(() => {
+    if (!customerLinkMonth) return undefined;
+    return {
+      click: (params: unknown) => {
+        const p = params as { name?: string };
+        if (!p?.name) return;
+        router.push(customerHref(p.name, customerLinkMonth));
+      },
+    };
+  }, [customerLinkMonth, router]);
   return (
     <Chart
       height={height}
+      onEvents={onEvents}
       option={{
         tooltip: {
           formatter: (p: any) => {

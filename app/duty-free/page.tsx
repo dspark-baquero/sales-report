@@ -11,6 +11,7 @@ import {
 } from "@/lib/aggregate";
 import { computeDutyFreeInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdCustomerSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
 import {
@@ -219,7 +220,8 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         contribs={customerContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="어느 면세점 거래처가 이번달 증감을 만들었는지"
+        hint="어느 면세점 거래처가 이번달 증감을 만들었는지 — 항목 클릭 시 거래처 분석으로 이동"
+        customerLinkMonth={ym}
       />
 
       {/* 12개월 추이 + 전년 점선 */}
@@ -278,7 +280,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
                           : "text-muted-foreground";
                     return (
                       <tr key={c.customer} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{c.customer}</td>
+                        <td className="py-2 font-medium"><CustomerLink customer={c.customer} ym={ym} /></td>
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(c.revenue)}</td>
                         <td className="py-2 text-right tabular-nums text-muted-foreground">
                           {pm > 0 ? formatKRWLong(pm) : "—"}

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
+import { CustomerLink } from "@/components/CustomerLink";
 import {
   buildWaterfall,
   topGainers,
@@ -19,6 +20,8 @@ type ChangeBreakdownProps = {
   prevLabel?: string;          // "전월" / "전년 동월"
   showWaterfall?: boolean;
   hint?: string;
+  // entity가 거래처(customer)일 때 ym을 전달하면 카테고리/항목 클릭 시 거래처 분석으로 이동
+  customerLinkMonth?: string;
 };
 
 function badgeForType(type: ChangeContribution["type"]) {
@@ -45,10 +48,20 @@ export function ChangeBreakdown({
   prevLabel = "전월",
   showWaterfall = true,
   hint,
+  customerLinkMonth,
 }: ChangeBreakdownProps) {
   const steps = buildWaterfall(prevTotal, curTotal, contribs, topN);
   const gainers = topGainers(contribs, topN);
   const decliners = topDecliners(contribs, topN);
+
+  const renderEntity = (entity: string) =>
+    customerLinkMonth ? (
+      <CustomerLink customer={entity} ym={customerLinkMonth}>
+        <span className="truncate">{entity}</span>
+      </CustomerLink>
+    ) : (
+      <span className="truncate">{entity}</span>
+    );
 
   return (
     <Card className="avoid-break">
@@ -62,7 +75,9 @@ export function ChangeBreakdown({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {showWaterfall && contribs.length > 0 && <WaterfallChart steps={steps} height={300} />}
+        {showWaterfall && contribs.length > 0 && (
+          <WaterfallChart steps={steps} height={300} customerLinkMonth={customerLinkMonth} />
+        )}
 
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div>
@@ -75,7 +90,7 @@ export function ChangeBreakdown({
                   <li key={g.entity} className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1 min-w-0">
                       {badgeForType(g.type)}
-                      <span className="truncate">{g.entity}</span>
+                      {renderEntity(g.entity)}
                     </div>
                     <div className="text-right shrink-0 tabular-nums">
                       <div className="text-emerald-700 font-medium">+{formatKRWLong(Math.abs(g.diff))}</div>
@@ -98,7 +113,7 @@ export function ChangeBreakdown({
                   <li key={g.entity} className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1 min-w-0">
                       {badgeForType(g.type)}
-                      <span className="truncate">{g.entity}</span>
+                      {renderEntity(g.entity)}
                     </div>
                     <div className="text-right shrink-0 tabular-nums">
                       <div className="text-rose-700 font-medium">{formatKRWLong(g.diff)}</div>

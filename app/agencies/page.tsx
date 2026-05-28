@@ -255,7 +255,8 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
         contribs={customerContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="대리점 거래처 단위 분해"
+        hint="대리점 거래처 단위 분해 — 항목 클릭 시 거래처 분석으로 이동"
+        customerLinkMonth={ym}
       />
 
       {/* 대리점별 목표 달성 현황 */}
@@ -285,6 +286,7 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
               horizontal
               showValueLabels
               yLabel="실매출"
+              customerLinkMonth={ym}
             />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -345,6 +347,7 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
               }))}
               height={300}
               showCenter={{ label: "대리점 합계", value: formatKRWShort(k.revenue) }}
+              customerLinkMonth={ym}
             />
           </CardContent>
         </Card>

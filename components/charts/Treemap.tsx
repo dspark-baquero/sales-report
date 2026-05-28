@@ -1,6 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { Chart } from "./ChartBase";
 import { formatKRWLong, formatKRWShort } from "@/lib/format";
+import { customerHref } from "@/components/CustomerLink";
 
 export type TreemapNode = {
   name: string;
@@ -12,12 +15,35 @@ export type TreemapNode = {
 type TreemapProps = {
   data: TreemapNode[];
   height?: number;
+  // 노드 클릭 시 거래처 분석으로 이동
+  customerLinkMonth?: string;
+  // 거래처명을 추출하는 prefix(예: "면세점/"). prefix로 시작하는 노드만 라우팅
+  customerNamePrefix?: string;
 };
 
-export function Treemap({ data, height = 360 }: TreemapProps) {
+export function Treemap({ data, height = 360, customerLinkMonth, customerNamePrefix }: TreemapProps) {
+  const router = useRouter();
+  const onEvents = useMemo(() => {
+    if (!customerLinkMonth) return undefined;
+    return {
+      click: (params: unknown) => {
+        const p = params as { name?: string };
+        if (!p?.name) return;
+        let customer = p.name;
+        if (customerNamePrefix) {
+          if (!p.name.startsWith(customerNamePrefix)) return;
+          customer = p.name.slice(customerNamePrefix.length);
+        }
+        if (!customer) return;
+        router.push(customerHref(customer, customerLinkMonth));
+      },
+    };
+  }, [customerLinkMonth, customerNamePrefix, router]);
+
   return (
     <Chart
       height={height}
+      onEvents={onEvents}
       option={{
         tooltip: {
           formatter: (p: any) =>

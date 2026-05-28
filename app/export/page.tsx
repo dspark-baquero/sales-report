@@ -3,6 +3,7 @@ import { resolveMonth } from "@/lib/months";
 import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/lib/aggregate";
 import { computeExportInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdCountrySeries, buildYTDAchievement } from "@/lib/ytd";
 import {
@@ -361,7 +362,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
                         : "text-muted-foreground";
                   return (
                     <tr key={c.customer} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{c.customer}</td>
+                      <td className="py-2 font-medium"><CustomerLink customer={c.customer} ym={ym} /></td>
                       <td className="py-2 text-muted-foreground">{c.country}</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(c.revenue)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">

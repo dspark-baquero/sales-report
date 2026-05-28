@@ -12,6 +12,7 @@ import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdDealerSeries, ytdAchievementForCustomerKeys } from "@/lib/ytd";
 import { dealerBoard, dealerCustomerChurn, dealerQuarterCompare } from "@/lib/dealerAnalysis";
 import Link from "next/link";
+import { CustomerLink } from "@/components/CustomerLink";
 import {
   prevMonth,
   prevYearSameMonth,
@@ -758,7 +759,8 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         contribs={customerContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
-        hint="어느 거래처가 B2B 증감을 만들었는지"
+        hint="어느 거래처가 B2B 증감을 만들었는지 — 항목 클릭 시 거래처 분석으로 이동"
+        customerLinkMonth={ym}
       />
 
       {/* 신규/이탈 */}
@@ -785,7 +787,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                   <tbody>
                     {newOnes.slice(0, 20).map((c) => (
                       <tr key={c.customer} className="border-b last:border-0">
-                        <td className="py-2">{c.customer}</td>
+                        <td className="py-2"><CustomerLink customer={c.customer} ym={ym} /></td>
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(c.revenue)}</td>
                       </tr>
                     ))}
@@ -817,7 +819,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
                   <tbody>
                     {lost.slice(0, 20).map((c) => (
                       <tr key={c.customer} className="border-b last:border-0">
-                        <td className="py-2">{c.customer}</td>
+                        <td className="py-2"><CustomerLink customer={c.customer} ym={ym} /></td>
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(c.prevAvg)}</td>
                       </tr>
                     ))}
