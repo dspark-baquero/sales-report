@@ -12,6 +12,9 @@ import {
 import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
+import { BrandCustomerMatrix } from "@/components/BrandCustomerMatrix";
+import { buildBrandCustomerMatrix } from "@/lib/brandCustomerMatrix";
+import { BRAND_TO_HOUSE } from "@/config/mappings";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import {
   ytdCategoryDetailSeries,
@@ -124,6 +127,21 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const ytdMonthlyTargetsOverall = ytdMonthlyTargets(targets, ym);
   const ytdMonthlyPrevYearOverall = ytdMonthlyPrevYear(prevYearRangeRows, ym);
 
+  // 브랜드 × 거래처 매트릭스
+  const matrixBrands = Object.keys(BRAND_TO_HOUSE).filter((b) => b !== "기타");
+  const matrixData = buildBrandCustomerMatrix(
+    cube,
+    targets,
+    ytdRangeRows,
+    prevYearRangeRows,
+    cur,
+    prevMo,
+    prevYr,
+    ym,
+    matrixBrands,
+    15,
+  );
+
   // 12개월 카테고리 스택 (6채널 분리)
   const fromYM = ymMinusMonths(ym, 11);
   const rangeRows12 = await loadRangeRows(fromYM, ym);
@@ -172,6 +190,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       </div>
 
       <TabInsights bullets={insights.slice(0, 5)} />
+
+      {/* 1-2. 브랜드 × 거래처 매트릭스 — 핵심 변동 보완 */}
+      <BrandCustomerMatrix data={matrixData} ym={ym} />
 
       {/* 2. YTD 월별 매출 추이 (6채널 분리) */}
       <YearToDateChart
