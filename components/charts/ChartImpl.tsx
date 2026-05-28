@@ -48,13 +48,16 @@ type Props = {
 };
 
 export default function ChartImpl({ option, height = 300, className, notMerge, onEvents }: Props) {
+  // 기본 true: 옵션이 props로 바뀔 때마다 ECharts가 이전 옵션과 머지하지 않도록.
+  // 머지가 켜져 있으면 series 개수/이름이 바뀌었을 때 툴팁 formatter나 캐시된 axisLabel 데이터가
+  // 이전 옵션의 것을 그대로 사용해 "차트는 새 데이터 / 툴팁은 옛 데이터" 같은 불일치가 발생.
   return (
     <ReactEChartsCore
       echarts={echarts}
       option={option}
       style={{ height, width: "100%" }}
       className={className}
-      notMerge={notMerge}
+      notMerge={notMerge ?? true}
       lazyUpdate
       onEvents={onEvents}
       opts={{ renderer: "canvas" }}
