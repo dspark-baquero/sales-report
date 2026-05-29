@@ -12,8 +12,14 @@ import {
 import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
-import { BrandCustomerMatrix } from "@/components/BrandCustomerMatrix";
-import { buildBrandCustomerMatrix } from "@/lib/brandCustomerMatrix";
+import { BrandMatrix } from "@/components/BrandCustomerMatrix";
+import {
+  buildBrandChannelMatrix,
+  buildBrandCustomerMatrixForChannel,
+  CHANNEL_KEYS,
+  type BrandCustomerMatrixData,
+  type ChannelKey,
+} from "@/lib/brandCustomerMatrix";
 import { BRAND_TO_HOUSE } from "@/config/mappings";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import {
@@ -127,10 +133,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const ytdMonthlyTargetsOverall = ytdMonthlyTargets(targets, ym);
   const ytdMonthlyPrevYearOverall = ytdMonthlyPrevYear(prevYearRangeRows, ym);
 
-  // 브랜드 × 거래처 매트릭스
+  // 브랜드 매트릭스 (2뎁스)
   const matrixBrands = Object.keys(BRAND_TO_HOUSE).filter((b) => b !== "기타");
-  const matrixData = buildBrandCustomerMatrix(
-    cube,
+  const depth1Matrix = buildBrandChannelMatrix(
     targets,
     ytdRangeRows,
     prevYearRangeRows,
@@ -139,8 +144,24 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     prevYr,
     ym,
     matrixBrands,
-    15,
   );
+  const depth2ByChannel = Object.fromEntries(
+    CHANNEL_KEYS.map((ch) => [
+      ch,
+      buildBrandCustomerMatrixForChannel(
+        cube,
+        ytdRangeRows,
+        prevYearRangeRows,
+        cur,
+        prevMo,
+        prevYr,
+        ym,
+        matrixBrands,
+        ch,
+        10,
+      ),
+    ]),
+  ) as Record<ChannelKey, BrandCustomerMatrixData>;
 
   // 12개월 카테고리 스택 (6채널 분리)
   const fromYM = ymMinusMonths(ym, 11);
@@ -191,8 +212,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
       <TabInsights bullets={insights.slice(0, 5)} />
 
-      {/* 1-2. 브랜드 × 거래처 매트릭스 — 핵심 변동 보완 */}
-      <BrandCustomerMatrix data={matrixData} ym={ym} />
+      {/* 1-2. 브랜드 매트릭스 (1뎁스 채널 + 2뎁스 거래처) */}
+      <BrandMatrix depth1={depth1Matrix} depth2ByChannel={depth2ByChannel} ym={ym} />
 
       {/* 2. YTD 월별 매출 추이 (6채널 분리) */}
       <YearToDateChart

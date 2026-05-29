@@ -1,81 +1,79 @@
-// 종합탭 "브랜드 × 거래처 매트릭스" 데이터 빌더.
-// 5줄 핵심 변동 인사이트의 보완 — 임원이 한눈에 (브랜드, 거래처) 단위
-// 전년 동기 YTD 대비 / 목표 달성률을 보고, 셀 클릭으로 세부 정보를 펼침.
+// 종합탭 "브랜드 매트릭스" 2뎁스 데이터 빌더.
 //
-// 색상 분류:
-//   파랑   전년 YTD +, 목표 YTD ≥ 100%
-//   초록   전년 YTD +, 목표 YTD < 100%
-//   빨강   전년 YTD -, 목표 YTD < 100%
-//   황색   전년 YTD -, 목표 YTD ≥ 100%   (작년이 워낙 좋았던 케이스)
-//   회색   셀 매출 미미 / 데이터 부족
+// 1뎁스: (브랜드 × 6채널대분류) — 채널 YTD 목표 + 달성률 + 4분면 색상.
+//        해외영업 / B2B / 대리점 / 바크로하우스 / B2C / 면세점.
+// 2뎁스: (브랜드 × 선택채널 거래처 Top N) — 채널 목표 미노출.
+//        전년 동기 YTD 대비 ± 단일 차원 3색.
 //
-// 거래처 단위 target은 데이터에 없음 → 그 거래처가 속한
-// (브랜드 × customerKey) 의 YTD 누적 목표로 차원 2 결정.
-// 같은 customerKey 거래처들은 같은 차원 2 색상을 공유.
+// 1뎁스에서 셀 클릭 시 채널이 전환되어 우측 2뎁스가 그 채널의 거래처로 드릴다운.
 
 import type { FactCube } from "./facts";
 import type { TargetRow } from "./targets";
-import type { SalesRow } from "./load";
+import type { SalesRow } from "./parsers";
 import { enumerateMonths } from "./aggregate";
-import { prevYearSameMonth, prevMonth } from "./compare";
-import { channelGroup } from "@/config/mappings";
+
+// ── 채널 정의 ────────────────────────────────────────────
+
+export type ChannelKey = "해외영업" | "B2B" | "대리점" | "바크로하우스" | "B2C" | "면세점";
+export const CHANNEL_KEYS: ChannelKey[] = [
+  "해외영업",
+  "B2B",
+  "대리점",
+  "바크로하우스",
+  "B2C",
+  "면세점",
+];
+
+const BAQUEROHOUSE_CHANNELS = new Set(["바크로하우스", "바크로하우스 스마트스토어"]);
+
+// 매출 row → 어느 채널대분류에 속하는가
+export function channelRowFilter(ch: ChannelKey): (r: SalesRow) => boolean {
+  switch (ch) {
+    case "해외영업":
+      return (r) => r.category === "수출";
+    case "B2B":
+      return (r) => r.category === "B2B" && r.b2bCustomerType !== "대리점";
+    case "대리점":
+      return (r) => r.category === "B2B" && r.b2bCustomerType === "대리점";
+    case "바크로하우스":
+      return (r) => BAQUEROHOUSE_CHANNELS.has(r.channel);
+    case "B2C":
+      return (r) => r.category === "B2C" && !BAQUEROHOUSE_CHANNELS.has(r.channel);
+    case "면세점":
+      return (r) => r.category === "면세점";
+  }
+}
+
+// targets row → 어느 채널대분류 목표에 속하는가
+const B2B_TARGET_KEYS = new Set(["병원", "피부관리실", "직거래처"]);
+const B2C_TARGET_KEYS = new Set(["공식몰", "종합몰", "소호몰"]);
+
+export function channelTargetFilter(ch: ChannelKey): (t: TargetRow) => boolean {
+  switch (ch) {
+    case "해외영업":
+      return (t) => t.division === "해외";
+    case "B2B":
+      return (t) => t.division === "국내" && B2B_TARGET_KEYS.has(t.customerKey);
+    case "대리점":
+      return (t) => t.division === "국내" && t.customerKey === "대리점";
+    case "바크로하우스":
+      return (t) => t.division === "국내" && t.customerKey === "바크로하우스";
+    case "B2C":
+      return (t) => t.division === "국내" && B2C_TARGET_KEYS.has(t.customerKey);
+    case "면세점":
+      return (t) => t.division === "국내" && t.customerKey === "면세점";
+  }
+}
+
+// ── 색상 분류 ────────────────────────────────────────────
 
 export type CellColor = "blue" | "green" | "red" | "amber" | "gray";
-
-export type MatrixCell = {
-  brand: string;
-  customer: string;
-  customerKey: string | null;
-  // 매출 5종
-  monthCur: number;
-  monthPrev: number;
-  monthPrevYear: number;
-  ytd: number;
-  prevYtd: number;
-  // 비교 메트릭
-  ytdDiff: number;
-  ytdPct: number | null;        // 전년 동기 YTD 대비
-  ytdTarget: number;            // (브랜드 × customerKey) YTD 누적 목표 — 없으면 0
-  achievementRate: number | null; // ytd / ytdTarget — target 없으면 null
-  color: CellColor;
-  colorReason: string;          // "전년 동기 대비 +20% / 면세점 목표 105% 달성 → 파랑"
-};
-
-export type BrandCustomerMatrixData = {
-  brands: string[];
-  customers: string[];
-  cells: Map<string, MatrixCell>; // key = `${brand}|${customer}`
-};
 
 const MIN_CELL_REVENUE = 1_000_000;
 const DEADZONE = 0.03;
 
-// 거래처 → customerKey(브랜드 매트릭스의 차원 2) 추론.
-// cube 의 customerToCategory / customerToChannel / customerToB2bType 인덱스 활용.
-function inferCustomerKey(cube: FactCube, customer: string): string | null {
-  const cat = cube.customerToCategory.get(customer);
-  const ch = cube.customerToChannel.get(customer) ?? "";
-  const b2b = cube.customerToB2bType.get(customer);
-
-  if (ch === "바크로하우스" || ch === "바크로하우스 스마트스토어") return "바크로하우스";
-  if (cat === "면세점") return "면세점";
-  if (cat === "B2B") {
-    if (b2b === "대리점") return "대리점";
-    if (b2b && b2b.startsWith("병원")) return "병원";
-    if (b2b && b2b.startsWith("피부관리실")) return "피부관리실";
-    return null;
-  }
-  if (cat === "B2C") {
-    const g = channelGroup(ch);
-    if (g === "자사 공식몰") return "공식몰";
-    if (g === "종합몰") return "종합몰";
-    if (g === "소호몰") return "소호몰";
-    return null;
-  }
-  return null;
-}
-
-function pickColor(opts: {
+// 4분면 (1뎁스): 전년 ± × 목표 ±
+export function pickColor4Way(opts: {
   ytdPct: number | null;
   achievementRate: number | null;
   cellYtd: number;
@@ -85,14 +83,11 @@ function pickColor(opts: {
     return { color: "gray", reason: "YTD 매출 미미" };
   }
 
-  // 차원 1: 전년 동기 YTD 대비 ±
-  // prev=0 신규는 +로 간주, ytdPct=null
   const yPct = ytdPct;
   const isUp = yPct === null ? cellYtd > 0 : yPct > DEADZONE;
   const isDown = yPct !== null && yPct < -DEADZONE;
   const isFlat = !isUp && !isDown;
 
-  // 차원 2: target 달성률
   const hasTarget = achievementRate !== null;
   const achieved = hasTarget && (achievementRate as number) >= 1;
 
@@ -112,101 +107,122 @@ function pickColor(opts: {
       ? { color: "amber", reason: "전년 동기 대비 하락하지만 채널 목표는 달성 — 작년 호조" }
       : { color: "red", reason: "전년 동기 대비 하락 + 채널 목표 미달" };
   }
-  // flat + hasTarget
   return achieved
     ? { color: "blue", reason: "전년 동기와 비슷 + 채널 목표 달성" }
     : { color: "gray", reason: "변동 미미 + 채널 목표 미달" };
 }
 
-// YTD 누적 매출 상위 N 거래처 추출
-function pickTopCustomers(cube: FactCube, ym: string, topN: number): string[] {
-  const [y] = ym.split("-").map(Number);
-  const months = enumerateMonths(`${y}-01`, ym);
-  const totals = new Map<string, number>();
-  for (const m of months) {
-    const cells = cube.byMonthCustomer.get(m);
-    if (!cells) continue;
-    for (const [cust, cell] of cells) {
-      if (cell.revenue <= 0) continue;
-      totals.set(cust, (totals.get(cust) ?? 0) + cell.revenue);
-    }
+// 단일 차원 3색 (2뎁스): 전년 ± 만
+export function pickColor3Way(opts: {
+  ytdPct: number | null;
+  cellYtd: number;
+}): { color: CellColor; reason: string } {
+  const { ytdPct, cellYtd } = opts;
+  if (cellYtd < MIN_CELL_REVENUE) {
+    return { color: "gray", reason: "YTD 매출 미미" };
   }
-  return [...totals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, topN)
-    .map(([c]) => c);
+  if (ytdPct === null) {
+    return { color: "blue", reason: "신규 매출 (전년 동기 0)" };
+  }
+  if (ytdPct > DEADZONE) {
+    return { color: "blue", reason: "전년 동기 대비 상승" };
+  }
+  if (ytdPct < -DEADZONE) {
+    return { color: "red", reason: "전년 동기 대비 하락" };
+  }
+  return { color: "gray", reason: "전년 동기와 비슷 (±3%)" };
 }
 
-export function buildBrandCustomerMatrix(
-  cube: FactCube,
+// ── 1뎁스: 브랜드 × 채널대분류 ────────────────────────────
+
+export type ChannelMatrixCell = {
+  brand: string;
+  channel: ChannelKey;
+  monthCur: number;
+  monthPrev: number;
+  monthPrevYear: number;
+  ytd: number;
+  prevYtd: number;
+  ytdDiff: number;
+  ytdPct: number | null;
+  ytdTarget: number;
+  achievementRate: number | null;
+  color: CellColor;
+  colorReason: string;
+};
+
+export type BrandChannelMatrixData = {
+  brands: string[];
+  channels: ChannelKey[];
+  cells: Map<string, ChannelMatrixCell>; // key = `${brand}|${channel}`
+};
+
+function accumulateBrandChannel(
+  rows: SalesRow[],
+  brandSet: Set<string>,
+  ch: ChannelKey,
+): Map<string, number> {
+  const filter = channelRowFilter(ch);
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    if (r.isNonRevenue) continue;
+    if (!brandSet.has(r.brand)) continue;
+    if (!filter(r)) continue;
+    out.set(r.brand, (out.get(r.brand) ?? 0) + r.realRevenue);
+  }
+  return out;
+}
+
+export function buildBrandChannelMatrix(
   targets: TargetRow[],
-  ytdRows: SalesRow[],        // 올해 1월~ym 매출 rows
-  prevYearYtdRows: SalesRow[], // 작년 1월~작년 ym 매출 rows
-  monthRowsCur: SalesRow[],    // 이번달
-  monthRowsPrev: SalesRow[],   // 전월
-  monthRowsPrevYear: SalesRow[], // 전년 동월
+  ytdRows: SalesRow[],
+  prevYearYtdRows: SalesRow[],
+  monthRowsCur: SalesRow[],
+  monthRowsPrev: SalesRow[],
+  monthRowsPrevYear: SalesRow[],
   ym: string,
   brands: string[],
-  topN: number,
-): BrandCustomerMatrixData {
-  const customers = pickTopCustomers(cube, ym, topN);
-  const customerSet = new Set(customers);
+): BrandChannelMatrixData {
   const brandSet = new Set(brands);
-
-  // 거래처별 customerKey 매핑 (한 번만)
-  const customerKeyMap = new Map<string, string | null>();
-  for (const c of customers) customerKeyMap.set(c, inferCustomerKey(cube, c));
-
-  // (브랜드 × customerKey) YTD 누적 목표 사전 합산
   const [y] = ym.split("-").map(Number);
   const ytdMonthSet = new Set(enumerateMonths(`${y}-01`, ym));
-  const brandKeyTarget = new Map<string, number>(); // `${brand}|${customerKey}`
-  for (const t of targets) {
-    if (!ytdMonthSet.has(t.yearMonth)) continue;
-    const key = `${t.brand}|${t.customerKey}`;
-    brandKeyTarget.set(key, (brandKeyTarget.get(key) ?? 0) + t.target);
+
+  // (브랜드 × 채널) YTD 목표 사전 합산
+  const brandChannelTarget = new Map<string, number>();
+  for (const ch of CHANNEL_KEYS) {
+    const tFilter = channelTargetFilter(ch);
+    for (const t of targets) {
+      if (!ytdMonthSet.has(t.yearMonth)) continue;
+      if (!brandSet.has(t.brand)) continue;
+      if (!tFilter(t)) continue;
+      const key = `${t.brand}|${ch}`;
+      brandChannelTarget.set(key, (brandChannelTarget.get(key) ?? 0) + t.target);
+    }
   }
 
-  // (브랜드 × 거래처) 매출 누적 — 4가지 rows
-  const accumulate = (rows: SalesRow[]): Map<string, number> => {
-    const out = new Map<string, number>();
-    for (const r of rows) {
-      if (r.isNonRevenue) continue;
-      if (!brandSet.has(r.brand)) continue;
-      if (!customerSet.has(r.customer)) continue;
-      const key = `${r.brand}|${r.customer}`;
-      out.set(key, (out.get(key) ?? 0) + r.realRevenue);
-    }
-    return out;
-  };
+  const cells = new Map<string, ChannelMatrixCell>();
+  for (const ch of CHANNEL_KEYS) {
+    const curMap = accumulateBrandChannel(monthRowsCur, brandSet, ch);
+    const prevMap = accumulateBrandChannel(monthRowsPrev, brandSet, ch);
+    const prevYearMap = accumulateBrandChannel(monthRowsPrevYear, brandSet, ch);
+    const ytdMap = accumulateBrandChannel(ytdRows, brandSet, ch);
+    const prevYtdMap = accumulateBrandChannel(prevYearYtdRows, brandSet, ch);
 
-  const curMonthMap = accumulate(monthRowsCur);
-  const prevMonthMap = accumulate(monthRowsPrev);
-  const prevYearMonthMap = accumulate(monthRowsPrevYear);
-  const ytdMap = accumulate(ytdRows);
-  const prevYtdMap = accumulate(prevYearYtdRows);
-
-  const cells = new Map<string, MatrixCell>();
-  for (const brand of brands) {
-    for (const customer of customers) {
-      const key = `${brand}|${customer}`;
-      const ytd = ytdMap.get(key) ?? 0;
-      const prevYtd = prevYtdMap.get(key) ?? 0;
+    for (const brand of brands) {
+      const ytd = ytdMap.get(brand) ?? 0;
+      const prevYtd = prevYtdMap.get(brand) ?? 0;
       const ytdDiff = ytd - prevYtd;
       const ytdPct = prevYtd !== 0 ? ytdDiff / Math.abs(prevYtd) : null;
-      const customerKey = customerKeyMap.get(customer) ?? null;
-      const ytdTarget = customerKey ? brandKeyTarget.get(`${brand}|${customerKey}`) ?? 0 : 0;
+      const ytdTarget = brandChannelTarget.get(`${brand}|${ch}`) ?? 0;
       const achievementRate = ytdTarget > 0 ? ytd / ytdTarget : null;
+      const { color, reason } = pickColor4Way({ ytdPct, achievementRate, cellYtd: ytd });
 
-      const { color, reason } = pickColor({ ytdPct, achievementRate, cellYtd: ytd });
-
-      cells.set(key, {
+      cells.set(`${brand}|${ch}`, {
         brand,
-        customer,
-        customerKey,
-        monthCur: curMonthMap.get(key) ?? 0,
-        monthPrev: prevMonthMap.get(key) ?? 0,
-        monthPrevYear: prevYearMonthMap.get(key) ?? 0,
+        channel: ch,
+        monthCur: curMap.get(brand) ?? 0,
+        monthPrev: prevMap.get(brand) ?? 0,
+        monthPrevYear: prevYearMap.get(brand) ?? 0,
         ytd,
         prevYtd,
         ytdDiff,
@@ -219,5 +235,118 @@ export function buildBrandCustomerMatrix(
     }
   }
 
-  return { brands, customers, cells };
+  return { brands, channels: CHANNEL_KEYS, cells };
+}
+
+// ── 2뎁스: 브랜드 × 선택채널 거래처 Top N ────────────────
+
+export type CustomerMatrixCell = {
+  brand: string;
+  customer: string;
+  monthCur: number;
+  monthPrev: number;
+  monthPrevYear: number;
+  ytd: number;
+  prevYtd: number;
+  ytdDiff: number;
+  ytdPct: number | null;
+  color: CellColor;
+  colorReason: string;
+};
+
+export type BrandCustomerMatrixData = {
+  channel: ChannelKey;
+  brands: string[];
+  customers: string[];
+  cells: Map<string, CustomerMatrixCell>; // key = `${brand}|${customer}`
+};
+
+function accumulateBrandCustomer(
+  rows: SalesRow[],
+  brandSet: Set<string>,
+  customerSet: Set<string>,
+  rowFilter: (r: SalesRow) => boolean,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    if (r.isNonRevenue) continue;
+    if (!brandSet.has(r.brand)) continue;
+    if (!customerSet.has(r.customer)) continue;
+    if (!rowFilter(r)) continue;
+    const key = `${r.brand}|${r.customer}`;
+    out.set(key, (out.get(key) ?? 0) + r.realRevenue);
+  }
+  return out;
+}
+
+// 선택 채널 내 YTD 누적 매출 상위 N 거래처 추출
+function pickTopCustomersForChannel(
+  ytdRows: SalesRow[],
+  ch: ChannelKey,
+  topN: number,
+): string[] {
+  const filter = channelRowFilter(ch);
+  const totals = new Map<string, number>();
+  for (const r of ytdRows) {
+    if (r.isNonRevenue) continue;
+    if (!filter(r)) continue;
+    if (r.realRevenue <= 0) continue;
+    totals.set(r.customer, (totals.get(r.customer) ?? 0) + r.realRevenue);
+  }
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([c]) => c);
+}
+
+export function buildBrandCustomerMatrixForChannel(
+  _cube: FactCube,
+  ytdRows: SalesRow[],
+  prevYearYtdRows: SalesRow[],
+  monthRowsCur: SalesRow[],
+  monthRowsPrev: SalesRow[],
+  monthRowsPrevYear: SalesRow[],
+  _ym: string,
+  brands: string[],
+  channel: ChannelKey,
+  topN: number,
+): BrandCustomerMatrixData {
+  const brandSet = new Set(brands);
+  const customers = pickTopCustomersForChannel(ytdRows, channel, topN);
+  const customerSet = new Set(customers);
+  const rowFilter = channelRowFilter(channel);
+
+  const curMap = accumulateBrandCustomer(monthRowsCur, brandSet, customerSet, rowFilter);
+  const prevMap = accumulateBrandCustomer(monthRowsPrev, brandSet, customerSet, rowFilter);
+  const prevYearMap = accumulateBrandCustomer(monthRowsPrevYear, brandSet, customerSet, rowFilter);
+  const ytdMap = accumulateBrandCustomer(ytdRows, brandSet, customerSet, rowFilter);
+  const prevYtdMap = accumulateBrandCustomer(prevYearYtdRows, brandSet, customerSet, rowFilter);
+
+  const cells = new Map<string, CustomerMatrixCell>();
+  for (const brand of brands) {
+    for (const customer of customers) {
+      const key = `${brand}|${customer}`;
+      const ytd = ytdMap.get(key) ?? 0;
+      const prevYtd = prevYtdMap.get(key) ?? 0;
+      const ytdDiff = ytd - prevYtd;
+      const ytdPct = prevYtd !== 0 ? ytdDiff / Math.abs(prevYtd) : null;
+      const { color, reason } = pickColor3Way({ ytdPct, cellYtd: ytd });
+
+      cells.set(key, {
+        brand,
+        customer,
+        monthCur: curMap.get(key) ?? 0,
+        monthPrev: prevMap.get(key) ?? 0,
+        monthPrevYear: prevYearMap.get(key) ?? 0,
+        ytd,
+        prevYtd,
+        ytdDiff,
+        ytdPct,
+        color,
+        colorReason: reason,
+      });
+    }
+  }
+
+  return { channel, brands, customers, cells };
 }
