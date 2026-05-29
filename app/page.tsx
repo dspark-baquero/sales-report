@@ -16,10 +16,15 @@ import { BrandMatrix } from "@/components/BrandCustomerMatrix";
 import {
   buildBrandChannelMatrix,
   buildBrandCustomerMatrixForChannel,
+  buildBaqueroHousePartnerMatrix,
   CHANNEL_KEYS,
   type BrandCustomerMatrixData,
   type ChannelKey,
 } from "@/lib/brandCustomerMatrix";
+import {
+  loadBHSalesRange,
+  isBHDataAvailable,
+} from "@/lib/baquerohouse-data";
 import { BRAND_TO_HOUSE } from "@/config/mappings";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import {
@@ -162,6 +167,35 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       ),
     ]),
   ) as Record<ChannelKey, BrandCustomerMatrixData>;
+
+  // 바크로하우스 채널만 메인 sales 거래처 대신 파트너 추천 매출(BHPartnerSale) 기준으로 교체.
+  // 파트너 데이터가 사용 가능하지 않으면 빈 매트릭스로 fallback ("데이터 없음" 메시지).
+  const bhAvailable = await isBHDataAvailable();
+  if (bhAvailable) {
+    const [bhYtdSales, bhPrevYearYtdSales, bhCurSales, bhPrevSales, bhPrevYearSales] =
+      await Promise.all([
+        loadBHSalesRange(ytdStart, ym),
+        loadBHSalesRange(prevYearStart, prevYearEnd),
+        loadBHSalesRange(ym, ym),
+        loadBHSalesRange(prevMonth(ym), prevMonth(ym)),
+        loadBHSalesRange(prevYearSameMonth(ym), prevYearSameMonth(ym)),
+      ]);
+    depth2ByChannel["바크로하우스"] = buildBaqueroHousePartnerMatrix(
+      bhYtdSales,
+      bhPrevYearYtdSales,
+      bhCurSales,
+      bhPrevSales,
+      bhPrevYearSales,
+      matrixBrands,
+      10,
+    );
+  } else {
+    depth2ByChannel["바크로하우스"] = buildBaqueroHousePartnerMatrix(
+      [], [], [], [], [],
+      matrixBrands,
+      10,
+    );
+  }
 
   // 12개월 카테고리 스택 (6채널 분리)
   const fromYM = ymMinusMonths(ym, 11);

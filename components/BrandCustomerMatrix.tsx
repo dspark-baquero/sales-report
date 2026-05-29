@@ -308,13 +308,14 @@ function CustomerMatrixCard({
         <div className="flex items-baseline justify-between gap-2 flex-wrap">
           <div>
             <CardTitle className="flex items-center gap-2 flex-wrap">
-              <span>브랜드 × 거래처</span>
+              <span>브랜드 × {data.columnType}</span>
               <span className="inline-block px-1.5 py-0.5 text-[11px] font-medium rounded bg-primary/10 text-primary">
                 {data.channel}
               </span>
             </CardTitle>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {data.channel} 채널 · YTD 매출 상위 {data.customers.length} 거래처
+              {data.channel} 채널 · YTD 매출 상위 {data.customers.length} {data.columnType}
+              {data.columnType === "파트너" && " (파트너 추천 매출 기준)"}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
@@ -331,7 +332,7 @@ function CustomerMatrixCard({
         <div className="px-4 pb-4 overflow-x-auto">
           {data.customers.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              {data.channel} 채널에 매출 데이터가 없습니다.
+              {data.channel} 채널에 {data.columnType} 매출 데이터가 없습니다.
             </div>
           ) : (
             <table className="border-separate" style={{ borderSpacing: 0 }}>
@@ -341,7 +342,7 @@ function CustomerMatrixCard({
                     className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
                     style={{ minWidth: 90 }}
                   >
-                    브랜드 \ 거래처
+                    브랜드 \ {data.columnType}
                   </th>
                   {data.customers.map((c) => (
                     <th
@@ -414,13 +415,22 @@ function CustomerMatrixCard({
                   <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded bg-card border">
                     {selectedCell.brand}
                   </span>
-                  <Link
-                    href={customerHref(selectedCell.customer, ym)}
-                    className="text-sm font-semibold hover:underline flex items-center gap-1"
-                  >
-                    {selectedCell.customer}
-                    <ArrowRight className="h-3 w-3" />
-                  </Link>
+                  {data.columnType === "거래처" ? (
+                    <Link
+                      href={customerHref(selectedCell.customer, ym)}
+                      className="text-sm font-semibold hover:underline flex items-center gap-1"
+                    >
+                      {selectedCell.customer}
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  ) : (
+                    <span className="text-sm font-semibold">
+                      {selectedCell.customer}
+                      <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                        (파트너)
+                      </span>
+                    </span>
+                  )}
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-1">
                   {selectedCell.colorReason}

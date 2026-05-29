@@ -24,7 +24,9 @@ export const CHANNEL_KEYS: ChannelKey[] = [
   "면세점",
 ];
 
-const BAQUEROHOUSE_CHANNELS = new Set(["바크로하우스", "바크로하우스 스마트스토어"]);
+// 채널대분류 "바크로하우스" = 바크로하우스 자사 채널만.
+// 바크로하우스 스마트스토어는 channelGroup="자사 공식몰" 이므로 B2C 대분류로 편입.
+const BAQUEROHOUSE_CHANNEL = "바크로하우스";
 
 // 매출 row → 어느 채널대분류에 속하는가
 export function channelRowFilter(ch: ChannelKey): (r: SalesRow) => boolean {
@@ -36,9 +38,9 @@ export function channelRowFilter(ch: ChannelKey): (r: SalesRow) => boolean {
     case "대리점":
       return (r) => r.category === "B2B" && r.b2bCustomerType === "대리점";
     case "바크로하우스":
-      return (r) => BAQUEROHOUSE_CHANNELS.has(r.channel);
+      return (r) => r.channel === BAQUEROHOUSE_CHANNEL;
     case "B2C":
-      return (r) => r.category === "B2C" && !BAQUEROHOUSE_CHANNELS.has(r.channel);
+      return (r) => r.category === "B2C" && r.channel !== BAQUEROHOUSE_CHANNEL;
     case "면세점":
       return (r) => r.category === "면세점";
   }
@@ -254,8 +256,13 @@ export type CustomerMatrixCell = {
   colorReason: string;
 };
 
+// 열 단위 의미. "거래처" = 메인 sales 거래처(거래처 분석 링크 가능).
+// "파트너" = 바크로하우스 파트너 추천 sales — 거래처 분석 페이지와 별개.
+export type CustomerColumnType = "거래처" | "파트너";
+
 export type BrandCustomerMatrixData = {
   channel: ChannelKey;
+  columnType: CustomerColumnType;
   brands: string[];
   customers: string[];
   cells: Map<string, CustomerMatrixCell>; // key = `${brand}|${customer}`
@@ -348,5 +355,102 @@ export function buildBrandCustomerMatrixForChannel(
     }
   }
 
-  return { channel, brands, customers, cells };
+  return { channel, columnType: "거래처", brands, customers, cells };
+}
+
+// ── 바크로하우스 전용: 브랜드 × 파트너 Top N ──────────────
+// 메인 sales 대신 BHPartnerSale(파트너 추천 매출)로 매트릭스 생성.
+// 빌더 호출 측에서 bhAvailable=false인 경우 빈 데이터로 fallback.
+
+export type BHPartnerSaleLite = {
+  partnerName: string;
+  yearMonth: string;
+  paymentAmount: number;
+  brand: string;
+};
+
+function accumulateBrandPartner(
+  sales: BHPartnerSaleLite[],
+  brandSet: Set<string>,
+  partnerSet: Set<string>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const s of sales) {
+    if (!s.partnerName) continue;
+    if (!brandSet.has(s.brand)) continue;
+    if (!partnerSet.has(s.partnerName)) continue;
+    const key = `${s.brand}|${s.partnerName}`;
+    out.set(key, (out.get(key) ?? 0) + s.paymentAmount);
+  }
+  return out;
+}
+
+function pickTopPartners(
+  ytdSales: BHPartnerSaleLite[],
+  topN: number,
+): string[] {
+  const totals = new Map<string, number>();
+  for (const s of ytdSales) {
+    if (!s.partnerName) continue;
+    if (s.paymentAmount <= 0) continue;
+    totals.set(s.partnerName, (totals.get(s.partnerName) ?? 0) + s.paymentAmount);
+  }
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([p]) => p);
+}
+
+export function buildBaqueroHousePartnerMatrix(
+  bhYtdSales: BHPartnerSaleLite[],
+  bhPrevYearYtdSales: BHPartnerSaleLite[],
+  bhCurSales: BHPartnerSaleLite[],
+  bhPrevSales: BHPartnerSaleLite[],
+  bhPrevYearSales: BHPartnerSaleLite[],
+  brands: string[],
+  topN: number,
+): BrandCustomerMatrixData {
+  const brandSet = new Set(brands);
+  const partners = pickTopPartners(bhYtdSales, topN);
+  const partnerSet = new Set(partners);
+
+  const curMap = accumulateBrandPartner(bhCurSales, brandSet, partnerSet);
+  const prevMap = accumulateBrandPartner(bhPrevSales, brandSet, partnerSet);
+  const prevYearMap = accumulateBrandPartner(bhPrevYearSales, brandSet, partnerSet);
+  const ytdMap = accumulateBrandPartner(bhYtdSales, brandSet, partnerSet);
+  const prevYtdMap = accumulateBrandPartner(bhPrevYearYtdSales, brandSet, partnerSet);
+
+  const cells = new Map<string, CustomerMatrixCell>();
+  for (const brand of brands) {
+    for (const partner of partners) {
+      const key = `${brand}|${partner}`;
+      const ytd = ytdMap.get(key) ?? 0;
+      const prevYtd = prevYtdMap.get(key) ?? 0;
+      const ytdDiff = ytd - prevYtd;
+      const ytdPct = prevYtd !== 0 ? ytdDiff / Math.abs(prevYtd) : null;
+      const { color, reason } = pickColor3Way({ ytdPct, cellYtd: ytd });
+
+      cells.set(key, {
+        brand,
+        customer: partner,
+        monthCur: curMap.get(key) ?? 0,
+        monthPrev: prevMap.get(key) ?? 0,
+        monthPrevYear: prevYearMap.get(key) ?? 0,
+        ytd,
+        prevYtd,
+        ytdDiff,
+        ytdPct,
+        color,
+        colorReason: reason,
+      });
+    }
+  }
+
+  return {
+    channel: "바크로하우스",
+    columnType: "파트너",
+    brands,
+    customers: partners,
+    cells,
+  };
 }
