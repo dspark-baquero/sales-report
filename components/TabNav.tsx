@@ -15,6 +15,7 @@ const TABS = [
   { href: "/brand", label: "브랜드 분석" },
   { href: "/accounts", label: "거래처 분석" },
   { href: "/insights", label: "심층 분석" },
+  { href: "/non-revenue", label: "비매출 출고" },
 ];
 
 export function TabNav() {

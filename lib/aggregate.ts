@@ -1,5 +1,6 @@
 import type { SalesRow } from "./parsers";
 import type { Category, ChannelGroup } from "@/config/mappings";
+import { CHANNEL_KEYS, channelRowFilter, type ChannelKey } from "./brandCustomerMatrix";
 
 export function revenueRows(rows: SalesRow[]): SalesRow[] {
   return rows.filter((r) => !r.isNonRevenue);
@@ -402,5 +403,224 @@ export function nonRevenueSummary(rows: SalesRow[]): NonRevenueSummary {
     byBizType: [...byTypeMap.entries()]
       .map(([bizType, v]) => ({ bizType, ...v }))
       .sort((a, b) => b.cost - a.cost),
+  };
+}
+
+// ── 비매출 세부 분해 (거래처/제품/브랜드/채널×사업형태) ─────
+
+export type NonRevenueByCustomer = {
+  customer: string;
+  rows: number;
+  qty: number;
+  cost: number;
+  bizTypeMix: { bizType: string; cost: number; share: number }[];
+};
+
+export function nonRevenueByCustomer(
+  rows: SalesRow[],
+  topN: number,
+): NonRevenueByCustomer[] {
+  const nr = nonRevenueRows(rows);
+  type Acc = {
+    rows: number;
+    qty: number;
+    cost: number;
+    byBiz: Map<string, number>;
+  };
+  const map = new Map<string, Acc>();
+  for (const r of nr) {
+    const key = r.customer || "(미지정)";
+    const c = r.cost !== null ? r.cost : 0;
+    const cur = map.get(key) ?? { rows: 0, qty: 0, cost: 0, byBiz: new Map() };
+    cur.rows += 1;
+    cur.qty += r.qty;
+    cur.cost += c;
+    const bt = r.bizType || "(기타)";
+    cur.byBiz.set(bt, (cur.byBiz.get(bt) ?? 0) + c);
+    map.set(key, cur);
+  }
+  return [...map.entries()]
+    .map(([customer, v]) => {
+      const total = v.cost;
+      const bizTypeMix = [...v.byBiz.entries()]
+        .map(([bizType, cost]) => ({
+          bizType,
+          cost,
+          share: total > 0 ? cost / total : 0,
+        }))
+        .sort((a, b) => b.cost - a.cost);
+      return { customer, rows: v.rows, qty: v.qty, cost: v.cost, bizTypeMix };
+    })
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, topN);
+}
+
+export type NonRevenueByProduct = {
+  product: string;
+  productCode: string;
+  brand: string;
+  rows: number;
+  qty: number;
+  cost: number;
+  topBizType: string;
+};
+
+export function nonRevenueByProduct(
+  rows: SalesRow[],
+  topN: number,
+): NonRevenueByProduct[] {
+  const nr = nonRevenueRows(rows);
+  type Acc = {
+    product: string;
+    productCode: string;
+    brand: string;
+    rows: number;
+    qty: number;
+    cost: number;
+    byBiz: Map<string, number>;
+  };
+  const map = new Map<string, Acc>();
+  for (const r of nr) {
+    const key = r.productCode || r.productName || "(미지정)";
+    const c = r.cost !== null ? r.cost : 0;
+    const cur = map.get(key) ?? {
+      product: r.productName,
+      productCode: r.productCode,
+      brand: r.brand,
+      rows: 0,
+      qty: 0,
+      cost: 0,
+      byBiz: new Map(),
+    };
+    cur.rows += 1;
+    cur.qty += r.qty;
+    cur.cost += c;
+    const bt = r.bizType || "(기타)";
+    cur.byBiz.set(bt, (cur.byBiz.get(bt) ?? 0) + r.qty);
+    map.set(key, cur);
+  }
+  return [...map.entries()]
+    .map(([, v]) => {
+      let topBizType = "—";
+      let topQty = 0;
+      for (const [bt, q] of v.byBiz) {
+        if (q > topQty) {
+          topQty = q;
+          topBizType = bt;
+        }
+      }
+      return {
+        product: v.product,
+        productCode: v.productCode,
+        brand: v.brand,
+        rows: v.rows,
+        qty: v.qty,
+        cost: v.cost,
+        topBizType,
+      };
+    })
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, topN);
+}
+
+export type NonRevenueByBrand = {
+  brand: string;
+  rows: number;
+  qty: number;
+  cost: number;
+};
+
+export function nonRevenueByBrand(rows: SalesRow[]): NonRevenueByBrand[] {
+  const nr = nonRevenueRows(rows);
+  const map = new Map<string, { rows: number; qty: number; cost: number }>();
+  for (const r of nr) {
+    const key = r.brand || "(미지정)";
+    const c = r.cost !== null ? r.cost : 0;
+    const cur = map.get(key) ?? { rows: 0, qty: 0, cost: 0 };
+    cur.rows += 1;
+    cur.qty += r.qty;
+    cur.cost += c;
+    map.set(key, cur);
+  }
+  return [...map.entries()]
+    .map(([brand, v]) => ({ brand, ...v }))
+    .sort((a, b) => b.cost - a.cost);
+}
+
+export type NonRevenueChannelBizMatrix = {
+  channels: ChannelKey[];
+  bizTypes: string[];
+  cells: Map<string, { cost: number; qty: number; rows: number }>; // `${channel}|${bizType}`
+  channelTotals: Map<ChannelKey, { cost: number; qty: number; rows: number }>;
+  bizTypeTotals: Map<string, { cost: number; qty: number; rows: number }>;
+};
+
+export function nonRevenueChannelBizMatrix(
+  rows: SalesRow[],
+): NonRevenueChannelBizMatrix {
+  const nr = nonRevenueRows(rows);
+  const cells = new Map<string, { cost: number; qty: number; rows: number }>();
+  const channelTotals = new Map<
+    ChannelKey,
+    { cost: number; qty: number; rows: number }
+  >();
+  const bizTypeTotals = new Map<
+    string,
+    { cost: number; qty: number; rows: number }
+  >();
+  const bizTypeSet = new Set<string>();
+
+  // 각 row가 어떤 채널대분류에 속하는지 한 번에 판정. 사업형태가 채널 분류와 다르므로
+  // channelRowFilter는 매출용이지만 row의 채널/카테고리/b2bType은 모든 row에 존재해 사용 가능.
+  const filters = CHANNEL_KEYS.map((ch) => ({ ch, fn: channelRowFilter(ch) }));
+
+  for (const r of nr) {
+    const bt = r.bizType || "(기타)";
+    bizTypeSet.add(bt);
+    const c = r.cost !== null ? r.cost : 0;
+
+    // bizType 합계
+    const btT = bizTypeTotals.get(bt) ?? { cost: 0, qty: 0, rows: 0 };
+    btT.cost += c;
+    btT.qty += r.qty;
+    btT.rows += 1;
+    bizTypeTotals.set(bt, btT);
+
+    // 채널 매칭 (한 row는 정확히 한 채널에 속함 — 매트릭스 정의상)
+    let matched: ChannelKey | null = null;
+    for (const f of filters) {
+      if (f.fn(r)) {
+        matched = f.ch;
+        break;
+      }
+    }
+    if (matched === null) continue; // 분류되지 않는 row는 매트릭스 제외
+
+    const chT = channelTotals.get(matched) ?? { cost: 0, qty: 0, rows: 0 };
+    chT.cost += c;
+    chT.qty += r.qty;
+    chT.rows += 1;
+    channelTotals.set(matched, chT);
+
+    const key = `${matched}|${bt}`;
+    const cell = cells.get(key) ?? { cost: 0, qty: 0, rows: 0 };
+    cell.cost += c;
+    cell.qty += r.qty;
+    cell.rows += 1;
+    cells.set(key, cell);
+  }
+
+  // bizTypes 원가 내림차순 정렬
+  const bizTypes = [...bizTypeSet].sort(
+    (a, b) =>
+      (bizTypeTotals.get(b)?.cost ?? 0) - (bizTypeTotals.get(a)?.cost ?? 0),
+  );
+
+  return {
+    channels: [...CHANNEL_KEYS],
+    bizTypes,
+    cells,
+    channelTotals,
+    bizTypeTotals,
   };
 }

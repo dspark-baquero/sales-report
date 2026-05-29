@@ -944,3 +944,94 @@ export function computeAccountsInsights(cube: FactCube, ym: string, customer: st
 
   return rankBullets(out).slice(0, 5);
 }
+
+// ── 비매출 출고 탭 인사이트 ──────────────────────────────
+// 휴리스틱:
+//   1. 총 비매출 원가 전월 대비 ±30% 이상 변동
+//   2. 사업형태별 전월 대비 2배 이상 폭증 (이번달 cost >= 1M)
+//   3. 이번달 신규 등장 사업형태 / 평소 있다가 사라진 사업형태 (직전 3개월 기준)
+export function computeNonRevenueInsights(
+  cube: FactCube,
+  ym: string,
+): InsightBullet[] {
+  const out: InsightBullet[] = [];
+  const prevYM = prevMonth(ym);
+
+  const curMap = cube.byMonthNonRevBizType.get(ym) ?? new Map();
+  const prevMap = cube.byMonthNonRevBizType.get(prevYM) ?? new Map();
+
+  const sumCost = (m: Map<string, { cost: number }>) =>
+    [...m.values()].reduce((s, c) => s + c.cost, 0);
+  const curTotal = sumCost(curMap);
+  const prevTotal = sumCost(prevMap);
+
+  // 1. 총 비매출 원가 전월 대비
+  if (prevTotal > 0 || curTotal > 0) {
+    const diff = curTotal - prevTotal;
+    const pct = prevTotal !== 0 ? diff / Math.abs(prevTotal) : null;
+    if (pct !== null && Math.abs(pct) >= 0.3) {
+      out.push({
+        severity: pct > 0 ? "warn" : "info",
+        category: "비매출 총원가",
+        text: `이번달 ${formatKRWShort(curTotal)} (전월 ${formatKRWShort(prevTotal)}, ${formatPct(pct, 0)})`,
+        detail: `차이 ${diff >= 0 ? "+" : ""}${formatKRWShort(diff)}`,
+        weight: Math.abs(diff),
+      });
+    }
+  }
+
+  // 2. 사업형태별 전월 대비 2배 이상 폭증
+  const allBiz = new Set([...curMap.keys(), ...prevMap.keys()]);
+  for (const bt of allBiz) {
+    const cur = (curMap.get(bt) as { cost: number } | undefined)?.cost ?? 0;
+    const prev = (prevMap.get(bt) as { cost: number } | undefined)?.cost ?? 0;
+    if (cur < 1_000_000) continue;
+    if (prev > 0 && cur / prev >= 2) {
+      const diff = cur - prev;
+      out.push({
+        severity: "warn",
+        category: "사업형태 폭증",
+        text: `${bt} 전월 대비 ${formatPct(diff / prev, 0)} (${formatKRWShort(prev)} → ${formatKRWShort(cur)})`,
+        detail: `차이 +${formatKRWShort(diff)}`,
+        weight: diff,
+      });
+    }
+  }
+
+  // 3. 신규 / 단절 사업형태 — 직전 3개월 (전월, 2개월 전, 3개월 전) 기준
+  const prev2YM = prevMonth(prevYM);
+  const prev3YM = prevMonth(prev2YM);
+  const prev2Map = cube.byMonthNonRevBizType.get(prev2YM) ?? new Map();
+  const prev3Map = cube.byMonthNonRevBizType.get(prev3YM) ?? new Map();
+  const recent3 = [prevMap, prev2Map, prev3Map];
+
+  for (const bt of allBiz) {
+    const cur = (curMap.get(bt) as { cost: number } | undefined)?.cost ?? 0;
+    const hadBefore = recent3.some(
+      (m) => ((m.get(bt) as { cost: number } | undefined)?.cost ?? 0) > 0,
+    );
+    if (!hadBefore && cur >= 1_000_000) {
+      out.push({
+        severity: "info",
+        category: "신규 사업형태",
+        text: `${bt} 이번달 처음 등장 (${formatKRWShort(cur)})`,
+        weight: cur,
+      });
+    }
+    const recentAvg =
+      recent3.reduce(
+        (s, m) => s + ((m.get(bt) as { cost: number } | undefined)?.cost ?? 0),
+        0,
+      ) / 3;
+    if (cur === 0 && recentAvg >= 1_000_000) {
+      out.push({
+        severity: "info",
+        category: "사업형태 중단",
+        text: `${bt} 이번달 0 (직전 3개월 평균 ${formatKRWShort(recentAvg)})`,
+        weight: recentAvg,
+      });
+    }
+  }
+
+  return rankBullets(out).slice(0, 5);
+}

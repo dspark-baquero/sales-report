@@ -455,12 +455,16 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </CardContent>
       </Card>
 
-      {/* 7. 비매출 출고 1줄 요약 */}
-      <div className="text-xs text-muted-foreground px-1">
+      {/* 7. 비매출 출고 1줄 요약 — 상세 탭 링크 */}
+      <Link
+        href={`/non-revenue?month=${ym}`}
+        className="block text-xs text-muted-foreground px-1 hover:text-foreground transition-colors"
+      >
         비매출 출고: 이번달 {formatInt(nrCur.totalRows)}건 · {formatInt(nrCur.totalQty)}개 · 원가 합계{" "}
         {formatKRWLong(nrCur.totalCost)} (전월 {formatInt(nrPrev.totalRows)}건 ·{" "}
-        {formatKRWLong(nrPrev.totalCost)})
-      </div>
+        {formatKRWLong(nrPrev.totalCost)}){" "}
+        <span className="text-primary">상세 →</span>
+      </Link>
     </div>
   );
 }
