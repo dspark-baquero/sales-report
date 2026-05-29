@@ -152,3 +152,16 @@
 
 /* tabular-nums 단축 */
 .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* 콜드 스타트 시 JS hydration 전에도 시각적으로 진행을 보여주는 progress 애니메이션.
+   0% → 85%까지 약 25초에 걸쳐 ease-out으로 채워짐. */
+@keyframes loading-progress-fill {
+  0%   { width: 0%; }
+  10%  { width: 18%; }
+  30%  { width: 45%; }
+  60%  { width: 68%; }
+  100% { width: 85%; }
+}
+.loading-progress-bar {
+  animation: loading-progress-fill 25s ease-out forwards;
+}
