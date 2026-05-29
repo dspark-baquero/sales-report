@@ -158,7 +158,7 @@ function ChannelMatrixCard({
             <thead>
               <tr>
                 <th
-                  className="sticky left-0 z-10 bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
+                  className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
                   style={{ minWidth: 90 }}
                 >
                   브랜드 \ 채널
@@ -180,7 +180,7 @@ function ChannelMatrixCard({
               {data.brands.map((b) => (
                 <tr key={b}>
                   <td
-                    className="sticky left-0 z-10 bg-card text-xs font-medium pr-2 py-1 border-r"
+                    className="sticky left-0 z-[1] bg-card text-xs font-medium pr-2 py-1 border-r"
                     style={{ minWidth: 90 }}
                   >
                     {b}
@@ -338,7 +338,7 @@ function CustomerMatrixCard({
               <thead>
                 <tr>
                   <th
-                    className="sticky left-0 z-10 bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
+                    className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
                     style={{ minWidth: 90 }}
                   >
                     브랜드 \ 거래처
@@ -364,7 +364,7 @@ function CustomerMatrixCard({
                 {data.brands.map((b) => (
                   <tr key={b}>
                     <td
-                      className="sticky left-0 z-10 bg-card text-xs font-medium pr-2 py-1 border-r"
+                      className="sticky left-0 z-[1] bg-card text-xs font-medium pr-2 py-1 border-r"
                       style={{ minWidth: 90 }}
                     >
                       {b}
