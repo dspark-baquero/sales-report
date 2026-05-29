@@ -153,13 +153,13 @@ function ChannelMatrixCard({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="px-4 pb-4 overflow-x-auto">
+        <div className="pr-4 pb-4 overflow-x-auto">
           <table className="border-separate w-full" style={{ borderSpacing: 0 }}>
             <thead>
               <tr>
                 <th
-                  className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
-                  style={{ minWidth: 90 }}
+                  className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pl-4 pr-2 align-bottom"
+                  style={{ minWidth: 106 }}
                 >
                   브랜드 \ 채널
                 </th>
@@ -180,8 +180,8 @@ function ChannelMatrixCard({
               {data.brands.map((b) => (
                 <tr key={b}>
                   <td
-                    className="sticky left-0 z-[1] bg-card text-xs font-medium pr-2 py-1 border-r"
-                    style={{ minWidth: 90 }}
+                    className="sticky left-0 z-[1] bg-card text-xs font-medium pl-4 pr-2 py-1 border-r"
+                    style={{ minWidth: 106 }}
                   >
                     {b}
                   </td>
@@ -329,9 +329,9 @@ function CustomerMatrixCard({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="px-4 pb-4 overflow-x-auto">
+        <div className="pr-4 pb-4 overflow-x-auto">
           {data.customers.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">
+            <div className="py-6 text-center text-sm text-muted-foreground px-4">
               {data.channel} 채널에 {data.columnType} 매출 데이터가 없습니다.
             </div>
           ) : (
@@ -339,8 +339,8 @@ function CustomerMatrixCard({
               <thead>
                 <tr>
                   <th
-                    className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pr-2 align-bottom"
-                    style={{ minWidth: 90 }}
+                    className="sticky left-0 z-[1] bg-card text-left text-[11px] text-muted-foreground font-medium pb-2 pl-4 pr-2 align-bottom"
+                    style={{ minWidth: 106 }}
                   >
                     브랜드 \ {data.columnType}
                   </th>
@@ -365,8 +365,8 @@ function CustomerMatrixCard({
                 {data.brands.map((b) => (
                   <tr key={b}>
                     <td
-                      className="sticky left-0 z-[1] bg-card text-xs font-medium pr-2 py-1 border-r"
-                      style={{ minWidth: 90 }}
+                      className="sticky left-0 z-[1] bg-card text-xs font-medium pl-4 pr-2 py-1 border-r"
+                      style={{ minWidth: 106 }}
                     >
                       {b}
                     </td>
