@@ -4,6 +4,7 @@ import { MonthSelectLoader } from "@/components/MonthSelectLoader";
 import { PrintButton } from "@/components/PrintButton";
 import { Skeleton } from "@/components/Skeleton";
 import { auth, signOut } from "@/lib/auth";
+import { RESTRICTED_TABS, canAccessTab } from "@/config/access";
 import { Suspense } from "react";
 
 export const metadata = {
@@ -56,7 +57,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
           <div className="max-w-[1400px] mx-auto px-6">
             <Suspense fallback={null}>
-              <TabNav />
+              <TabNav
+                lockedTabs={RESTRICTED_TABS.filter(
+                  (t) => !canAccessTab(t, session.user?.email),
+                )}
+              />
             </Suspense>
           </div>
         </header>
