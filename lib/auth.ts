@@ -35,4 +35,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
+  events: {
+    // 로그인 이벤트 기록 — 누가/언제. Cloud Run stdout → Cloud Logging(jsonPayload).
+    // JWT 세션이라 실제 로그인 시점에만 발생(페이지 이동마다 X).
+    // 조회: Cloud Logging에서 jsonPayload.event="login" 필터.
+    signIn({ user }) {
+      console.log(
+        JSON.stringify({
+          event: "login",
+          email: user?.email ?? null,
+          name: user?.name ?? null,
+          ts: new Date().toISOString(),
+        }),
+      );
+    },
+  },
 });
