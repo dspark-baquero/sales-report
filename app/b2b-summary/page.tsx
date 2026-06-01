@@ -190,18 +190,15 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-2" rowSpan={2}>영업사원</th>
-                  <th className="py-2 text-right" rowSpan={2}>직거래처</th>
-                  <th className="py-2 text-right" rowSpan={2}>대리점</th>
-                  <th className="py-2 text-right" rowSpan={2}>링커</th>
-                  <th className="py-1 text-center border-b" colSpan={2}>바크로하우스</th>
-                  <th className="py-2 text-right" rowSpan={2}>합계</th>
-                  <th className="py-2 text-right" rowSpan={2}>전월</th>
-                  <th className="py-2 text-right" rowSpan={2}>전월 대비</th>
-                </tr>
-                <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-1 text-right font-normal">직접</th>
-                  <th className="py-1 text-right font-normal">대리점/링커</th>
+                  <th className="py-2">영업사원</th>
+                  <th className="py-2 text-right">직거래처</th>
+                  <th className="py-2 text-right">대리점</th>
+                  <th className="py-2 text-right">링커</th>
+                  <th className="py-2 text-right">바크로(직접)</th>
+                  <th className="py-2 text-right">바크로(대리점/링커)</th>
+                  <th className="py-2 text-right">합계</th>
+                  <th className="py-2 text-right">전월</th>
+                  <th className="py-2 text-right">전월 대비</th>
                 </tr>
               </thead>
               <tbody>
