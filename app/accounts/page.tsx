@@ -15,6 +15,7 @@ import { ytdCustomerSeries, ytdBrandForCustomerSeries, ytdMonthlyPrevYear } from
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { UserRound } from "lucide-react";
 import { LineChart } from "@/components/charts/LineChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -47,6 +48,8 @@ function CustomerPanel({
 }) {
   const profile = customerProfile(cube, customer, ym);
   const qProg = quarterProgress(ym);
+  // 담당 딜러 — 최신 담당자 우선(이관 반영), 없으면 대표 딜러
+  const dealer = cube.customerToLatestDealer.get(customer) ?? profile.primaryDealer;
 
   // 브랜드/채널 분해 — raw rows에서 customer 필터 (한 달치만)
   const monthRows = rows.filter((r) => r.customer === customer && !r.isNonRevenue);
@@ -136,11 +139,18 @@ function CustomerPanel({
         <CardContent className="py-3 px-4">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div>
-              <h3 className="text-base font-semibold">{customer}</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-semibold">{customer}</h3>
+                {dealer && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                    <UserRound className="h-3.5 w-3.5" />
+                    담당 딜러 {dealer}
+                  </span>
+                )}
+              </div>
               <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                 {profile.category && <Badge variant="info">{profile.category}</Badge>}
                 {profile.primaryBrand && <span>대표 브랜드: {profile.primaryBrand}</span>}
-                {profile.primaryDealer && <span>· 담당 딜러: {profile.primaryDealer}</span>}
                 <span>· 회사 매출 비중: {formatPctAbs(profile.sharePctOfTotal / 100, 2)}</span>
               </div>
             </div>
@@ -379,7 +389,17 @@ function CustomerPanel({
 
 // 거래처 미선택 시 — 변동 하이라이트 + 안내
 function EmptyState({ cube, ym }: { cube: FactCube; ym: string }) {
-  const ranked = listCustomersRanked(cube).slice(0, 10);
+  // 이번달 매출 기준 상위 10 거래처
+  const monthCells = cube.byMonthCustomer.get(ym);
+  const ranked = (monthCells ? [...monthCells.entries()] : [])
+    .map(([customer, cell]) => ({
+      customer,
+      revenue: cell.revenue,
+      category: cube.customerToCategory.get(customer) ?? null,
+    }))
+    .filter((r) => r.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
   return (
     <Card>
       <CardHeader>
@@ -390,30 +410,34 @@ function EmptyState({ cube, ym }: { cube: FactCube; ym: string }) {
       </CardHeader>
       <CardContent className="p-0">
         <div className="px-4 pb-4">
-          <div className="text-xs text-muted-foreground mb-2">전체 기간 매출 상위 10 거래처:</div>
-          <table className="w-full text-sm">
-            <tbody>
-              {ranked.map((r, i) => (
-                <tr key={r.customer} className="border-b last:border-0">
-                  <td className="py-1.5 text-muted-foreground w-8">{i + 1}</td>
-                  <td className="py-1.5">
-                    <a
-                      href={`/accounts?customer=${encodeURIComponent(r.customer)}&month=${ym}`}
-                      className="text-foreground hover:underline"
-                    >
-                      {r.customer}
-                    </a>
-                  </td>
-                  <td className="py-1.5">
-                    {r.category && <Badge variant="info">{r.category}</Badge>}
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums text-muted-foreground">
-                    {formatKRWLong(r.totalRevenue)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="text-xs text-muted-foreground mb-2">{formatYM(ym)} 매출 상위 10 거래처:</div>
+          {ranked.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4">이번달 매출 데이터가 없습니다.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <tbody>
+                {ranked.map((r, i) => (
+                  <tr key={r.customer} className="border-b last:border-0">
+                    <td className="py-1.5 text-muted-foreground w-8">{i + 1}</td>
+                    <td className="py-1.5">
+                      <a
+                        href={`/accounts?customer=${encodeURIComponent(r.customer)}&month=${ym}`}
+                        className="text-foreground hover:underline"
+                      >
+                        {r.customer}
+                      </a>
+                    </td>
+                    <td className="py-1.5">
+                      {r.category && <Badge variant="info">{r.category}</Badge>}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-muted-foreground">
+                      {formatKRWLong(r.revenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </CardContent>
     </Card>
