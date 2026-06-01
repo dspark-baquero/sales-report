@@ -91,7 +91,9 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
   const directTotal = repRows.reduce((s, r) => s + r.direct, 0);
   const agencyTotal = repRows.reduce((s, r) => s + r.agency, 0);
   const linkerTotal = repRows.reduce((s, r) => s + r.linker, 0);
-  const bhTotal = repRows.reduce((s, r) => s + r.baquerohouse, 0);
+  const bhDirectTotal = repRows.reduce((s, r) => s + r.bhDirect, 0);
+  const bhAgencyTotal = repRows.reduce((s, r) => s + r.bhAgency, 0);
+  const bhTotal = bhDirectTotal + bhAgencyTotal;
   const grandTotal = repRows.reduce((s, r) => s + r.total, 0);
   const prevGrandTotal = repRows.reduce((s, r) => s + r.prevTotal, 0);
 
@@ -188,14 +190,18 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] text-muted-foreground border-b">
-                  <th className="py-2">영업사원</th>
-                  <th className="py-2 text-right">직거래처</th>
-                  <th className="py-2 text-right">대리점</th>
-                  <th className="py-2 text-right">링커</th>
-                  <th className="py-2 text-right">바크로하우스</th>
-                  <th className="py-2 text-right">합계</th>
-                  <th className="py-2 text-right">전월</th>
-                  <th className="py-2 text-right">전월 대비</th>
+                  <th className="py-2" rowSpan={2}>영업사원</th>
+                  <th className="py-2 text-right" rowSpan={2}>직거래처</th>
+                  <th className="py-2 text-right" rowSpan={2}>대리점</th>
+                  <th className="py-2 text-right" rowSpan={2}>링커</th>
+                  <th className="py-1 text-center border-b" colSpan={2}>바크로하우스</th>
+                  <th className="py-2 text-right" rowSpan={2}>합계</th>
+                  <th className="py-2 text-right" rowSpan={2}>전월</th>
+                  <th className="py-2 text-right" rowSpan={2}>전월 대비</th>
+                </tr>
+                <tr className="text-left text-[11px] text-muted-foreground border-b">
+                  <th className="py-1 text-right font-normal">직접</th>
+                  <th className="py-1 text-right font-normal">대리점/링커</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,7 +215,8 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                       <td className="py-2 text-right tabular-nums">{cell(r.direct)}</td>
                       <td className="py-2 text-right tabular-nums">{cell(r.agency)}</td>
                       <td className="py-2 text-right tabular-nums">{cell(r.linker)}</td>
-                      <td className="py-2 text-right tabular-nums">{cell(r.baquerohouse)}</td>
+                      <td className="py-2 text-right tabular-nums">{cell(r.bhDirect)}</td>
+                      <td className="py-2 text-right tabular-nums">{cell(r.bhAgency)}</td>
                       <td className="py-2 text-right tabular-nums font-semibold">{formatKRWLong(r.total)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
                         {r.prevTotal > 0 ? formatKRWLong(r.prevTotal) : "—"}
@@ -228,7 +235,8 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                   <td className="py-2 text-right tabular-nums">{formatKRWShort(directTotal)}</td>
                   <td className="py-2 text-right tabular-nums">{formatKRWShort(agencyTotal)}</td>
                   <td className="py-2 text-right tabular-nums">{formatKRWShort(linkerTotal)}</td>
-                  <td className="py-2 text-right tabular-nums">{formatKRWShort(bhTotal)}</td>
+                  <td className="py-2 text-right tabular-nums">{formatKRWShort(bhDirectTotal)}</td>
+                  <td className="py-2 text-right tabular-nums">{formatKRWShort(bhAgencyTotal)}</td>
                   <td className="py-2 text-right tabular-nums">{formatKRWLong(grandTotal)}</td>
                   <td className="py-2 text-right tabular-nums text-muted-foreground">{formatKRWLong(prevGrandTotal)}</td>
                   <td className="py-2" />

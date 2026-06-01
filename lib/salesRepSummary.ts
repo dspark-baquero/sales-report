@@ -21,11 +21,27 @@ function managerOfDealer(dealer: string): string {
   return dealer || "미지정";
 }
 
+// 대리점(거래처)의 담당 딜러 — 가장 최근 날짜의 딜러를 우선 사용(담당자 이관 반영).
+// 한 대리점에 과거/현재 담당자가 섞여 있어도 최신 담당자 1명으로 통일.
+function agencyDealer(cube: FactCube, customer: string): string {
+  return (
+    cube.customerToLatestDealer.get(customer) ??
+    cube.customerToDealer.get(customer) ??
+    "미지정"
+  );
+}
+
 // 바크로하우스 파트너 → 귀속 내부 영업직원.
 function managerOfPartner(partner: BHPartner | undefined): string {
   if (!partner) return "미지정";
   if (isLinker(partner.agencyLinker)) return linkerManager(partner.agencyLinker) ?? "미지정";
   return partner.salesRep || "미지정";
+}
+
+// 바크로하우스 파트너가 "대리점/링커 경유" 관리인지 (agencyLinker가 본사가 아님).
+// 직접(본사 관리) = false, 대리점 또는 링커 소속 = true.
+function isBHViaAgency(partner: BHPartner | undefined): boolean {
+  return !!partner && !!partner.agencyLinker && partner.agencyLinker !== "본사";
 }
 
 // ── 통합 요약 ────────────────────────────────────────────
@@ -34,17 +50,18 @@ export type RepSummaryRow = {
   direct: number; // 직거래처
   agency: number; // 대리점(담당)
   linker: number; // 링커(담당)
-  baquerohouse: number; // 바크로하우스(담당)
+  bhDirect: number; // 바크로하우스 — 본인이 직접 관리하는 파트너
+  bhAgency: number; // 바크로하우스 — 본인의 대리점/링커가 관리하는 파트너
   total: number;
   prevTotal: number;
   diff: number;
   pct: number | null;
 };
 
-type Buckets = { direct: number; agency: number; linker: number; baquerohouse: number };
+type Buckets = { direct: number; agency: number; linker: number; bhDirect: number; bhAgency: number };
 
 function emptyBuckets(): Buckets {
-  return { direct: 0, agency: 0, linker: 0, baquerohouse: 0 };
+  return { direct: 0, agency: 0, linker: 0, bhDirect: 0, bhAgency: 0 };
 }
 
 // 한 달치 영업사원별 4소스 합계 Map.
@@ -73,21 +90,26 @@ function managerTotals(
     }
   }
 
-  // 대리점 (byMonthDealerType[*]["대리점"])
-  const dealerTypeCells = cube.byMonthDealerType.get(ym);
-  if (dealerTypeCells) {
-    for (const [dealer, typeMap] of dealerTypeCells) {
-      const agCell = typeMap.get(AGENCY_TYPE);
-      if (agCell && agCell.revenue !== 0) {
-        ensure(managerOfDealer(dealer)).agency += agCell.revenue;
-      }
+  // 대리점 — 거래처별 최신 담당직원에게 전액 귀속 (담당자 이관 반영).
+  // byMonthDealerType 대신 거래처 단위로 집계해, 한 대리점이 여러 담당자로
+  // 쪼개지지 않고 최신 담당자 1명에게 모이도록 함.
+  const curCust = cube.byMonthCustomer.get(ym);
+  if (curCust) {
+    for (const [customer, type] of cube.customerToB2bType) {
+      if (type !== AGENCY_TYPE) continue;
+      const rev = curCust.get(customer)?.revenue ?? 0;
+      if (rev === 0) continue;
+      ensure(managerOfDealer(agencyDealer(cube, customer))).agency += rev;
     }
   }
 
-  // 바크로하우스 (파트너 추천 매출)
+  // 바크로하우스 (파트너 추천 매출) — 직접 / 대리점·링커 경유 구분
   for (const s of bhSales) {
     if (!s.partnerName) continue;
-    ensure(managerOfPartner(partnerMap.get(s.partnerName))).baquerohouse += s.paymentAmount;
+    const partner = partnerMap.get(s.partnerName);
+    const b = ensure(managerOfPartner(partner));
+    if (isBHViaAgency(partner)) b.bhAgency += s.paymentAmount;
+    else b.bhDirect += s.paymentAmount;
   }
 
   return m;
@@ -104,7 +126,7 @@ export function repSummaryRows(
   const cur = managerTotals(cube, ym, partnerMap, bhSalesCur);
   const prev = managerTotals(cube, prevYM, partnerMap, bhSalesPrev);
 
-  const sumBuckets = (b: Buckets) => b.direct + b.agency + b.linker + b.baquerohouse;
+  const sumBuckets = (b: Buckets) => b.direct + b.agency + b.linker + b.bhDirect + b.bhAgency;
   const prevTotalMap = new Map<string, number>();
   for (const [mgr, b] of prev) prevTotalMap.set(mgr, sumBuckets(b));
 
@@ -119,7 +141,8 @@ export function repSummaryRows(
       direct: b.direct,
       agency: b.agency,
       linker: b.linker,
-      baquerohouse: b.baquerohouse,
+      bhDirect: b.bhDirect,
+      bhAgency: b.bhAgency,
       total,
       prevTotal,
       diff,
@@ -196,8 +219,7 @@ export function agencyByManagerRows(cube: FactCube, ym: string, prevYM: string):
 
   for (const [customer, type] of cube.customerToB2bType) {
     if (type !== AGENCY_TYPE) continue;
-    const dealer = cube.customerToDealer.get(customer) ?? "미지정";
-    const manager = managerOfDealer(dealer);
+    const manager = managerOfDealer(agencyDealer(cube, customer));
     const rev = curCust?.get(customer)?.revenue ?? 0;
     const prevRev = prevCust?.get(customer)?.revenue ?? 0;
     if (rev === 0 && prevRev === 0) continue;
