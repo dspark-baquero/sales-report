@@ -60,6 +60,7 @@ sales-report/
 │   ├── api/auth/[...nextauth]/   # NextAuth API 라우트
 │   ├── targets/                  # 목표달성 탭
 │   ├── export/                   # 해외영업 탭
+│   ├── b2b-summary/              # B2B종합 탭 (영업사원별 통합, 화이트리스트)
 │   ├── b2b/                      # B2B 탭
 │   ├── agencies/                 # 대리점 탭
 │   ├── baquerohouse/             # 바크로하우스 탭
@@ -67,8 +68,8 @@ sales-report/
 │   ├── duty-free/                # 면세점 탭
 │   ├── brand/                    # 브랜드 분석 탭
 │   ├── accounts/                 # 거래처 분석 탭
-│   ├── changes/                  # 변동 분석 탭
 │   ├── insights/                 # 심층 분석 탭
+│   ├── non-revenue/              # 비매출 출고 탭
 │   └── */loading.tsx             # 각 탭별 스켈레톤 로딩 UI
 │
 ├── lib/                          # 비즈니스 로직
@@ -86,6 +87,8 @@ sales-report/
 │   ├── tabInsights.ts            # 자동 인사이트 (휴리스틱)
 │   ├── accountAnalysis.ts        # 거래처 심층 분석
 │   ├── dealerAnalysis.ts         # 딜러(영업사원) 심층 분석
+│   ├── salesRepSummary.ts        # 영업사원별 4개 소스 통합 집계 (B2B종합)
+│   ├── baquerohouse-data.ts      # 바크로하우스 파트너/추천매출 (BigQuery 외부 테이블)
 │   ├── changeAttribution.ts      # 변화 요인 분해
 │   ├── ytd.ts                    # Year-to-Date 시리즈
 │   ├── months.ts                 # 월 목록, 기준월 결정
@@ -104,7 +107,7 @@ sales-report/
 │   │   ├── Treemap.tsx           # 트리맵
 │   │   └── GaugeChart.tsx        # 게이지 (진행률)
 │   ├── ui/                       # shadcn/ui 기본 컴포넌트
-│   ├── TabNav.tsx                # 11개 탭 네비게이션
+│   ├── TabNav.tsx                # 13개 탭 네비게이션 (보고/분석 그룹 구분선·액센트)
 │   ├── TabInsights.tsx           # 자동 인사이트 불릿 패널
 │   ├── MetricCard.tsx            # KPI 비교 카드
 │   ├── DataTable.tsx             # TanStack 정렬/검색 테이블
@@ -118,7 +121,8 @@ sales-report/
 │   └── AnnualProgressCard.tsx    # 연간 목표 진도
 │
 ├── config/
-│   └── mappings.ts               # 채널/브랜드/비즈니스타입 매핑 (단일 소스)
+│   ├── mappings.ts               # 채널/브랜드/비즈니스타입 + 링커(LINKERS) 매핑 (단일 소스)
+│   └── access.ts                 # 탭 접근 화이트리스트 (B2B종합)
 │
 ├── scripts/
 │   ├── check-mappings.ts         # 데이터 품질 검사
@@ -199,25 +203,29 @@ sales-report/
 **메타 데이터**:
 - `monthsAsc` (정렬된 월 목록)
 - `customers`, `dealers`, `brands`, `channels`, `countries` (Set)
-- `customerToCategory`, `customerToBrand`, `customerToDealer` 등 (대표값 매핑)
+- `customerToCategory`, `customerToBrand`, `customerToDealer`(전체기간 매출 최대), `customerToLatestDealer`(최신 날짜 — 담당자 이관 반영), `customerToChannel`, `customerToB2bType` (대표값 매핑)
 
 ---
 
-## 5. 탭 구성 (10개)
+## 5. 탭 구성 (13개)
+
+탭은 두 그룹으로 구분 — **보고 그룹**(종합~면세점, 채널·실적 보고)과 **분석 그룹**(브랜드/거래처/심층 분석·비매출 출고). TabNav에서 구분선 + 인디고 액센트로 시각 분리.
 
 | 경로 | 탭명 | 대상 사용자 | 핵심 콘텐츠 |
 |------|------|------------|------------|
 | `/` | 종합 | 전사 임원 | KPI 4종 + 워터폴 + 거래처 변동 + 비매출 출고 |
 | `/targets` | 목표달성 | 임원 | 월/분기/반기/연간 목표 vs 실적 매트릭스 |
 | `/export` | 해외영업 | 해외팀 | 국가별 매출 + 국가×브랜드 히트맵 + 12m 추이 |
-| `/b2b` | B2B | 국내영업 | 영업사원 보드 + 거래처유형 분해 + 신규/이탈 |
+| `/b2b-summary` | B2B종합 | 영업총괄(화이트리스트) | 영업사원별 직거래처+대리점+링커+바크로하우스 통합 실적 |
+| `/b2b` | B2B | 국내영업 | 거래처유형 분해 + 거래처 변동 + 신규/이탈 (거래처 중심) |
 | `/agencies` | 대리점 | 대리점관리 | 대리점별 실적 + 브랜드 분해 |
-| `/baquerohouse` | 바크로하우스 | 자체채널 | 파트너별 추천/일반 매출 + 12m 추이 |
+| `/baquerohouse` | 바크로하우스 | 자체채널 | 파트너(거래처)별 추천/일반 매출 + 12m 추이 |
 | `/b2c` | B2C | B2C관리 | 채널그룹 분해 + 브랜드 워터폴 + Top 20 제품 |
 | `/duty-free` | 면세점 | 면세팀 | 거래처별 매출 + 일별/주차 라인 |
 | `/brand` | 브랜드 분석 | 브랜드PM | 24m 추이 + 채널/거래처 분해 + SKU Top 15 |
-| `/accounts` | 거래처 분석 | 임원/영업 | 거래처 Deep Dive + 비교 모드 |
+| `/accounts` | 거래처 분석 | 임원/영업 | 거래처 Deep Dive(담당딜러 강조) + 비교 모드 |
 | `/insights` | 심층 분석 | 분석팀 | 데이터 품질 + 거래처 집중도 + 히트맵 + 할인율/수수료 + 신제품/이탈 SKU + 이상치 |
+| `/non-revenue` | 비매출 출고 | 운영 | 증정/임직원/마케팅 등 매출 0 출고 (사업형태·거래처·제품 분해) |
 
 ### 각 탭 공통 패턴
 
@@ -278,6 +286,16 @@ dealerBoard(cube, ym)        → 영업사원별 6m 실적 보드
 dealerCustomerChurn(cube, ym) → 영업사원별 신규/이탈 거래처
 ```
 
+### salesRepSummary.ts — 영업사원별 통합 집계 (B2B종합)
+
+```
+repSummaryRows(cube, partnerMap, bhCur, bhPrev, ym, prevYM)
+  → 직원별 { direct, agency, linker, bhDirect, bhAgency, total, prevTotal } (링커·대리점·BH는 담당 직원 귀속)
+directDealerRows / agencyByManagerRows / linkerRows / bhByRepRows  → 소스별 상세
+```
+
+대리점 담당자는 `customerToLatestDealer`(최신 날짜 딜러)로 결정 — 담당자 이관 반영.
+
 ---
 
 ## 7. KPI 정의
@@ -327,6 +345,10 @@ dealerCustomerChurn(cube, ym) → 영업사원별 신규/이탈 거래처
 | 소호몰 | 소호몰 |
 | 임직원/패밀리 | 바크로패밀리, 헤메코랩 |
 
+### 영업사원 / 링커
+
+영업사원은 (1) **내부 직원**, (2) **링커**(외부 영업사원/회사, 예: Harinbeauty)로 구분. 링커는 매출 `dealer` 필드 및 바크로하우스 `agencyLinker` 필드에 직원과 동일 레벨로 섞여 등장하므로, 링커 명단과 담당 내부 직원 매핑을 `config/mappings.ts`의 `LINKERS`(`isLinker`/`linkerManager`)에서 단일 관리. B2B종합 탭에서 링커·대리점·바크로하우스 매출은 담당 내부 직원에게 귀속.
+
 ---
 
 ## 9. 인증
@@ -336,6 +358,8 @@ dealerCustomerChurn(cube, ym) → 영업사원별 신규/이탈 거래처
 - JWT 세션 (DB 불필요)
 - `trustHost: true` (Cloud Run 동적 호스트 허용)
 - `middleware.ts`에서 미인증 시 `/login`으로 리다이렉트
+- **탭 접근 제한**: `config/access.ts` 화이트리스트 — B2B종합(`/b2b-summary`) 탭은 지정 이메일(9명)만, 그 외 탭은 도메인 전체 공개. 비인가 시 자물쇠 아이콘 + 권한 카드
+- **접속 로깅**: `events.signIn`에서 로그인 시 이메일·시각을 구조화 JSON으로 stdout 기록 → Cloud Logging(`jsonPayload.event="login"`). JWT 세션이라 실제 로그인 시점에만 발생
 
 ---
 
