@@ -440,6 +440,38 @@ export function computeB2BInsights(cube: FactCube, ym: string): InsightBullet[] 
   return rankBullets(out).slice(0, 6);
 }
 
+// ── B2B종합 탭 (영업사원별 통합) ─────────────────────────
+// 큐브만 사용 (바크로하우스 데이터 비의존). 영업사원/거래처유형 빅무버 중심.
+export function computeB2BSummaryInsights(cube: FactCube, ym: string): InsightBullet[] {
+  const prevYM = prevMonth(ym);
+  const out: InsightBullet[] = [];
+
+  const curRev = cubeMonthCategoryKpi(cube, ym, "B2B").revenue;
+  const prevRev = cubeMonthCategoryKpi(cube, prevYM, "B2B").revenue;
+  const tb = totalChangeBullet(curRev, prevRev, "전월", "B2B 전체");
+  if (tb) out.push(tb);
+
+  // 영업사원(직거래처+링커) 빅 무버
+  const dealerCur = cubeMonthDealerCells(cube, ym);
+  const dealerPrev = cubeMonthDealerCells(cube, prevYM);
+  out.push(...topMoversFromCells(dealerCur, dealerPrev, {
+    categoryLabel: "영업사원",
+    minAbsDiff: 3_000_000,
+    minPct: 0.15,
+    maxBullets: 4,
+  }));
+
+  // 대리점 전체 변동
+  const typeCur = cubeMonthB2bTypeCells(cube, ym);
+  const typePrev = cubeMonthB2bTypeCells(cube, prevYM);
+  const agCur = typeCur.get("대리점")?.revenue ?? 0;
+  const agPrev = typePrev.get("대리점")?.revenue ?? 0;
+  const agTb = totalChangeBullet(agCur, agPrev, "전월", "대리점 전체");
+  if (agTb) out.push(agTb);
+
+  return rankBullets(out).slice(0, 6);
+}
+
 // ── 수출 탭 ────────────────────────────────────────────
 export function computeExportInsights(cube: FactCube, ym: string): InsightBullet[] {
   const prevYM = prevMonth(ym);

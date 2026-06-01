@@ -126,6 +126,33 @@ export function b2bCustomerType(bizType: string): string {
   return "기타";
 }
 
+// ── 링커(외부 영업사원/회사) → 담당 내부 영업직원 ──────────
+// 영업사원은 (1) 당사 직원, (2) 링커(외부 딜러)로 나뉜다.
+// 링커는 B2B 매출의 `dealer`(딜러) 필드 / 바크로하우스 `agencyLinker` 필드에
+// 직원명과 동일 레벨로 섞여 등장하므로, 어느 dealer가 링커인지 + 담당 직원이
+// 누구인지를 여기서 단일 관리한다. (데이터에 매핑이 없어 코드 config로 관리)
+//
+// 주의: name 은 실제 데이터의 dealer/agencyLinker 문자열과 정확히 일치해야 함.
+export const LINKERS: { name: string; manager: string }[] = [
+  { name: "Harinbeauty", manager: "류현희" },
+];
+
+const LINKER_MANAGER_MAP = new Map(LINKERS.map((l) => [l.name, l.manager]));
+
+// 링커명 집합 (dealer 분류 / 집계 필터용)
+export const LINKER_NAMES = new Set(LINKERS.map((l) => l.name));
+
+// 해당 dealer/agencyLinker 값이 링커인지
+export function isLinker(name: string | null | undefined): boolean {
+  return !!name && LINKER_MANAGER_MAP.has(name);
+}
+
+// 링커의 담당 내부 영업직원. 링커가 아니면 null.
+export function linkerManager(name: string | null | undefined): string | null {
+  if (!name) return null;
+  return LINKER_MANAGER_MAP.get(name) ?? null;
+}
+
 // ── 알려진 모든 키 (검증 스크립트용) ──────────────────────
 export const KNOWN_CHANNELS = new Set(Object.keys(CHANNEL_TO_GROUP));
 export const KNOWN_BRANDS = new Set(Object.keys(BRAND_TO_HOUSE));

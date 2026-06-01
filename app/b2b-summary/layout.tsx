@@ -1,9 +1,9 @@
 import { auth } from "@/lib/auth";
-import { canAccessB2B } from "@/config/access";
+import { canAccessB2BSummary } from "@/config/access";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 
-export default async function B2BLayout({
+export default async function B2BSummaryLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -11,7 +11,7 @@ export default async function B2BLayout({
   const session = await auth();
   const email = session?.user?.email ?? null;
 
-  if (!canAccessB2B(email)) {
+  if (!canAccessB2BSummary(email)) {
     return (
       <div className="flex justify-center py-12">
         <Card className="max-w-md w-full">
@@ -21,7 +21,7 @@ export default async function B2BLayout({
             </div>
             <h2 className="text-base font-semibold mb-1">열람 권한이 없습니다</h2>
             <p className="text-sm text-muted-foreground">
-              B2B 탭은 지정된 사용자만 열람할 수 있습니다.
+              B2B종합 탭은 지정된 사용자만 열람할 수 있습니다.
               <br />
               접근이 필요하시면 관리자에게 문의해 주세요.
             </p>

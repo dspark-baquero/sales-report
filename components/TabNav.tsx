@@ -8,6 +8,7 @@ const TABS = [
   { href: "/", label: "종합" },
   { href: "/targets", label: "목표달성" },
   { href: "/export", label: "해외영업" },
+  { href: "/b2b-summary", label: "B2B종합" },
   { href: "/b2b", label: "B2B" },
   { href: "/agencies", label: "대리점" },
   { href: "/baquerohouse", label: "바크로하우스" },
