@@ -43,12 +43,10 @@ export function ytdCategoryDetailSeries(cube: FactCube, ym: string): YTDSeries[]
   const agencyValues = months.map((m) =>
     cube.byMonthB2bType.get(m)?.get("대리점")?.revenue ?? 0,
   );
-  const bhChannels = ["바크로하우스", "바크로하우스 스마트스토어"];
-  const bhValues = months.map((m) => {
-    const chMap = cube.byMonthChannel.get(m);
-    if (!chMap) return 0;
-    return bhChannels.reduce((s, ch) => s + (chMap.get(ch)?.revenue ?? 0), 0);
-  });
+  // 바크로하우스 메인몰만 별도 라인으로 분리. 스마트스토어는 B2C(자사 공식몰)에 포함.
+  const bhValues = months.map((m) =>
+    cube.byMonthChannel.get(m)?.get("바크로하우스")?.revenue ?? 0,
+  );
 
   const series: YTDSeries[] = [
     {
@@ -94,15 +92,11 @@ const CHANNEL_GROUP_ORDER: ChannelGroup[] = [
 
 export function ytdChannelGroupSeries(cube: FactCube, ym: string): YTDSeries[] {
   const months = ytdMonths(ym);
-  const bhChannels = new Set(["바크로하우스", "바크로하우스 스마트스토어"]);
 
-  const bhValues = months.map((m) => {
-    const chMap = cube.byMonthChannel.get(m);
-    if (!chMap) return 0;
-    let sum = 0;
-    for (const ch of bhChannels) sum += chMap.get(ch)?.revenue ?? 0;
-    return sum;
-  });
+  // 바크로하우스 메인몰만 자사 공식몰에서 차감. 스마트스토어는 B2C에 포함.
+  const bhValues = months.map((m) =>
+    cube.byMonthChannel.get(m)?.get("바크로하우스")?.revenue ?? 0,
+  );
 
   return CHANNEL_GROUP_ORDER.map((g) => ({
     name: g,

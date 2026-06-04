@@ -180,11 +180,9 @@ export const TARGET_MATCH_RULES: MatchRule[] = [
   {
     customerKey: "바크로하우스",
     division: "국내",
-    match: (brand) => (r) =>
-      r.brand === brand &&
-      (r.channel === "바크로하우스" || r.channel === "바크로하우스 스마트스토어"),
+    match: (brand) => (r) => r.brand === brand && r.channel === "바크로하우스",
     prospective: false,
-    description: "바크로하우스 자사몰 (다브랜드 자사몰)",
+    description: "바크로하우스 메인몰 (스마트스토어는 B2C 공식몰로 집계)",
   },
 
   // ── 신규 추진 채널 (sales 매칭 없음) ───────

@@ -103,8 +103,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   // 채널별 매출
   const agencyFilter = (r: { category: string; b2bCustomerType: string | null }) =>
     r.category === "B2B" && r.b2bCustomerType === "대리점";
-  const bhFilter = (r: { channel: string }) =>
-    r.channel === "바크로하우스" || r.channel === "바크로하우스 스마트스토어";
+  // 바크로하우스 메인몰만 별도 집계. 스마트스토어는 B2C(자사 공식몰)에 포함.
+  const bhFilter = (r: { channel: string }) => r.channel === "바크로하우스";
 
   const agencyCur = cur.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
   const agencyPrevMo = prevMo.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
@@ -207,7 +207,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     const agency = cube.byMonthB2bType.get(m)?.get("대리점")?.revenue ?? 0;
     const b2cTotal = cube.byMonthCategory.get(m)?.get("B2C")?.revenue ?? 0;
     const chMap = cube.byMonthChannel.get(m);
-    const bh = (chMap?.get("바크로하우스")?.revenue ?? 0) + (chMap?.get("바크로하우스 스마트스토어")?.revenue ?? 0);
+    const bh = chMap?.get("바크로하우스")?.revenue ?? 0;
     return {
       ym: m,
       B2B: b2bTotal - agency,
