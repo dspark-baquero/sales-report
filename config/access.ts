@@ -20,6 +20,16 @@ export function canAccessB2BSummary(email: string | null | undefined): boolean {
   return B2B_SUMMARY_ALLOWED_EMAILS.has(email.toLowerCase());
 }
 
+// 관리자 — BigQuery 데이터 새로고침 등 운영 기능 사용 권한.
+const ADMIN_EMAILS = new Set<string>([
+  "dspark@baquero.co.kr",
+]);
+
+export function isAdmin(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.has(email.toLowerCase());
+}
+
 // 탭별 접근 가능 여부 일괄 판정.
 // 추후 다른 제한 탭 추가 시 여기에 매핑 추가.
 export type RestrictedTab = "/b2b-summary";

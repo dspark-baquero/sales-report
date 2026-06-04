@@ -2,9 +2,12 @@ import "./globals.css";
 import { TabNav } from "@/components/TabNav";
 import { MonthSelectLoader } from "@/components/MonthSelectLoader";
 import { PrintButton } from "@/components/PrintButton";
+import { RefreshButton } from "@/components/RefreshButton";
 import { Skeleton } from "@/components/Skeleton";
 import { auth, signOut } from "@/lib/auth";
-import { RESTRICTED_TABS, canAccessTab } from "@/config/access";
+import { RESTRICTED_TABS, canAccessTab, isAdmin } from "@/config/access";
+import { invalidateCache } from "@/lib/load";
+import { revalidatePath } from "next/cache";
 import { Suspense } from "react";
 
 export const metadata = {
@@ -35,6 +38,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <MonthSelectLoader />
               </Suspense>
               <PrintButton />
+              {isAdmin(session.user?.email) && (
+                <RefreshButton
+                  action={async () => {
+                    "use server";
+                    // 서버에서 권한 재검증 — 액션은 외부 호출 가능한 엔드포인트.
+                    const s = await auth();
+                    if (!isAdmin(s?.user?.email)) return;
+                    invalidateCache();
+                    revalidatePath("/", "layout");
+                  }}
+                />
+              )}
               <div className="flex items-center gap-2 ml-2 pl-2 border-l">
                 <span className="text-xs text-muted-foreground">
                   {session.user?.name ?? session.user?.email}

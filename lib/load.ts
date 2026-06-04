@@ -4,6 +4,8 @@ import type { SalesRow } from "./parsers";
 import type { FactCube } from "./facts";
 import { bigqueryProvider } from "./providers/bigquery-provider";
 
+export { invalidateCache } from "./providers/bigquery-provider";
+
 export async function loadFactCube(): Promise<FactCube> {
   return bigqueryProvider.loadFactCube();
 }

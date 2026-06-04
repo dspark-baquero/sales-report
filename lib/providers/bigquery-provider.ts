@@ -29,6 +29,11 @@ type Cached = {
 
 let cached: Cached | null = null;
 
+/** 인메모리 캐시를 비운다. 다음 load 호출 시 BigQuery에서 다시 조회한다. */
+export function invalidateCache(): void {
+  cached = null;
+}
+
 async function ensureLoaded(): Promise<Cached> {
   if (cached) return cached;
 
