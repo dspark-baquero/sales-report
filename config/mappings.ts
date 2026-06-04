@@ -36,6 +36,7 @@ export const CHANNEL_TO_GROUP: Record<string, ChannelGroup> = {
   "쿠팡 그로스": "종합몰",
   "큐텐": "종합몰",
   "화해": "종합몰",
+  "에이블리": "종합몰",
 
   // 소호몰
   "소호몰": "소호몰",

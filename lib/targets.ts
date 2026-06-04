@@ -1,6 +1,5 @@
 import { BigQuery } from "@google-cloud/bigquery";
 import type { SalesRow } from "./parsers";
-import { BRAND_OFFICIAL_CHANNELS } from "@/config/mappings";
 
 export type Division = "국내" | "해외";
 
@@ -109,20 +108,19 @@ export type MatchRule = {
   description: string;
 };
 
-const officialChannelsForBrand = (brand: string): Set<string> =>
-  new Set(BRAND_OFFICIAL_CHANNELS[brand] ?? []);
-
 export const TARGET_MATCH_RULES: MatchRule[] = [
   // ── 국내 ─────────────────────────────────
   {
     customerKey: "공식몰",
     division: "국내",
-    match: (brand) => {
-      const set = officialChannelsForBrand(brand);
-      return (r) => r.brand === brand && set.has(r.channel);
-    },
+    // B2C 탭과 동일하게 channelGroup 기준. 바크로하우스 메인몰만 제외(별도 키),
+    // 스마트스토어 포함. 브랜드 전체(레노덤 프로페셔널/네오스트라타/크리스티나 등) 매칭.
+    match: (brand) => (r) =>
+      r.brand === brand &&
+      r.channelGroup === "자사 공식몰" &&
+      r.channel !== "바크로하우스",
     prospective: false,
-    description: "브랜드별 자사 공식몰 (스마트스토어 포함)",
+    description: "B2C 자사 공식몰 (channelGroup 기준, 바크로하우스 메인몰 제외)",
   },
   {
     customerKey: "면세점",
