@@ -18,6 +18,7 @@ import {
   buildChange,
 } from "@/lib/format";
 import { isLinker } from "@/config/mappings";
+import { SalesRepLink } from "@/components/SalesRepLink";
 import { loadDealerTargets, buildDealerAchievements } from "@/lib/dealer-targets";
 import {
   loadBHPartnerMap,
@@ -208,7 +209,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                     v > 0 ? formatKRWShort(v) : <span className="text-neutral-300">·</span>;
                   return (
                     <tr key={r.manager} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{r.manager}</td>
+                      <td className="py-2 font-medium"><SalesRepLink rep={r.manager} ym={ym} /></td>
                       <td className="py-2 text-right tabular-nums">{cell(r.direct)}</td>
                       <td className="py-2 text-right tabular-nums">{cell(r.agency)}</td>
                       <td className="py-2 text-right tabular-nums">{cell(r.linker)}</td>
@@ -274,7 +275,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
         months={trendMonths}
         series={directSeries.map((s) => s.revenue)}
       >
-        <PerfTable rows={directRows} keyLabel="영업사원" />
+        <PerfTable rows={directRows} keyLabel="영업사원" ym={ym} />
         {dealerAch.length > 0 && (
           <div className="overflow-x-auto">
             <div className="text-[11px] font-medium text-muted-foreground mb-1 mt-2">영업사원 목표 달성 (직거래처)</div>
@@ -296,7 +297,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                   const yCls = d.ytdRate === null ? "" : d.ytdRate >= 1 ? "text-emerald-700" : d.ytdRate >= 0.7 ? "text-amber-600" : "text-rose-700";
                   return (
                     <tr key={d.name} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{d.name}</td>
+                      <td className="py-2 font-medium"><SalesRepLink rep={d.name} ym={ym} /></td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(d.monthTarget)}</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(d.monthActual)}</td>
                       <td className={`py-2 text-right tabular-nums ${mCls}`}>{d.monthRate !== null ? formatPctAbs(d.monthRate, 1) : "—"}</td>
@@ -337,7 +338,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                 const { ch, cls } = changeCell(r.revenue, r.prevRevenue);
                 return (
                   <tr key={r.manager} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{r.manager}</td>
+                    <td className="py-2 font-medium"><SalesRepLink rep={r.manager} ym={ym} /></td>
                     <td className="py-2 text-right tabular-nums">{formatInt(r.agencies.length)}개</td>
                     <td className="py-2 text-right tabular-nums">{formatKRWLong(r.revenue)}</td>
                     <td className="py-2 text-right tabular-nums text-muted-foreground">{r.prevRevenue > 0 ? formatKRWLong(r.prevRevenue) : "—"}</td>
@@ -370,7 +371,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                   return (
                     <tr key={a.customer} className="border-b last:border-0">
                       <td className="py-2 font-medium">{a.customer}</td>
-                      <td className="py-2 text-muted-foreground">{a.manager}</td>
+                      <td className="py-2 text-muted-foreground"><SalesRepLink rep={a.manager} ym={ym} /></td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(a.revenue)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">{a.prevRevenue > 0 ? formatKRWLong(a.prevRevenue) : "—"}</td>
                       <td className={`py-2 text-right tabular-nums ${cls}`}>
@@ -414,7 +415,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                   return (
                     <tr key={r.key} className="border-b last:border-0">
                       <td className="py-2 font-medium">{r.key}</td>
-                      <td className="py-2 text-muted-foreground">{r.manager}</td>
+                      <td className="py-2 text-muted-foreground"><SalesRepLink rep={r.manager} ym={ym} /></td>
                       <td className="py-2 text-right tabular-nums">{formatInt(r.customers)}개</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(r.revenue)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">{r.prevRevenue > 0 ? formatKRWLong(r.prevRevenue) : "—"}</td>
@@ -458,7 +459,7 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
                   const { ch, cls } = changeCell(r.revenue, r.prevRevenue);
                   return (
                     <tr key={r.salesRep} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{r.salesRep}</td>
+                      <td className="py-2 font-medium"><SalesRepLink rep={r.salesRep} ym={ym} /></td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(r.revenue)}</td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">{r.prevRevenue > 0 ? formatKRWLong(r.prevRevenue) : "—"}</td>
                       <td className={`py-2 text-right tabular-nums ${cls}`}>
@@ -521,7 +522,7 @@ function SourceSection({
 }
 
 // 직원/링커 단위 실적 표 (직거래처용)
-function PerfTable({ rows, keyLabel }: { rows: PerfRow[]; keyLabel: string }) {
+function PerfTable({ rows, keyLabel, ym }: { rows: PerfRow[]; keyLabel: string; ym: string }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -545,7 +546,7 @@ function PerfTable({ rows, keyLabel }: { rows: PerfRow[]; keyLabel: string }) {
                   : "text-muted-foreground";
             return (
               <tr key={r.key} className="border-b last:border-0">
-                <td className="py-2 font-medium">{r.key}</td>
+                <td className="py-2 font-medium"><SalesRepLink rep={r.key} ym={ym} /></td>
                 <td className="py-2 text-right tabular-nums">{formatInt(r.customers)}개</td>
                 <td className="py-2 text-right tabular-nums">{formatKRWLong(r.revenue)}</td>
                 <td className="py-2 text-right tabular-nums text-muted-foreground">{r.prevRevenue > 0 ? formatKRWLong(r.prevRevenue) : "—"}</td>

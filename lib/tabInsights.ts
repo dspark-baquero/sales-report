@@ -30,6 +30,7 @@ import {
   customerYtdCompare,
 } from "./accountAnalysis";
 import { dealerCustomerChurn } from "./dealerAnalysis";
+import type { SalesRepProfile } from "./salesRepProfile";
 
 export type Severity = "critical" | "warn" | "info" | "positive";
 
@@ -520,6 +521,66 @@ export function computeB2BSummaryInsights(cube: FactCube, ym: string): InsightBu
   const agPrev = typePrev.get("대리점")?.revenue ?? 0;
   const agTb = totalChangeBullet(agCur, agPrev, "전월", "대리점 전체");
   if (agTb) out.push(agTb);
+
+  return rankBullets(out).slice(0, 6);
+}
+
+// ── 영업사원 상세 페이지 ─────────────────────────────────
+// 목표 달성률(월·누적) + 전월 대비 + 거래처 신규/이탈 휴리스틱. LLM 없음(§3.4).
+export function computeSalesRepInsights(profile: SalesRepProfile): InsightBullet[] {
+  const out: InsightBullet[] = [];
+  const { summary, dealer, achievement } = profile;
+
+  if (achievement) {
+    if (achievement.monthRate !== null) {
+      const sev: Severity =
+        achievement.monthRate >= 1 ? "positive" : achievement.monthRate >= 0.7 ? "info" : "warn";
+      out.push({
+        severity: sev,
+        category: "이번달 목표",
+        text: `이번달 달성률 ${formatPctAbs(achievement.monthRate, 1)} (실적 ${formatKRWShort(achievement.monthActual)} / 목표 ${formatKRWShort(achievement.monthTarget)})`,
+        weight: Math.abs(achievement.monthActual - achievement.monthTarget),
+      });
+    }
+    if (achievement.ytdRate !== null) {
+      const sev: Severity =
+        achievement.ytdRate >= 1 ? "positive" : achievement.ytdRate >= 0.7 ? "info" : "warn";
+      out.push({
+        severity: sev,
+        category: "누적 목표",
+        text: `연 누적 달성률 ${formatPctAbs(achievement.ytdRate, 1)} (실적 ${formatKRWShort(achievement.ytdActual)} / 목표 ${formatKRWShort(achievement.ytdTarget)})`,
+        weight: Math.abs(achievement.ytdActual - achievement.ytdTarget),
+      });
+    }
+  }
+
+  if (summary && summary.prevTotal > 0) {
+    const diff = summary.total - summary.prevTotal;
+    const pct = diff / Math.abs(summary.prevTotal);
+    out.push({
+      severity: diff >= 0 ? "positive" : "warn",
+      category: "전월 대비",
+      text: `통합 실매출 ${formatKRWShort(summary.total)} · 전월 대비 ${diff >= 0 ? "+" : ""}${formatKRWShort(diff)} (${formatPct(pct, Math.abs(pct) >= 1 ? 0 : 1)})`,
+      weight: Math.abs(diff),
+    });
+  }
+
+  if (dealer.newCustomers.length > 0) {
+    out.push({
+      severity: "positive",
+      category: "거래처 변동",
+      text: `직거래처 신규 ${dealer.newCustomers.length}곳 진입`,
+      weight: dealer.newCustomers.length,
+    });
+  }
+  if (dealer.lostCustomers.length > 0) {
+    out.push({
+      severity: "warn",
+      category: "거래처 변동",
+      text: `직전 3개월 거래 ${dealer.lostCustomers.length}곳이 이번달 매출 0`,
+      weight: dealer.lostCustomers.length,
+    });
+  }
 
   return rankBullets(out).slice(0, 6);
 }
