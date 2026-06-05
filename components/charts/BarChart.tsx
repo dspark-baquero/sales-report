@@ -21,6 +21,9 @@ export type LineOverlay = {
   symbol?: "diamond" | "circle" | "rect" | "triangle";
 };
 
+// X축 카테고리 라벨 아래 한 줄 더 표기 (예: 월별 달성률). tone으로 색상 구분.
+export type XAxisSubLabel = { text: string; tone: "good" | "warn" | "bad" };
+
 type BarChartProps = {
   categories: string[];
   series: BarSeries[];
@@ -34,6 +37,8 @@ type BarChartProps = {
   lineOverlays?: LineOverlay[]; // 막대 위에 겹쳐 그리는 라인 (vertical only)
   // categories가 거래처명일 때 ym을 전달하면 막대/카테고리 라벨 클릭 시 거래처 분석으로 이동
   customerLinkMonth?: string;
+  // X축 라벨 아래 보조 라벨 (예: 월별 달성률). categories와 같은 길이, 없는 항목은 null. (vertical only)
+  xAxisSubLabels?: (XAxisSubLabel | null)[];
 };
 
 export function BarChart({
@@ -48,6 +53,7 @@ export function BarChart({
   showStackTotals,
   lineOverlays,
   customerLinkMonth,
+  xAxisSubLabels,
 }: BarChartProps) {
   const fmt = formatter ?? formatKRWLong;
   const axisFmt = formatKRWShort;
@@ -186,7 +192,25 @@ export function BarChart({
         },
         xAxis: horizontal
           ? { type: "value", axisLabel: { formatter: (v: number) => axisFmt(v) }, name: yLabel }
-          : { type: "category", data: categories, axisLabel: { interval: 0, rotate: categories.length > 8 ? -25 : 0 } },
+          : {
+              type: "category",
+              data: categories,
+              axisLabel: xAxisSubLabels
+                ? {
+                    interval: 0,
+                    // 보조 라벨(달성률)을 두 줄로 표기하므로 회전하지 않음.
+                    formatter: (value: string, index: number) => {
+                      const sub = xAxisSubLabels[index];
+                      return sub ? `${value}\n{${sub.tone}|${sub.text}}` : value;
+                    },
+                    rich: {
+                      good: { fontSize: 10, fontWeight: 600, color: "#047857", padding: [3, 0, 0, 0] },
+                      warn: { fontSize: 10, fontWeight: 600, color: "#d97706", padding: [3, 0, 0, 0] },
+                      bad: { fontSize: 10, fontWeight: 600, color: "#e11d48", padding: [3, 0, 0, 0] },
+                    },
+                  }
+                : { interval: 0, rotate: categories.length > 8 ? -25 : 0 },
+            },
         yAxis: horizontal
           ? { type: "category", data: categories, inverse: true }
           : { type: "value", axisLabel: { formatter: (v: number) => axisFmt(v) }, name: yLabel },

@@ -3,9 +3,10 @@
 // achievement 가 주어지면 차트 옆에 누적 목표/실적/달성률 사이드 패널 노출.
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BarChart, type LineOverlay } from "@/components/charts/BarChart";
+import { BarChart, type LineOverlay, type XAxisSubLabel } from "@/components/charts/BarChart";
 import { YTDAchievementPanel } from "@/components/YTDAchievementPanel";
 import { ytdMonthLabels } from "@/lib/ytd";
+import { buildAchievement, formatPctAbs } from "@/lib/format";
 import type { YTDSeries, YTDAchievement } from "@/lib/ytd";
 
 type Props = {
@@ -60,6 +61,21 @@ export function YearToDateChart({
     });
   }
 
+  // 각 월 라벨 아래 그 달의 달성률(스택 실적 합 / 그 달 목표) 표기.
+  // 목표가 있는 달만 표기, 색상은 달성 상태로 구분.
+  let xAxisSubLabels: (XAxisSubLabel | null)[] | undefined;
+  if (monthlyTargets && monthlyTargets.some((v) => v > 0)) {
+    xAxisSubLabels = labels.map((_, i) => {
+      const target = monthlyTargets[i] ?? 0;
+      const actual = series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0);
+      const ach = buildAchievement(actual, target);
+      if (ach.status === "no-target" || ach.rate === null) return null;
+      const tone: XAxisSubLabel["tone"] =
+        ach.status === "underperform" ? "bad" : ach.status === "ontrack" ? "warn" : "good";
+      return { text: formatPctAbs(ach.rate, 0), tone };
+    });
+  }
+
   const chart = hasData ? (
     <BarChart
       categories={labels}
@@ -74,6 +90,7 @@ export function YearToDateChart({
       showValueLabels={false}
       showStackTotals
       lineOverlays={overlays.length > 0 ? overlays : undefined}
+      xAxisSubLabels={xAxisSubLabels}
     />
   ) : (
     <div className="text-sm text-muted-foreground py-12 text-center">
