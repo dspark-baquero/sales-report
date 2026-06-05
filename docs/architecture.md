@@ -58,6 +58,7 @@ sales-report/
 │   ├── page.tsx                  # 종합 대시보드
 │   ├── login/                    # Google 로그인
 │   ├── api/auth/[...nextauth]/   # NextAuth API 라우트
+│   ├── api/refresh/              # 캐시 무효화 엔드포인트 (토큰 보호, 관리자/자동화)
 │   ├── targets/                  # 목표달성 탭
 │   ├── export/                   # 해외영업 탭
 │   ├── b2b-summary/              # B2B종합 탭 (영업사원별 통합, 화이트리스트)
@@ -70,6 +71,7 @@ sales-report/
 │   ├── accounts/                 # 거래처 분석 탭
 │   ├── insights/                 # 심층 분석 탭
 │   ├── non-revenue/              # 비매출 출고 탭
+│   ├── sales-rep/                # 영업사원 상세 (B2B종합에서 이름 클릭, 별도 메뉴 없음)
 │   └── */loading.tsx             # 각 탭별 스켈레톤 로딩 UI
 │
 ├── lib/                          # 비즈니스 로직
@@ -88,6 +90,7 @@ sales-report/
 │   ├── accountAnalysis.ts        # 거래처 심층 분석
 │   ├── dealerAnalysis.ts         # 딜러(영업사원) 심층 분석
 │   ├── salesRepSummary.ts        # 영업사원별 4개 소스 통합 집계 (B2B종합)
+│   ├── salesRepProfile.ts        # 영업사원 1명 상세 프로파일 (sales-rep, 기존 함수 조합)
 │   ├── baquerohouse-data.ts      # 바크로하우스 파트너/추천매출 (BigQuery 외부 테이블)
 │   ├── changeAttribution.ts      # 변화 요인 분해
 │   ├── ytd.ts                    # Year-to-Date 시리즈
@@ -116,7 +119,10 @@ sales-report/
 │   ├── LoadingProgress.tsx       # 로딩 프로그레스 바
 │   ├── Skeleton.tsx              # 스켈레톤 UI
 │   ├── TopProductsTable.tsx      # 상위 제품 공유 테이블
-│   ├── YearToDateChart.tsx       # YTD 누적 스택 차트
+│   ├── CustomerLink.tsx          # 거래처명 → 거래처 분석 링크
+│   ├── SalesRepLink.tsx          # 영업사원명 → 영업사원 상세 링크
+│   ├── PrintButton.tsx / RefreshButton.tsx  # 인쇄 / 관리자 데이터 새로고침
+│   ├── YearToDateChart.tsx       # YTD 누적 스택 차트 (월별 목표·전년 오버레이 + 월별 달성률 라벨)
 │   ├── TargetGauge.tsx           # 목표 달성률 게이지
 │   └── AnnualProgressCard.tsx    # 연간 목표 진도
 │
@@ -227,6 +233,8 @@ sales-report/
 | `/insights` | 심층 분석 | 분석팀 | 데이터 품질 + 거래처 집중도 + 히트맵 + 할인율/수수료 + 신제품/이탈 SKU + 이상치 |
 | `/non-revenue` | 비매출 출고 | 운영 | 증정/임직원/마케팅 등 매출 0 출고 (사업형태·거래처·제품 분해) |
 
+> ※ `/sales-rep`(영업사원 상세)은 탭 메뉴에 없는 숨김 페이지 — B2B종합에서 영업사원 이름 클릭으로만 진입(B2B종합과 동일 권한).
+
 ### 각 탭 공통 패턴
 
 1. `<TabInsights>` — 상단 자동 인사이트 불릿 (5~7개)
@@ -246,6 +254,7 @@ loadMonthRows(ym)   → SalesRow[] (한 달치 원본 행)
 loadRangeRows(from, to) → SalesRow[] (기간 범위)
 loadTargets()       → TargetRow[]
 loadDealerTargets() → DealerTargetRow[]
+invalidateCache()   → 인메모리 캐시 비움 (관리자 새로고침 버튼 / /api/refresh)
 ```
 
 ### aggregate.ts — KPI 계산
@@ -296,6 +305,16 @@ directDealerRows / agencyByManagerRows / linkerRows / bhByRepRows  → 소스별
 
 대리점 담당자는 `customerToLatestDealer`(최신 날짜 딜러)로 결정 — 담당자 이관 반영.
 
+### salesRepProfile.ts — 영업사원 1명 상세 (sales-rep)
+
+```
+buildSalesRepProfile(cube, rep, ym, prevYM, deps)
+  → { summary, dealer(직거래처 deep dive), achievement(월·누적 목표),
+      agency, linkers, bh, ytd(월별 실적·목표·전년·누적 달성도) }
+```
+
+기존 함수(`repSummaryRows`/`dealerProfile`/`agencyByManagerRows`/`linkerRows`/`bhByRepRows`/`buildDealerAchievements`)만 조합 — raw 스캔 없음. `dealerProfile`은 dealer raw 기준(직거래처·거래처 동향·유형 믹스), salesRepSummary 함수들은 manager 귀속 기준(소스별 합산). B2B종합에서 영업사원 이름 클릭 → `/sales-rep?rep=&month=`(`SalesRepLink`).
+
 ---
 
 ## 7. KPI 정의
@@ -341,7 +360,7 @@ directDealerRows / agencyByManagerRows / linkerRows / bhByRepRows  → 소스별
 | 그룹 | 채널 |
 |------|------|
 | 자사 공식몰 | 레노덤/엑스비앙스/헤이우 공식몰·스마트스토어, 바크로하우스 |
-| 종합몰 | W컨셉, SSG, 쿠팡, 쿠팡 로켓, 쿠팡 그로스, 큐텐, 화해 |
+| 종합몰 | W컨셉, SSG, 쿠팡, 쿠팡 로켓, 쿠팡 그로스, 큐텐, 화해, 에이블리 |
 | 소호몰 | 소호몰 |
 | 임직원/패밀리 | 바크로패밀리, 헤메코랩 |
 
@@ -360,6 +379,7 @@ directDealerRows / agencyByManagerRows / linkerRows / bhByRepRows  → 소스별
 - `middleware.ts`에서 미인증 시 `/login`으로 리다이렉트
 - **탭 접근 제한**: `config/access.ts` 화이트리스트 — B2B종합(`/b2b-summary`) 탭은 지정 이메일(9명)만, 그 외 탭은 도메인 전체 공개. 비인가 시 자물쇠 아이콘 + 권한 카드
 - **접속 로깅**: `events.signIn`에서 로그인 시 이메일·시각을 구조화 JSON으로 stdout 기록 → Cloud Logging(`jsonPayload.event="login"`). JWT 세션이라 실제 로그인 시점에만 발생
+- **관리자 기능**: `config/access.ts`의 `isAdmin`(`ADMIN_EMAILS`) 사용자는 헤더 버튼으로 BigQuery 인메모리 캐시를 무효화(데이터 새로고침). 토큰 보호 엔드포인트 `/api/refresh`(env `REFRESH_TOKEN`)는 미들웨어 예외로 두어 스크립트/자동화에서 호출 가능
 
 ---
 
@@ -433,6 +453,8 @@ git push (main) → Cloud Run 소스 기반 자동 빌드 → Docker 이미지 �
 4. `npm run check` — 데이터 정합성 검사 (미등록 채널/브랜드 확인)
 5. `git push` → Cloud Run 자동 배포
 6. `?month=YYYY-MM` 접속하여 확인
+
+> 코드 변경 없이 **데이터만 갱신**한 경우 재배포 불필요 — 관리자 새로고침 버튼 또는 `/api/refresh` 호출로 인메모리 캐시만 비우면 즉시 반영(인스턴스가 여러 개면 인스턴스별 캐시이므로 최대 인스턴스 1 권장 또는 재배포로 전체 교체).
 
 ---
 
