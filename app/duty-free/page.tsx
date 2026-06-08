@@ -341,7 +341,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
                         ? "text-muted-foreground"
                         : ach.status === "underperform"
                           ? "text-rose-700"
-                          : ach.status === "ontrack"
+                          : ach.status === "shortfall"
                             ? "text-amber-600"
                             : "text-emerald-700";
                     return (

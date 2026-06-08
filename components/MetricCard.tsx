@@ -154,7 +154,8 @@ export function MetricCard({
                       className={cn(
                         "text-base font-bold tabular-nums",
                         ach.status === "underperform" && "text-rose-600",
-                        ach.status === "ontrack" && "text-amber-600",
+                        ach.status === "shortfall" && "text-amber-600",
+                        ach.status === "ontrack" && "text-emerald-600",
                         ach.status === "near" && "text-emerald-600",
                         ach.status === "overperform" && "text-emerald-700",
                       )}

@@ -17,6 +17,7 @@ export function TargetGauge({ title, actual, target, hint, className }: TargetGa
   const statusLabel: Record<typeof ach.status, string> = {
     "no-target": "목표 미설정",
     underperform: "심각 미달",
+    shortfall: "미달",
     ontrack: "정상 진행",
     near: "근접 달성",
     overperform: "초과 달성",
@@ -24,7 +25,8 @@ export function TargetGauge({ title, actual, target, hint, className }: TargetGa
   const statusVariant: Record<typeof ach.status, "muted" | "negative" | "warn" | "positive"> = {
     "no-target": "muted",
     underperform: "negative",
-    ontrack: "warn",
+    shortfall: "warn",
+    ontrack: "positive",
     near: "positive",
     overperform: "positive",
   };

@@ -71,7 +71,7 @@ export function YearToDateChart({
       const ach = buildAchievement(actual, target);
       if (ach.status === "no-target" || ach.rate === null) return null;
       const tone: XAxisSubLabel["tone"] =
-        ach.status === "underperform" ? "bad" : ach.status === "ontrack" ? "warn" : "good";
+        ach.status === "underperform" ? "bad" : ach.status === "shortfall" ? "warn" : "good";
       return { text: formatPctAbs(ach.rate, 0), tone };
     });
   }

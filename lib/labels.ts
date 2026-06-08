@@ -56,6 +56,7 @@ export const CHANGE_TYPE_LABEL = {
 export const ACHIEVEMENT_STATUS_LABEL = {
   "no-target": "목표 미설정",
   underperform: "심각 미달",
+  shortfall: "미달",
   ontrack: "정상 진행",
   near: "근접 달성",
   overperform: "초과 달성",
@@ -69,7 +70,8 @@ export const STATUS_COLOR = {
   warn: "text-amber-600",
   highlight: "text-violet-600",
   underperform: "bg-rose-50 text-rose-700 border-rose-200",
-  ontrack: "bg-amber-50 text-amber-700 border-amber-200",
+  shortfall: "bg-amber-50 text-amber-700 border-amber-200",
+  ontrack: "bg-emerald-50 text-emerald-700 border-emerald-200",
   near: "bg-emerald-50 text-emerald-700 border-emerald-200",
   overperform: "bg-emerald-100 text-emerald-800 border-emerald-300",
   noTarget: "bg-neutral-50 text-neutral-500 border-neutral-200",

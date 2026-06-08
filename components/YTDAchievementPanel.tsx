@@ -16,6 +16,7 @@ type Props = {
 const STATUS_LABEL = {
   "no-target": "목표 미설정",
   underperform: "심각 미달",
+  shortfall: "미달",
   ontrack: "정상 진행",
   near: "근접 달성",
   overperform: "초과 달성",
@@ -24,7 +25,8 @@ const STATUS_LABEL = {
 const STATUS_VARIANT = {
   "no-target": "muted",
   underperform: "negative",
-  ontrack: "warn",
+  shortfall: "warn",
+  ontrack: "positive",
   near: "positive",
   overperform: "positive",
 } as const;
@@ -32,7 +34,8 @@ const STATUS_VARIANT = {
 const RATE_COLOR = {
   "no-target": "text-muted-foreground",
   underperform: "text-rose-600",
-  ontrack: "text-amber-600",
+  shortfall: "text-amber-600",
+  ontrack: "text-emerald-600",
   near: "text-emerald-600",
   overperform: "text-emerald-700",
 } as const;

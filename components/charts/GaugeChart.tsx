@@ -15,7 +15,7 @@ export function GaugeChart({ rate, height = 220, label }: GaugeChartProps) {
       ? [[1, "#94a3b8"]]
       : [
           [0.7 / 1.5, "#f43f5e"],
-          [1.0 / 1.5, "#f59e0b"],
+          [0.85 / 1.5, "#f59e0b"],
           [1.5 / 1.5, "#10b981"],
         ];
   return (

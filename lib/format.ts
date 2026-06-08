@@ -176,10 +176,11 @@ export function buildChange(
 // ── 달성률 ────────────────────────────────────────────
 export type AchievementStatus =
   | "no-target"      // 목표 0 또는 미설정
-  | "underperform"   // <70%
-  | "ontrack"        // 70%-100%
-  | "near"           // 95%-100%
-  | "overperform";   // >100%
+  | "underperform"   // <70%   심각 미달
+  | "shortfall"      // 70%-85% 미달
+  | "ontrack"        // 85%-95% 정상 진행
+  | "near"           // 95%-100% 근접 달성
+  | "overperform";   // >=100% 초과 달성
 
 export type AchievementView = {
   actual: number;
@@ -207,7 +208,8 @@ export function buildAchievement(actual: number, target: number): AchievementVie
   let status: AchievementStatus;
   if (rate >= 1) status = "overperform";
   else if (rate >= 0.95) status = "near";
-  else if (rate >= 0.7) status = "ontrack";
+  else if (rate >= 0.85) status = "ontrack";
+  else if (rate >= 0.7) status = "shortfall";
   else status = "underperform";
   const diff = actual - target;
   const diffText =
