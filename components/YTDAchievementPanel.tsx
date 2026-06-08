@@ -4,13 +4,14 @@
 // 차트가 흐름을 보여주는 동안 이 패널은 "지금까지 얼마나 진척" 한 줄 요약.
 
 import { Badge } from "@/components/ui/badge";
-import { buildAchievement, formatKRWLong } from "@/lib/format";
+import { buildAchievement, buildChange, formatKRWLong } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import type { YTDAchievement } from "@/lib/ytd";
 
 type Props = {
   achievement: YTDAchievement;
   caption?: string;
+  prevYearActual?: number;   // 전년 동기 누적 실적. 있으면 전년 대비 비교 표시.
 };
 
 const STATUS_LABEL = {
@@ -40,10 +41,33 @@ const RATE_COLOR = {
   overperform: "text-emerald-700",
 } as const;
 
-export function YTDAchievementPanel({ achievement, caption }: Props) {
+const CHANGE_COLOR = {
+  up: "text-emerald-600",
+  new: "text-emerald-600",
+  down: "text-rose-600",
+  lost: "text-rose-600",
+  flat: "text-muted-foreground",
+  na: "text-muted-foreground",
+} as const;
+
+const CHANGE_ARROW = {
+  up: "▲",
+  new: "▲",
+  down: "▼",
+  lost: "▼",
+  flat: "●",
+  na: "●",
+} as const;
+
+export function YTDAchievementPanel({ achievement, caption, prevYearActual }: Props) {
   const { ytdActual, ytdTarget, monthsElapsed } = achievement;
   const ach = buildAchievement(ytdActual, ytdTarget);
   const range = monthsElapsed === 1 ? "1월" : `1월~${monthsElapsed}월`;
+
+  const prevYearChange =
+    prevYearActual != null && prevYearActual > 0
+      ? buildChange(ytdActual, prevYearActual, "전년 동기")
+      : null;
 
   return (
     <div className="flex flex-col justify-center gap-3 rounded-md border bg-muted/30 px-4 py-4 h-full avoid-break">
@@ -66,6 +90,21 @@ export function YTDAchievementPanel({ achievement, caption }: Props) {
         <div className="text-[11px] text-muted-foreground">누적 실적</div>
         <div className="text-base font-semibold tabular-nums">{formatKRWLong(ytdActual)}</div>
       </div>
+
+      {prevYearChange && (
+        <div className="space-y-1">
+          <div className="text-[11px] text-muted-foreground">전년 동기 누적</div>
+          <div className="text-sm font-medium tabular-nums">{formatKRWLong(prevYearChange.prev)}</div>
+          <div
+            className={cn(
+              "text-[11px] font-medium tabular-nums",
+              CHANGE_COLOR[prevYearChange.direction],
+            )}
+          >
+            {CHANGE_ARROW[prevYearChange.direction]} {prevYearChange.diffText} · {prevYearChange.pctText}
+          </div>
+        </div>
+      )}
 
       <div className="pt-2 border-t">
         <div className="text-[11px] text-muted-foreground">달성률</div>

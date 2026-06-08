@@ -109,7 +109,15 @@ export function YearToDateChart({
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-3">{chart}</div>
             <div className="lg:col-span-1">
-              <YTDAchievementPanel achievement={achievement} caption={achievementLabel} />
+              <YTDAchievementPanel
+                achievement={achievement}
+                caption={achievementLabel}
+                prevYearActual={
+                  prevYearValues && prevYearValues.some((v) => v > 0)
+                    ? prevYearValues.reduce((a, b) => a + b, 0)
+                    : undefined
+                }
+              />
             </div>
           </div>
         ) : (
