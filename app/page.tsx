@@ -108,9 +108,11 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   const agencyCur = cur.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
   const agencyPrevMo = prevMo.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
+  const agencyPrevYr = prevYr.filter((r) => !r.isNonRevenue && agencyFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
 
   const bhCur = cur.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
   const bhPrevMo = prevMo.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
+  const bhPrevYr = prevYr.filter((r) => !r.isNonRevenue && bhFilter(r)).reduce((s, r) => s + r.realRevenue, 0);
 
   // 채널별 목표 (prospective 제외)
   const { targetsForMonthWithProspective } = await import("@/lib/targets");
@@ -267,6 +269,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           current={catCur["B2B"] - agencyCur}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2B"] - agencyPrevMo },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2B"] - agencyPrevYr },
           ]}
           target={b2bTarget > 0 ? { value: b2bTarget, label: "B2B 목표" } : undefined}
         />
@@ -275,6 +278,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           current={agencyCur}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: agencyPrevMo },
+            { label: COMPARE_LABEL.prevYear, prev: agencyPrevYr },
           ]}
           target={agencyTarget > 0 ? { value: agencyTarget, label: "대리점 목표" } : undefined}
         />
@@ -283,6 +287,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           current={catCur["B2C"] - bhCur}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2C"] - bhPrevMo },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2C"] - bhPrevYr },
           ]}
           target={b2cTarget > 0 ? { value: b2cTarget, label: "B2C 목표" } : undefined}
         />
@@ -291,6 +296,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           current={bhCur}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: bhPrevMo },
+            { label: COMPARE_LABEL.prevYear, prev: bhPrevYr },
           ]}
           target={bhTarget > 0 ? { value: bhTarget, label: "바크로하우스 목표" } : undefined}
         />
@@ -299,6 +305,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           current={catCur["면세점"]}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["면세점"] },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["면세점"] },
           ]}
           target={dutyTarget > 0 ? { value: dutyTarget, label: "면세점 목표" } : undefined}
         />
@@ -307,6 +314,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           current={catCur["수출"]}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["수출"] },
+            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["수출"] },
           ]}
           target={exportTarget > 0 ? { value: exportTarget, label: "수출 목표" } : undefined}
         />
