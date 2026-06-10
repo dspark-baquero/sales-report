@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
@@ -5,6 +6,7 @@ import {
   ymMinusMonths,
   monthlyRevenueOf,
   topNProductsEnhanced,
+  topNCustomersWithPrev,
 } from "@/lib/aggregate";
 import { computeB2BInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
@@ -163,6 +165,13 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
     b2bNonAgencyRows(cur),
     b2bNonAgencyRows(prevMo),
     (r) => r.customer || null,
+  );
+
+  // 상위 20 거래처 (대리점 제외, 전월 비교)
+  const topCustomers = topNCustomersWithPrev(
+    b2bNonAgencyRows(cur),
+    b2bNonAgencyRows(prevMo),
+    20,
   );
 
   // 전년 동기 매출 + 월별 목표 (B2B 대리점 제외)
@@ -372,6 +381,58 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         hint="어느 거래처가 B2B 증감을 만들었는지 — 항목 클릭 시 거래처 분석으로 이동"
         customerLinkMonth={ym}
       />
+
+      {/* 상위 20 거래처 (대리점 제외) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>이번달 상위 20 거래처 (대리점 제외, 전월 비교)</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="px-4 pb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] text-muted-foreground border-b">
+                  <th className="py-2">거래처</th>
+                  <th className="py-2 text-right">이번달 실매출</th>
+                  <th className="py-2 text-right">전월 실매출</th>
+                  <th className="py-2 text-right">차이</th>
+                  <th className="py-2 text-right">변화율</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topCustomers.map((c, i) => {
+                  const ch = buildChange(c.current, c.prev, "전월");
+                  const cls =
+                    ch.direction === "up" || ch.direction === "new"
+                      ? "text-emerald-700"
+                      : ch.direction === "down" || ch.direction === "lost"
+                        ? "text-rose-700"
+                        : "text-muted-foreground";
+                  return (
+                    <tr key={c.customer} className="border-b last:border-0">
+                      <td className="py-2 font-medium">
+                        <span className="text-muted-foreground mr-1">{i + 1}</span>
+                        <Link
+                          href={`/accounts?customer=${encodeURIComponent(c.customer)}&month=${ym}`}
+                          className="hover:underline"
+                        >
+                          {c.customer}
+                        </Link>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{formatKRWLong(c.current)}</td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {c.prev > 0 ? formatKRWLong(c.prev) : "—"}
+                      </td>
+                      <td className={`py-2 text-right tabular-nums ${cls}`}>{ch.diffText}</td>
+                      <td className={`py-2 text-right tabular-nums ${cls}`}>{ch.pctText}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 신규/이탈 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
