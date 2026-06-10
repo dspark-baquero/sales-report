@@ -8,7 +8,7 @@ import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdCategoryDetailSeries, ytdAchievementOverall } from "@/lib/ytd";
 import { TargetGauge } from "@/components/TargetGauge";
-import { AnnualProgressCard } from "@/components/AnnualProgressCard";
+import { AnnualProgressSection } from "@/components/AnnualProgressSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -94,6 +94,55 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
     .filter((t) => ytdMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey))
     .reduce((s, t) => s + t.target, 0);
 
+  // ── 채널별 연 목표 진도 (종합탭 채널 카드와 동일 의미) ──
+  // 목표: 연간(1~12월) customerKey 합계 / 실적: YTD 카테고리 기반 실매출
+  const annualTargetRows = targets.filter(
+    (t) => annualMonthSet.has(t.yearMonth) && !isProspectiveKey(t.division, t.customerKey),
+  );
+  const sumAnnualTarget = (pred: (t: (typeof annualTargetRows)[number]) => boolean) =>
+    annualTargetRows.filter(pred).reduce((s, t) => s + t.target, 0);
+  const b2bTargetKeys = new Set(["병원", "피부관리실", "직거래처"]);
+  const b2cTargetKeys = new Set(["공식몰", "종합몰", "소호몰"]);
+
+  const ytdRev = ytdRangeRows.filter((r) => !r.isNonRevenue);
+  const sumRev = (pred: (r: (typeof ytdRev)[number]) => boolean) =>
+    ytdRev.filter(pred).reduce((s, r) => s + r.realRevenue, 0);
+  const agencyActual = sumRev((r) => r.category === "B2B" && r.b2bCustomerType === "대리점");
+  const bhActual = sumRev((r) => r.channel === "바크로하우스");
+
+  const channelProgress = [
+    {
+      title: "B2B",
+      ytdActual: sumRev((r) => r.category === "B2B") - agencyActual,
+      annualTarget: sumAnnualTarget((t) => t.division === "국내" && b2bTargetKeys.has(t.customerKey)),
+    },
+    {
+      title: "대리점",
+      ytdActual: agencyActual,
+      annualTarget: sumAnnualTarget((t) => t.customerKey === "대리점"),
+    },
+    {
+      title: "B2C",
+      ytdActual: sumRev((r) => r.category === "B2C") - bhActual,
+      annualTarget: sumAnnualTarget((t) => b2cTargetKeys.has(t.customerKey)),
+    },
+    {
+      title: "바크로하우스",
+      ytdActual: bhActual,
+      annualTarget: sumAnnualTarget((t) => t.customerKey === "바크로하우스"),
+    },
+    {
+      title: "면세점",
+      ytdActual: sumRev((r) => r.category === "면세점"),
+      annualTarget: sumAnnualTarget((t) => t.customerKey === "면세점"),
+    },
+    {
+      title: "수출",
+      ytdActual: sumRev((r) => r.category === "수출"),
+      annualTarget: sumAnnualTarget((t) => t.division === "해외"),
+    },
+  ];
+
   const prospective = monthRows.filter((t) => t.prospective && t.target > 0);
   const withTargetActive = monthRows.filter((t) => t.target > 0 && !t.prospective);
   const underperform = withTargetActive
@@ -114,34 +163,39 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
 
       <TabInsights bullets={insights} />
 
-      {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <AnnualProgressCard
-          title={`${yearStr}년 연 목표 진도`}
-          ytdActual={ytdActual}
-          annualTarget={annualTarget}
-          monthsElapsed={monthNum}
-          hint={`연 목표 ${formatKRWLong(annualTarget)} 중 ${monthNum}/12개월 진행`}
-        />
-        <TargetGauge
-          title="연 누적 달성률"
-          actual={ytdActual}
-          target={ytdTarget}
-          hint={`${yearStr}년 1~${monthNum}월 누적`}
-        />
-        <TargetGauge
-          title={`${qNumber}분기 누적`}
-          actual={periodQuarter.totalActual}
-          target={periodQuarter.totalTarget}
-          hint={periodQuarter.periodDesc}
-        />
-        <TargetGauge
-          title="이번달 종합"
-          actual={periodMonth.totalActual}
-          target={periodMonth.totalTarget}
-          hint={formatYM(ym)}
-        />
-      </div>
+      {/* 핵심 진척도 — 연간/연누적/이번분기/이번달 (연 목표 카드는 채널별 펼침 지원) */}
+      <AnnualProgressSection
+        overall={{
+          title: `${yearStr}년 연 목표 진도`,
+          ytdActual,
+          annualTarget,
+          hint: `연 목표 ${formatKRWLong(annualTarget)} 중 ${monthNum}/12개월 진행`,
+        }}
+        channels={channelProgress}
+        monthsElapsed={monthNum}
+        gauges={
+          <>
+            <TargetGauge
+              title="연 누적 달성률"
+              actual={ytdActual}
+              target={ytdTarget}
+              hint={`${yearStr}년 1~${monthNum}월 누적`}
+            />
+            <TargetGauge
+              title={`${qNumber}분기 누적`}
+              actual={periodQuarter.totalActual}
+              target={periodQuarter.totalTarget}
+              hint={periodQuarter.periodDesc}
+            />
+            <TargetGauge
+              title="이번달 종합"
+              actual={periodMonth.totalActual}
+              target={periodMonth.totalTarget}
+              hint={formatYM(ym)}
+            />
+          </>
+        }
+      />
 
       <YearToDateChart
         ym={ym}

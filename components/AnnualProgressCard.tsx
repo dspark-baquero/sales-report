@@ -10,6 +10,7 @@ type Props = {
   monthsElapsed: number;     // 1~12
   totalMonths?: number;       // 기본 12
   hint?: string;
+  footer?: React.ReactNode;   // 카드 하단 슬롯 (예: 채널별 펼치기 토글)
 };
 
 // 연 목표 대비 진도 카드 — 표준 게이지로는 4월 25%가 "미달"로 잘못 읽힘.
@@ -21,6 +22,7 @@ export function AnnualProgressCard({
   monthsElapsed,
   totalMonths = 12,
   hint,
+  footer,
 }: Props) {
   const achRate = annualTarget > 0 ? ytdActual / annualTarget : null;
   const timeRate = monthsElapsed / totalMonths;
@@ -141,6 +143,8 @@ export function AnnualProgressCard({
             </span>
           </div>
         )}
+
+        {footer}
       </CardContent>
     </Card>
   );
