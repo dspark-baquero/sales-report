@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatKRWLong, formatPctAbs } from "@/lib/format";
+import { formatKRWLong, formatKRWShort, formatPctAbs, buildChange } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
   monthsElapsed: number;     // 1~12
   totalMonths?: number;       // 기본 12
   hint?: string;
-  footer?: React.ReactNode;   // 카드 하단 슬롯 (예: 채널별 펼치기 토글)
+  prevYearActual?: number;    // 작년 동기간(1~동월) 누적 실적 → 작년 대비 페이스
 };
 
 // 연 목표 대비 진도 카드 — 표준 게이지로는 4월 25%가 "미달"로 잘못 읽힘.
@@ -22,7 +22,7 @@ export function AnnualProgressCard({
   monthsElapsed,
   totalMonths = 12,
   hint,
-  footer,
+  prevYearActual,
 }: Props) {
   const achRate = annualTarget > 0 ? ytdActual / annualTarget : null;
   const timeRate = monthsElapsed / totalMonths;
@@ -144,7 +144,29 @@ export function AnnualProgressCard({
           </div>
         )}
 
-        {footer}
+        {prevYearActual !== undefined && (() => {
+          const yoy = buildChange(ytdActual, prevYearActual, "작년 동기간", {
+            formatValue: formatKRWShort,
+            formatPrev: formatKRWLong,
+          });
+          const yoyColor =
+            yoy.direction === "up" || yoy.direction === "new"
+              ? "text-emerald-700"
+              : yoy.direction === "down" || yoy.direction === "lost"
+                ? "text-rose-700"
+                : "text-neutral-500";
+          return (
+            <div className="text-[11px] text-muted-foreground tabular-nums border-t pt-2">
+              <span className="text-[10px]">작년 대비 페이스</span>
+              <div className="mt-0.5">
+                작년 동기간 {prevYearActual > 0 ? formatKRWLong(prevYearActual) : "—"} 대비{" "}
+                <span className={cn(yoyColor, "font-medium")}>
+                  {yoy.diffText} ({yoy.pctText})
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );
