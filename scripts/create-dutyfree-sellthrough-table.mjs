@@ -50,16 +50,24 @@ async function main() {
   });
   console.log(`Created external table: ${datasetId}.${tableId} -> ${sheetUrl}`);
 
-  // 스키마 + 샘플 확인
+  // 스키마 확인 (메타데이터 — Drive 권한 불필요)
   const [meta] = await dataset.table(tableId).getMetadata();
   console.log(`\n=== ${tableId} columns ===`);
   for (const f of meta.schema.fields) console.log(`  ${f.name} (${f.type})`);
 
-  const [rows] = await bq.query(
-    `SELECT * FROM \`${projectId}.${datasetId}.${tableId}\` LIMIT 5`,
-  );
-  console.log(`\nSample (${rows.length} rows):`);
-  for (const r of rows) console.log(JSON.stringify(r));
+  // 샘플 조회는 시트 federation이라 Drive 스코프 필요 — 없으면 건너뜀(테이블 생성은 이미 성공).
+  try {
+    const [rows] = await bq.query(
+      `SELECT * FROM \`${projectId}.${datasetId}.${tableId}\` LIMIT 5`,
+    );
+    console.log(`\nSample (${rows.length} rows):`);
+    for (const r of rows) console.log(JSON.stringify(r));
+  } catch (e) {
+    console.warn(
+      `\n[샘플 조회 건너뜀] 테이블 생성은 완료. 시트 읽기는 Drive 권한 필요 — ` +
+        `배포 앱(서비스 계정)에서 정상 조회됩니다. (${e.message})`,
+    );
+  }
 }
 
 main().catch((err) => {
