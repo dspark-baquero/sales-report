@@ -3,12 +3,22 @@ import { resolveMonth } from "@/lib/months";
 import {
   kpi,
   ymMinusMonths,
+  enumerateMonths,
   monthlyRevenueOf,
   dailyRevenue,
   dailyCumulative,
   weeklyRevenue,
   topNProductsEnhanced,
 } from "@/lib/aggregate";
+import {
+  isSellThroughAvailable,
+  sellThroughMonths,
+  loadSellThroughMonth,
+  loadSellThroughRange,
+  aggregateByStore,
+  sellThroughTotal,
+  sellThroughMonthlyTotals,
+} from "@/lib/dutyfree-sellthrough";
 import { computeDutyFreeInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
@@ -45,6 +55,7 @@ import {
   formatInt,
   formatYM,
   formatPctAbs,
+  formatUSD,
   buildChange,
   buildAchievement,
 } from "@/lib/format";
@@ -150,6 +161,46 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
   const dutyMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
     rowFilter: (r) => r.category === "면세점",
   });
+
+  // ── 지코(Zico) 실판매 기반 매출 (sell-through) — 출고와 별개 독립 섹션 ──
+  const sellThrough = await (async () => {
+    if (!(await isSellThroughAvailable())) return null;
+    const months = await sellThroughMonths();
+    if (months.length === 0) return null;
+    const latest = months[months.length - 1];
+    const hasSelected = months.includes(ym);
+    const stMonth = hasSelected ? ym : latest; // 선택월 데이터 없으면 최신 실판매월로 폴백
+    const trendFrom = ymMinusMonths(stMonth, 11);
+    const [curRows, prevRows, prevYrRows, trendRows] = await Promise.all([
+      loadSellThroughMonth(stMonth),
+      loadSellThroughMonth(prevMonth(stMonth)),
+      loadSellThroughMonth(prevYearSameMonth(stMonth)),
+      loadSellThroughRange(trendFrom, stMonth),
+    ]);
+    const cur = sellThroughTotal(curRows);
+    const prev = sellThroughTotal(prevRows);
+    const prevYr = sellThroughTotal(prevYrRows);
+    const stores = aggregateByStore(curRows);
+    const prevStoreKrw = new Map(aggregateByStore(prevRows).map((s) => [s.store, s.krw]));
+    const totalsByMonth = sellThroughMonthlyTotals(trendRows);
+    const trendList = enumerateMonths(trendFrom, stMonth);
+    const activeStores = stores.filter((s) => s.krw > 0).length;
+    const prevActiveStores = aggregateByStore(prevRows).filter((s) => s.krw > 0).length;
+    return {
+      latest,
+      hasSelected,
+      stMonth,
+      cur,
+      prev,
+      prevYr,
+      stores,
+      prevStoreKrw,
+      totalsByMonth,
+      trendList,
+      activeStores,
+      prevActiveStores,
+    };
+  })();
 
   return (
     <div className="space-y-6">
@@ -433,6 +484,176 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
       </Card>
 
       <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (면세점)" ym={ym} />
+
+      {sellThrough && (
+        <section className="space-y-4">
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold tracking-tight">
+              지코 실판매 기반 매출{" "}
+              <span className="text-xs font-normal text-muted-foreground">(Sell-through)</span>
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              전체 면세점 기준은 우리 출고이며, 본 섹션은 지코(Zico)가 매월 전달하는 실제 판매 기반
+              매출입니다 (별도 집계 · 출고와 합산하지 않음).
+              {!sellThrough.hasSelected && (
+                <span className="text-amber-600">
+                  {" "}
+                  · {formatYM(ym)} 실판매 데이터가 아직 없어 최신 {formatYM(sellThrough.stMonth)} 기준으로
+                  표시합니다.
+                </span>
+              )}
+            </p>
+          </div>
+
+          {/* KPI */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              label={`실판매 매출 (${formatYM(sellThrough.stMonth)})`}
+              current={sellThrough.cur.krw}
+              comparisons={[
+                { label: COMPARE_LABEL.prevMonth, prev: sellThrough.prev.krw },
+                { label: COMPARE_LABEL.prevYear, prev: sellThrough.prevYr.krw },
+              ]}
+              hint={`달러 ${formatUSD(sellThrough.cur.usd)}`}
+              highlight
+            />
+            <MetricCard
+              label="실판매 수량"
+              current={sellThrough.cur.qty}
+              unit="qty"
+              comparisons={[
+                { label: COMPARE_LABEL.prevMonth, prev: sellThrough.prev.qty },
+                { label: COMPARE_LABEL.prevYear, prev: sellThrough.prevYr.qty },
+              ]}
+            />
+            <Card>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium">
+                  실판매 매출 (달러)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 pt-0">
+                <div className="text-2xl font-bold tabular-nums leading-tight">
+                  {formatUSD(sellThrough.cur.usd)}
+                </div>
+                {(() => {
+                  const ch = buildChange(sellThrough.cur.usd, sellThrough.prev.usd, "전월", {
+                    formatValue: formatUSD,
+                    formatPrev: formatUSD,
+                  });
+                  const cls =
+                    ch.direction === "up" || ch.direction === "new"
+                      ? "text-emerald-700"
+                      : ch.direction === "down" || ch.direction === "lost"
+                        ? "text-rose-700"
+                        : "text-muted-foreground";
+                  return (
+                    <div className="text-[11px] text-muted-foreground">
+                      전월 {sellThrough.prev.usd > 0 ? formatUSD(sellThrough.prev.usd) : "—"}
+                      <span className={`ml-1 font-medium ${cls}`}>
+                        {ch.diffText} ({ch.pctText})
+                      </span>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+            <MetricCard
+              label="활성 면세점 지점"
+              current={sellThrough.activeStores}
+              unit="raw"
+              unitSuffix="개"
+              hint="실판매 발생 지점"
+              comparisons={[
+                { label: COMPARE_LABEL.prevMonth, prev: sellThrough.prevActiveStores },
+              ]}
+            />
+          </div>
+
+          {/* 월별 실판매 매출 추이 (원화) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>실판매 매출 12개월 추이 (원화)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LineChart
+                categories={sellThrough.trendList.map((m) =>
+                  formatYM(m).replace("년 ", "/").replace("월", ""),
+                )}
+                series={[
+                  {
+                    name: "실판매 매출(₩)",
+                    values: sellThrough.trendList.map(
+                      (m) => sellThrough.totalsByMonth.get(m)?.krw ?? 0,
+                    ),
+                    color: "#f59e0b",
+                    area: true,
+                    smooth: true,
+                  },
+                ]}
+                height={280}
+                yLabel="실판매 매출"
+              />
+            </CardContent>
+          </Card>
+
+          {/* 면세점 지점별 (이번달) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>면세점 지점별 실판매 ({formatYM(sellThrough.stMonth)})</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="px-4 pb-4 overflow-x-auto">
+                {sellThrough.stores.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-4">실판매 데이터 없음</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[11px] text-muted-foreground border-b">
+                        <th className="py-2">면세점 지점</th>
+                        <th className="py-2 text-right">실판매 매출(₩)</th>
+                        <th className="py-2 text-right">비중</th>
+                        <th className="py-2 text-right">수량</th>
+                        <th className="py-2 text-right">달러</th>
+                        <th className="py-2 text-right">전월 대비</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sellThrough.stores.map((s) => {
+                        const pm = sellThrough.prevStoreKrw.get(s.store) ?? 0;
+                        const ch = buildChange(s.krw, pm, "전월");
+                        const cls =
+                          ch.direction === "up" || ch.direction === "new"
+                            ? "text-emerald-700"
+                            : ch.direction === "down" || ch.direction === "lost"
+                              ? "text-rose-700"
+                              : "text-muted-foreground";
+                        return (
+                          <tr key={s.store} className="border-b last:border-0">
+                            <td className="py-2 font-medium">{s.store}</td>
+                            <td className="py-2 text-right tabular-nums">{formatKRWLong(s.krw)}</td>
+                            <td className="py-2 text-right tabular-nums">
+                              {sellThrough.cur.krw > 0 ? formatPctAbs(s.krw / sellThrough.cur.krw) : "—"}
+                            </td>
+                            <td className="py-2 text-right tabular-nums">{formatInt(s.qty)}</td>
+                            <td className="py-2 text-right tabular-nums text-muted-foreground">
+                              {formatUSD(s.usd)}
+                            </td>
+                            <td className={`py-2 text-right tabular-nums ${cls}`}>
+                              <div>{ch.diffText}</div>
+                              <div className="text-[10px]">{ch.pctText}</div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

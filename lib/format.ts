@@ -73,6 +73,14 @@ export function formatKRWShort(n: number): string {
   return `${sign}${(v / ONE_JO).toFixed(2)}조원`;
 }
 
+// 달러 표기 (예: $24,733). 면세점 실판매 보조 통화 전용.
+export function formatUSD(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const negative = n < 0;
+  const v = Math.abs(Math.round(n));
+  return `${negative ? "-" : ""}$${formatComma(v)}`;
+}
+
 export function formatPct(p: number | null | undefined, digits = 1): string {
   if (p === null || p === undefined || !Number.isFinite(p)) return "—";
   const sign = p > 0 ? "+" : "";
