@@ -453,6 +453,31 @@ export function cubeCustomerSeries(
   return out;
 }
 
+// 제품의 N개월 시계열 (동일 제품명의 여러 품목코드 합산)
+export function cubeProductSeries(
+  cube: FactCube,
+  productName: string,
+  fromYM: string,
+  toYM: string,
+): { yearMonth: string; revenue: number; qty: number }[] {
+  const out: { yearMonth: string; revenue: number; qty: number }[] = [];
+  for (const ym of cube.monthsAsc) {
+    if (ym < fromYM || ym > toYM) continue;
+    let revenue = 0;
+    let qty = 0;
+    const pm = cube.byMonthProduct.get(ym);
+    if (pm) {
+      for (const cell of pm.values()) {
+        if (cell.productName !== productName) continue;
+        revenue += cell.revenue;
+        qty += cell.qty;
+      }
+    }
+    out.push({ yearMonth: ym, revenue, qty });
+  }
+  return out;
+}
+
 // 딜러의 N개월 시계열 + 활성 거래처 수
 export function cubeDealerSeries(
   cube: FactCube,

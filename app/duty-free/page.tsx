@@ -432,7 +432,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
         </CardContent>
       </Card>
 
-      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (면세점)" />
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (면세점)" ym={ym} />
     </div>
   );
 }

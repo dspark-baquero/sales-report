@@ -534,7 +534,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
         </Card>
       )}
 
-      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (바크로하우스)" />
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (바크로하우스)" ym={ym} />
     </div>
   );
 }

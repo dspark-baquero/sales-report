@@ -13,6 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CustomerLink } from "@/components/CustomerLink";
+import { ProductLink } from "@/components/ProductLink";
 import { BarChart } from "@/components/charts/BarChart";
 import { HeatmapChart } from "@/components/charts/HeatmapChart";
 import {
@@ -371,7 +372,9 @@ export default async function InsightsPage({ searchParams }: { searchParams: Sea
                         {r.date.toISOString().slice(0, 10)}
                       </td>
                       <td className="py-2"><CustomerLink customer={r.customer} ym={ym} /></td>
-                      <td className="py-2 max-w-[260px] truncate">{r.productName}</td>
+                      <td className="py-2 max-w-[260px] truncate">
+                        {r.productName ? <ProductLink productName={r.productName} ym={ym} /> : "—"}
+                      </td>
                       <td className="py-2 text-muted-foreground">{r.brand}</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(r.realRevenue)}</td>
                     </tr>

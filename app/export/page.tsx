@@ -400,7 +400,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
         </CardContent>
       </Card>
 
-      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (해외영업)" />
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (해외영업)" ym={ym} />
     </div>
   );
 }

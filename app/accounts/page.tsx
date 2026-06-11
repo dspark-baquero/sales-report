@@ -10,6 +10,7 @@ import {
 import { computeAccountsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { CustomerSelect } from "@/components/CustomerSelect";
+import { ProductLink } from "@/components/ProductLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { ytdCustomerSeries, ytdBrandForCustomerSeries, ytdMonthlyPrevYear } from "@/lib/ytd";
 import { MetricCard } from "@/components/MetricCard";
@@ -292,7 +293,7 @@ function CustomerPanel({
                       <td className="py-2 text-muted-foreground">{i + 1}</td>
                       <td className="py-2 max-w-[260px] truncate">
                         <span className="text-muted-foreground text-xs mr-1">[{p.brand}]</span>
-                        {p.name}
+                        <ProductLink productName={p.name} ym={ym} />
                       </td>
                       <td className="py-2 text-right tabular-nums">{formatInt(p.qty)}</td>
                       <td className="py-2 text-right tabular-nums">{formatKRWLong(p.revenue)}</td>
@@ -334,7 +335,7 @@ function CustomerPanel({
                       <tr key={s.name} className="border-b last:border-0">
                         <td className="py-2 max-w-[240px] truncate">
                           <span className="text-muted-foreground text-xs mr-1">[{s.brand}]</span>
-                          {s.name}
+                          <ProductLink productName={s.name} ym={ym} />
                         </td>
                         <td className="py-2 text-right tabular-nums">{formatKRWLong(s.revenue)}</td>
                       </tr>
@@ -369,7 +370,7 @@ function CustomerPanel({
                       <tr key={s.name} className="border-b last:border-0">
                         <td className="py-2 max-w-[240px] truncate">
                           <span className="text-muted-foreground text-xs mr-1">[{s.brand}]</span>
-                          {s.name}
+                          <ProductLink productName={s.name} ym={ym} />
                         </td>
                         <td className="py-2 text-right tabular-nums text-muted-foreground">
                           {formatKRWLong(s.prevAvg)}

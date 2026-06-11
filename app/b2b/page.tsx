@@ -539,7 +539,7 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
         </CardContent>
       </Card>
 
-      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (B2B, 대리점 제외)" />
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (B2B, 대리점 제외)" ym={ym} />
     </div>
   );
 }

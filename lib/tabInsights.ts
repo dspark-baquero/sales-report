@@ -30,6 +30,12 @@ import {
   customerYtdCompare,
 } from "./accountAnalysis";
 import { dealerCustomerChurn } from "./dealerAnalysis";
+import {
+  productMovers,
+  newProducts,
+  lostProducts,
+  productYtdCompare,
+} from "./productAnalysis";
 import type { SalesRepProfile } from "./salesRepProfile";
 
 export type Severity = "critical" | "warn" | "info" | "positive";
@@ -1141,6 +1147,81 @@ export function computeAccountsInsights(cube: FactCube, ym: string, customer: st
   }
 
   return rankBullets(out).slice(0, 5);
+}
+
+// ── 제품 분석 탭 인사이트 ────────────────────────────────
+// 휴리스틱:
+//   1. 전월 대비 최대 상승/하락 제품 (YTD 방향과 상충하면 info로 완충)
+//   2. 신규 제품 (직전 6개월 무거래 → 이번달 진입)
+//   3. 단종/이탈 제품 (지난 분기 상위인데 이번달 0)
+export function computeProductsInsights(cube: FactCube, ym: string, productName: string | null): InsightBullet[] {
+  if (!productName) {
+    const out: InsightBullet[] = [];
+    const movers = productMovers(cube, ym, prevMonth(ym), 3);
+    if (movers.gainers[0]) {
+      const g = movers.gainers[0];
+      const yc = productYtdCompare(cube, g.productName, ym);
+      const oppositeYtd = yc.diff < 0 && yc.prevYtd > 0;
+      out.push({
+        severity: oppositeYtd ? "info" : "positive",
+        category: "최대 상승",
+        text: `${g.productName} ${formatKRWShort(g.diff)} 증가`,
+        detail: oppositeYtd ? "월 상승이지만 YTD 누적은 하락 — 단발성 가능" : undefined,
+        weight: Math.abs(g.diff),
+      });
+    }
+    if (movers.decliners[0]) {
+      const d = movers.decliners[0];
+      const yc = productYtdCompare(cube, d.productName, ym);
+      const oppositeYtd = yc.diff > 0 && yc.prevYtd > 0;
+      out.push({
+        severity: oppositeYtd ? "info" : "warn",
+        category: "최대 하락",
+        text: `${d.productName} ${formatKRWShort(d.diff)} 감소`,
+        detail: oppositeYtd ? "월 하락이지만 YTD 누적은 상승 — 우려 낮음" : undefined,
+        weight: Math.abs(d.diff),
+      });
+    }
+    const lost = lostProducts(cube, ym, 10);
+    if (lost.length > 0) {
+      out.push({
+        severity: "critical",
+        category: "단종/이탈",
+        text: `지난 분기 상위 제품 중 ${lost.length}개가 이번달 매출 0 (Top: ${lost[0].productName})`,
+        weight: lost.reduce((s, l) => s + l.baselineRevenue, 0),
+      });
+    }
+    const fresh = newProducts(cube, ym, 6);
+    if (fresh.length > 0) {
+      out.push({
+        severity: "info",
+        category: "신규 진입",
+        text: `이번달 신규 제품 ${fresh.length}개 진입 (Top: ${fresh[0].productName} ${formatKRWShort(fresh[0].currentRevenue)})`,
+        weight: fresh[0].currentRevenue,
+      });
+    }
+    return rankBullets(out).slice(0, 5);
+  }
+
+  // 특정 제품 선택
+  const out: InsightBullet[] = [];
+  const cur = aggProductMonthRevenue(cube, ym, productName);
+  const prev = aggProductMonthRevenue(cube, prevMonth(ym), productName);
+  const prevYear = aggProductMonthRevenue(cube, prevYearSameMonth(ym), productName);
+  const tb = totalChangeBullet(cur, prev, "전월", productName);
+  if (tb) out.push(tb);
+  const yb = totalChangeBullet(cur, prevYear, "전년 동월", productName);
+  if (yb) out.push(yb);
+  return rankBullets(out).slice(0, 5);
+}
+
+// 제품명 기준 한 달치 매출 합 (동일명 다중 코드 합산)
+function aggProductMonthRevenue(cube: FactCube, ym: string, productName: string): number {
+  let rev = 0;
+  for (const cell of cube.byMonthProduct.get(ym)?.values() ?? []) {
+    if (cell.productName === productName) rev += cell.revenue;
+  }
+  return rev;
 }
 
 // ── 비매출 출고 탭 인사이트 ──────────────────────────────

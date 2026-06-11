@@ -1,5 +1,6 @@
 import type { TopProduct } from "@/lib/aggregate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProductLink } from "@/components/ProductLink";
 import {
   formatKRWLong,
   formatInt,
@@ -9,9 +10,11 @@ import {
 export function TopProductsTable({
   products,
   title,
+  ym,
 }: {
   products: TopProduct[];
   title: string;
+  ym: string;
 }) {
   if (products.length === 0) return null;
   return (
@@ -48,7 +51,7 @@ export function TopProductsTable({
                     <td className="py-2 text-muted-foreground">{i + 1}</td>
                     <td className="py-2 max-w-[400px] truncate">
                       <span className="text-muted-foreground text-xs mr-1">[{p.brand}]</span>
-                      {p.productName}
+                      <ProductLink productName={p.productName} ym={ym} />
                     </td>
                     <td className="py-2 text-right tabular-nums">{formatInt(p.qty)}</td>
                     <td className="py-2 text-right tabular-nums">{formatKRWLong(p.current)}</td>

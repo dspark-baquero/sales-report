@@ -603,7 +603,7 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
         </Card>
       </div>
 
-      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (대리점)" />
+      <TopProductsTable products={topProducts} title="이번달 상위 20 제품 (대리점)" ym={ym} />
     </div>
   );
 }

@@ -522,7 +522,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         hint="개별 제품(SKU) 단위 분해"
       />
 
-      <TopProductsTable products={topSkus} title={`이번달 상위 20 제품 — ${brand}`} />
+      <TopProductsTable products={topSkus} title={`이번달 상위 20 제품 — ${brand}`} ym={ym} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
