@@ -216,6 +216,25 @@ export function listProductsRanked(cube: FactCube): { productName: string; brand
     .sort((a, b) => b.totalRevenue - a.totalRevenue);
 }
 
+// ── 제품코드 → 제품명 해석 (URL ?productid= 진입용) ─────────
+// 큐브 byMonthProduct 셀의 productCode와 대소문자·공백 무시 매칭.
+// 같은 코드가 여러 제품명으로 나오면 매출이 큰 제품명을 채택.
+export function resolveProductByCode(cube: FactCube, code: string): string | null {
+  const target = code.trim().toLowerCase();
+  if (!target) return null;
+  const byName = new Map<string, number>();
+  for (const [, pm] of cube.byMonthProduct) {
+    for (const cell of pm.values()) {
+      if (!cell.productCode) continue;
+      if (cell.productCode.trim().toLowerCase() !== target) continue;
+      const name = cell.productName || cell.productCode;
+      byName.set(name, (byName.get(name) ?? 0) + cell.revenue);
+    }
+  }
+  if (byName.size === 0) return null;
+  return [...byName.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 // 이번달 매출 상위 제품 (큐브만, EmptyState 랭킹용)
 export function topProductsOfMonth(
   cube: FactCube,

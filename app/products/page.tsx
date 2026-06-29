@@ -9,6 +9,7 @@ import {
   productMovers,
   newProducts,
   lostProducts,
+  resolveProductByCode,
 } from "@/lib/productAnalysis";
 import { computeProductsInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
@@ -35,7 +36,7 @@ import {
 import type { FactCube } from "@/lib/facts";
 import type { SalesRow } from "@/lib/parsers";
 
-type SearchParams = Promise<{ month?: string; product?: string }>;
+type SearchParams = Promise<{ month?: string; product?: string; productcode?: string }>;
 
 // 채널 분포 색상 — 채널그룹 팔레트를 순환 사용.
 const CHANNEL_PALETTE = ["#0f172a", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#0ea5e9", "#9ca3af"];
@@ -452,7 +453,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
     totalRevenue: r.totalRevenue,
   }));
   const productSet = new Set(ranked.map((r) => r.productName));
-  const product = sp.product && productSet.has(sp.product) ? sp.product : null;
+  // ?product=제품명 우선, 없거나 못 찾으면 ?productcode=제품코드로 해석.
+  let product = sp.product && productSet.has(sp.product) ? sp.product : null;
+  if (!product && sp.productcode) {
+    const byCode = resolveProductByCode(cube, sp.productcode);
+    if (byCode && productSet.has(byCode)) product = byCode;
+  }
 
   const insights = computeProductsInsights(cube, ym, product);
 
