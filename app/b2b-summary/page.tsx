@@ -7,6 +7,7 @@ import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import { loadTargets } from "@/lib/targets";
 import {
+  ytdCategoryDetailSeries,
   ytdAchievementForCustomerKeys,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
@@ -99,11 +100,12 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
     bhAvailable ? loadBHSalesRange(fromYM, ym) : Promise.resolve([] as BHPartnerSale[]),
   ]);
 
-  // ── 올해 월별 매출 추이 (B2B + 대리점 합산) ──
-  // 대리점은 B2B 카테고리 안(b2bCustomerType==="대리점")에 포함되므로 차감 없이 B2B 전체.
+  // ── 올해 월별 매출 추이 (B2B + 대리점, 종합탭처럼 색상 구분 스택) ──
+  // 종합탭과 동일한 ytdCategoryDetailSeries 를 재사용해 B2B(대리점 제외)/대리점을
+  // 각각 다른 색으로 분리. 두 시리즈 스택 합 = B2B 카테고리 전체(직거래처+링커+대리점).
   const B2B_COMBO_KEYS = ["병원", "피부관리실", "직거래처", "대리점"];
-  const b2bComboYtdValues = ytdMonths.map(
-    (m) => cube.byMonthCategory.get(m)?.get("B2B")?.revenue ?? 0,
+  const b2bComboSeries = ytdCategoryDetailSeries(cube, ym).filter(
+    (s) => s.name === "B2B" || s.name === "대리점",
   );
   const b2bComboAch = ytdAchievementForCustomerKeys(
     ytdRows,
@@ -185,8 +187,8 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
       {/* ── 올해 월별 매출 추이 (B2B + 대리점 합산) ── */}
       <YearToDateChart
         ym={ym}
-        series={[{ name: "B2B+대리점", color: "#6366f1", values: b2bComboYtdValues }]}
-        caption="B2B 월별 매출 (대리점 포함)"
+        series={b2bComboSeries}
+        caption="B2B 월별 매출 (대리점 포함) — B2B / 대리점 색상 구분"
         achievement={b2bComboAch}
         achievementLabel="B2B (대리점 포함)"
         monthlyTargets={b2bComboMonthlyTargets}
