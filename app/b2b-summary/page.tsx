@@ -1,9 +1,16 @@
 import { loadFactCube, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { ymMinusMonths, monthlyRevenueOf, enumerateMonths } from "@/lib/aggregate";
-import { prevMonth } from "@/lib/compare";
+import { prevMonth, prevYearSameMonth } from "@/lib/compare";
 import { computeB2BSummaryInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { YearToDateChart } from "@/components/YearToDateChart";
+import { loadTargets } from "@/lib/targets";
+import {
+  ytdAchievementForCustomerKeys,
+  ytdMonthlyTargets,
+  ytdMonthlyPrevYear,
+} from "@/lib/ytd";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,9 +72,10 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
   const ym = await resolveMonth(sp.month);
   const prevYM = prevMonth(ym);
 
-  const [cube, dealerTargets, bhAvailable] = await Promise.all([
+  const [cube, dealerTargets, targets, bhAvailable] = await Promise.all([
     loadFactCube(),
     loadDealerTargets(),
+    loadTargets(),
     isBHDataAvailable(),
   ]);
 
@@ -78,14 +86,38 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
   const insights = computeB2BSummaryInsights(cube, ym);
 
   const fromYM = ymMinusMonths(ym, 11);
-  const annualStart = `${ym.split("-")[0]}-01`;
+  const yearStr = ym.split("-")[0];
+  const annualStart = `${yearStr}-01`;
   const ytdMonths = enumerateMonths(annualStart, ym);
+  const prevYearStart = `${Number(yearStr) - 1}-01`;
+  const prevYearEnd = prevYearSameMonth(ym);
 
-  const [rangeRows12, ytdRows, bhSalesTrend] = await Promise.all([
+  const [rangeRows12, ytdRows, prevYearRangeRows, bhSalesTrend] = await Promise.all([
     loadRangeRows(fromYM, ym),
     loadRangeRows(annualStart, ym),
+    loadRangeRows(prevYearStart, prevYearEnd),
     bhAvailable ? loadBHSalesRange(fromYM, ym) : Promise.resolve([] as BHPartnerSale[]),
   ]);
+
+  // ── 올해 월별 매출 추이 (B2B + 대리점 합산) ──
+  // 대리점은 B2B 카테고리 안(b2bCustomerType==="대리점")에 포함되므로 차감 없이 B2B 전체.
+  const B2B_COMBO_KEYS = ["병원", "피부관리실", "직거래처", "대리점"];
+  const b2bComboYtdValues = ytdMonths.map(
+    (m) => cube.byMonthCategory.get(m)?.get("B2B")?.revenue ?? 0,
+  );
+  const b2bComboAch = ytdAchievementForCustomerKeys(
+    ytdRows,
+    targets,
+    ym,
+    B2B_COMBO_KEYS,
+    (r) => r.category === "B2B",
+  );
+  const b2bComboMonthlyTargets = ytdMonthlyTargets(targets, ym, {
+    targetFilter: (t) => B2B_COMBO_KEYS.includes(t.customerKey),
+  });
+  const b2bComboPrevYear = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+    rowFilter: (r) => r.category === "B2B",
+  });
 
   // ── 통합 요약 ──
   const repRows = repSummaryRows(cube, partnerMap, bhSalesCur, bhSalesPrev, ym, prevYM);
@@ -149,6 +181,17 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
       </div>
 
       <TabInsights bullets={insights} />
+
+      {/* ── 올해 월별 매출 추이 (B2B + 대리점 합산) ── */}
+      <YearToDateChart
+        ym={ym}
+        series={[{ name: "B2B+대리점", color: "#6366f1", values: b2bComboYtdValues }]}
+        caption="B2B 월별 매출 (대리점 포함)"
+        achievement={b2bComboAch}
+        achievementLabel="B2B (대리점 포함)"
+        monthlyTargets={b2bComboMonthlyTargets}
+        prevYearValues={b2bComboPrevYear}
+      />
 
       {/* ── 통합 요약 KPI ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
