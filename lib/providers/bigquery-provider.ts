@@ -63,14 +63,25 @@ async function ensureLoaded(): Promise<Cached> {
     if (row) rows.push(row);
   }
 
+  // 빈 결과는 절대 캐시하지 않는다.
+  // 데이터 업데이트(WRITE_TRUNCATE 등)로 테이블이 잠시 비는 순간에 인스턴스가
+  // 조회하면 0행이 들어오는데, 이걸 캐시하면 이후 데이터가 복구돼도 인스턴스가
+  // 영구히 빈 큐브를 반환("월 데이터 없음" 에러)한다. 캐시하지 않고 throw 하면
+  // 다음 요청에서 다시 조회 → 데이터 복구 시 자동 회복(재배포 불필요).
   if (rows.length === 0) {
     console.error(
       `[bigquery-provider] 0 rows parsed from ${rawRows.length} raw rows. ` +
-      `Sample keys: ${rawRows[0] ? Object.keys(rawRows[0]).join(", ") : "(empty)"}`,
+      `Sample keys: ${rawRows[0] ? Object.keys(rawRows[0]).join(", ") : "(empty)"} — ` +
+      `캐시하지 않고 에러 반환(다음 요청에서 재조회).`,
     );
-  } else {
-    console.log(`[bigquery-provider] ${rows.length} rows loaded from BigQuery`);
+    throw new Error(
+      `BigQuery에서 매출 행을 0개 로드했습니다 (raw ${rawRows.length}행). ` +
+      `데이터 업데이트 중 테이블이 비었거나 스키마가 변경됐을 수 있습니다. ` +
+      `잠시 후 재시도하면 자동 회복됩니다.`,
+    );
   }
+
+  console.log(`[bigquery-provider] ${rows.length} rows loaded from BigQuery`);
 
   const byMonth = new Map<string, SalesRow[]>();
   for (const r of rows) {
