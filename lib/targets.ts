@@ -244,6 +244,18 @@ const SOUTHEAST_ASIA_EXCL_VN = new Set([
   "브루나이",
 ]);
 
+// 일본(돈키호테) 판정 — 매출은 벤더사 K-Labo(제이랩)를 경유하므로 거래처명이
+// "돈키호테"가 아니라 벤더사명으로 들어온다. 돈키호테 규칙과 일반 "일본" 규칙이
+// 이 함수를 공유해, 돈키호테로 잡힌 행이 일본에도 이중 집계되지 않도록 한다.
+function isDonkiSale(r: SalesRow): boolean {
+  const c = r.customer;
+  const isDonkiName =
+    !!c && (c.includes("돈키호테") || c.includes("ドンキ") || c.includes("Don Quijote"));
+  const isVendor =
+    !!c && (c.toLowerCase().includes("k-labo") || c.toLowerCase().includes("klabo") || c.includes("제이랩"));
+  return (r.country === "일본" && isDonkiName) || isVendor;
+}
+
 export function exportMatchRule(customerKey: string): MatchRule {
   if (customerKey === "동남아") {
     return {
@@ -258,22 +270,11 @@ export function exportMatchRule(customerKey: string): MatchRule {
     };
   }
   if (customerKey === "일본(돈키호테)") {
-    // 돈키호테 매출은 벤더사 K-Labo(제이랩)를 경유하므로 거래처명이 "돈키호테"가
-    // 아니라 벤더사명으로 들어온다. 직접 표기(country=일본) 또는 벤더사명으로 매칭.
-    const isDonki = (c: string | null | undefined) =>
-      !!c && (c.includes("돈키호테") || c.includes("ドンキ") || c.includes("Don Quijote"));
-    const isVendor = (c: string | null | undefined) => {
-      if (!c) return false;
-      const lc = c.toLowerCase();
-      return lc.includes("k-labo") || lc.includes("klabo") || c.includes("제이랩");
-    };
     return {
       customerKey,
       division: "해외",
       match: (brand) => (r) =>
-        r.brand === brand &&
-        r.category === "수출" &&
-        ((r.country === "일본" && isDonki(r.customer)) || isVendor(r.customer)),
+        r.brand === brand && r.category === "수출" && isDonkiSale(r),
       prospective: false,
       description: "일본 돈키호테 (벤더사 K-Labo(제이랩) 경유 — 거래처명으로 매칭)",
     };
@@ -288,6 +289,17 @@ export function exportMatchRule(customerKey: string): MatchRule {
         (r.country === "기타" || !r.country),
       prospective: false,
       description: "기타 국가",
+    };
+  }
+  if (customerKey === "일본") {
+    // 돈키호테(K-Labo 경유) 매출은 별도 키 "일본(돈키호테)"에 잡히므로 여기서 제외 — 이중 집계 방지.
+    return {
+      customerKey,
+      division: "해외",
+      match: (brand) => (r) =>
+        r.brand === brand && r.category === "수출" && r.country === "일본" && !isDonkiSale(r),
+      prospective: false,
+      description: "수출 일본 (돈키호테 제외)",
     };
   }
   return {
