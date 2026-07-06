@@ -258,16 +258,24 @@ export function exportMatchRule(customerKey: string): MatchRule {
     };
   }
   if (customerKey === "일본(돈키호테)") {
+    // 돈키호테 매출은 벤더사 K-Labo(제이랩)를 경유하므로 거래처명이 "돈키호테"가
+    // 아니라 벤더사명으로 들어온다. 직접 표기(country=일본) 또는 벤더사명으로 매칭.
+    const isDonki = (c: string | null | undefined) =>
+      !!c && (c.includes("돈키호테") || c.includes("ドンキ") || c.includes("Don Quijote"));
+    const isVendor = (c: string | null | undefined) => {
+      if (!c) return false;
+      const lc = c.toLowerCase();
+      return lc.includes("k-labo") || lc.includes("klabo") || c.includes("제이랩");
+    };
     return {
       customerKey,
       division: "해외",
       match: (brand) => (r) =>
         r.brand === brand &&
         r.category === "수출" &&
-        r.country === "일본" &&
-        (r.customer?.includes("돈키호테") || r.customer?.includes("ドンキ") || r.customer?.includes("Don Quijote")),
+        ((r.country === "일본" && isDonki(r.customer)) || isVendor(r.customer)),
       prospective: false,
-      description: "일본 돈키호테 전용 (매출 발생 시 거래처명으로 매칭)",
+      description: "일본 돈키호테 (벤더사 K-Labo(제이랩) 경유 — 거래처명으로 매칭)",
     };
   }
   if (customerKey === "기타") {

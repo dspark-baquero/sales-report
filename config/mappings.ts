@@ -136,6 +136,7 @@ export function b2bCustomerType(bizType: string): string {
 // 주의: name 은 실제 데이터의 dealer/agencyLinker 문자열과 정확히 일치해야 함.
 export const LINKERS: { name: string; manager: string }[] = [
   { name: "Harinbeauty", manager: "류현희" },
+  { name: "제이와이(JY)메디코스", manager: "류현희" },
 ];
 
 const LINKER_MANAGER_MAP = new Map(LINKERS.map((l) => [l.name, l.manager]));
