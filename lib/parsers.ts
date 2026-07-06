@@ -83,7 +83,10 @@ export function parseRow(r: Record<string, string>): SalesRow | null {
   const dealer = (r["딜러"] || "").trim() || "미지정";
   const realRevenue = parseNum(r["실 매출"]);
   const cat = category(channel);
-  const isNonRev = isNonRevenueBiz(bizType) || realRevenue === 0;
+  // 사업형태 '임직원'이라도 B2B몰 채널의 실판매(실매출>0)는 매출로 집계 (사용자 정책 2026-07).
+  // 그 외 채널의 임직원 및 나머지 비매출 사업형태(증정/직원/마케팅용 등)는 종전대로 제외.
+  const nonRevByBiz = isNonRevenueBiz(bizType) && !(cat === "B2B" && bizType === "임직원");
+  const isNonRev = nonRevByBiz || realRevenue === 0;
   const costVal = parseCost(r["원가"]);
 
   return {

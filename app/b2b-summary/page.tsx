@@ -132,6 +132,10 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
   const grandTotal = repRows.reduce((s, r) => s + r.total, 0);
   const prevGrandTotal = repRows.reduce((s, r) => s + r.prevTotal, 0);
 
+  // B2B 카테고리 전체(=월별 매출추이 차트 스택 합). 카드는 이 값을 표시해 차트와 정합.
+  // repRows 재조립(전 채널 byMonthCustomer + 대표유형) 대신 category==="B2B" 단일 합 사용.
+  const b2bCategoryTotal = cube.byMonthCategory.get(ym)?.get("B2B")?.revenue ?? 0;
+
   // ── 소스별 상세 ──
   const directRows = directDealerRows(cube, ym, prevYM);
   const linkRows = linkerRows(cube, ym, prevYM);
@@ -205,9 +209,9 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
         />
         <MetricCard
           label="B2B (직거래처+대리점+링커)"
-          current={directTotal + agencyTotal + linkerTotal}
+          current={b2bCategoryTotal}
           comparisons={[]}
-          hint="바크로하우스 제외"
+          hint="바크로하우스 제외 · 월별 매출추이와 동일 기준"
         />
         <MetricCard
           label="바크로하우스 추천"

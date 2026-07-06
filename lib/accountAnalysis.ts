@@ -115,21 +115,21 @@ export function sleepingReturned(
     }
     if (!allSilent) continue;
 
-    // 마지막 활성 월 + 연속 0원 개월 수 산출
-    let lastActive: string | null = null;
-    let silent = 0;
-    for (let i = months.length - 1; i >= 0; i--) {
-      const m = months[i];
-      const c = cube.byMonthCustomer.get(m)?.get(cust);
-      if (c && c.revenue > 0) { lastActive = m; break; }
-      silent++;
+    // 마지막 활성 월 — 전체 이력에서 탐색(lookback에 갇히지 않음).
+    // 과거 매출 이력이 전혀 없으면 신규 거래처이므로 동면 복귀가 아니다 → 제외.
+    const priorMonths = cube.monthsAsc.filter((m) => m < ym);
+    let lastActiveIdx = -1;
+    for (let i = priorMonths.length - 1; i >= 0; i--) {
+      const c = cube.byMonthCustomer.get(priorMonths[i])?.get(cust);
+      if (c && c.revenue > 0) { lastActiveIdx = i; break; }
     }
+    if (lastActiveIdx === -1) continue; // 과거 이력 없음 → 신규 거래처(동면 복귀 아님)
 
     out.push({
       customer: cust,
       returnedRevenue: cell.revenue,
-      silentMonths: silent,
-      lastActiveMonth: lastActive,
+      silentMonths: priorMonths.length - 1 - lastActiveIdx, // 마지막 활성월 이후 연속 0원 개월
+      lastActiveMonth: priorMonths[lastActiveIdx],
     });
   }
 
