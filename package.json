@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "report": "next build && next start",
-    "check": "tsx scripts/check-mappings.ts"
+    "check": "tsx scripts/check-mappings.ts",
+    "snapshot": "tsx scripts/build-snapshot.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.3.1",
