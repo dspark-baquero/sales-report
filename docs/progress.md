@@ -3,7 +3,7 @@
 ## 현재 상태
 
 - **배포**: Google Cloud Run (asia-northeast3) — `git push` → Cloud Run 소스 기반 자동 배포
-- **데이터**: Google BigQuery (`sales` 테이블, 159,287행, 2023-07 ~ 현재)
+- **데이터**: Google BigQuery (`sales` 테이블, 173,350행, 2023-07 ~ 현재)
 - **목표**: BigQuery (`targets` 테이블, dataset `dashboard_1`)
 - **인증**: Auth.js v5 + Google OAuth (`@baquero.co.kr` 전용)
 - **첫 보고 기준월**: 2026-04
@@ -17,6 +17,10 @@
 ---
 
 ## 버전 이력
+
+### v6.1 (2026-07-07)
+월별 매출 추이 차트에 다음달 "전망" 칸 추가.
+- **다음달 전망 칸(목표·전년)** — 모든 탭 공통 `YearToDateChart`에 연내 다음 달 칸을 하나 더 표시. 실매출 막대 없이 그 달의 **월별 목표(다이아)·전년 동기(회색 원)** 마커만 그리고 x축 라벨 아래 "전망" 표기. 이번달이 6월이면 아직 매출이 없는 7월의 목표·작년 실적을 미리 확인. 오버레이 배열이 경과월+1 길이면 차트가 전망 칸을 자동 감지(호출부 JSX 변경 최소화). 누적 달성률·전년 누적합은 경과월 기준 유지(전망 슬롯 제외), 12월이면 다음달이 내년이라 전망 칸 생략. 목표·전년 오버레이를 쓰는 전 탭 자동 적용(종합/B2B/대리점/바크로하우스/B2C/면세점/수출/B2B종합/영업사원/거래처). `lib/ytd.ts`(`ytdMonthsWithOutlook` + `outlook` 옵션)·`lib/compare.ts`(`nextMonthInYear`)·`components/YearToDateChart.tsx`·`components/charts/BarChart.tsx`(합계 0 라벨 숨김 + `muted` 톤)
 
 ### v6.0 (2026-07-06)
 목표 매칭 정확화(돈키호테 벤더사·이중집계) + B2B종합 집계 정합 + 임직원 B2B 매출 정책 + 동면복귀 오분류 수정.
