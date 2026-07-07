@@ -13,6 +13,13 @@ export function prevYearSameMonth(yearMonth: string): string {
   return `${y - 1}-${String(m).padStart(2, "0")}`;
 }
 
+// 같은 해 안에서의 다음 달. 12월이면 다음 달이 내년이므로 null (연내 전망 없음).
+export function nextMonthInYear(yearMonth: string): string | null {
+  const [y, m] = yearMonth.split("-").map(Number);
+  if (m >= 12) return null;
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
 // 분기 = 1~3 / 4~6 / 7~9 / 10~12
 export function quarterOf(yearMonth: string): { qStart: string; qEnd: string; qNumber: number } {
   const [y, m] = yearMonth.split("-").map(Number);

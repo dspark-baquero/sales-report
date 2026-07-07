@@ -22,7 +22,7 @@ export type LineOverlay = {
 };
 
 // X축 카테고리 라벨 아래 한 줄 더 표기 (예: 월별 달성률). tone으로 색상 구분.
-export type XAxisSubLabel = { text: string; tone: "good" | "warn" | "bad" };
+export type XAxisSubLabel = { text: string; tone: "good" | "warn" | "bad" | "muted" };
 
 type BarChartProps = {
   categories: string[];
@@ -97,7 +97,11 @@ export function BarChart({
       label: {
         show: true,
         position: horizontal ? "right" : "top",
-        formatter: (p: any) => fmt(totals[p.dataIndex] ?? 0),
+        // 합계 0(빈 칸, 예: 전망 월)은 라벨 숨김.
+        formatter: (p: any) => {
+          const v = totals[p.dataIndex] ?? 0;
+          return v > 0 ? fmt(v) : "";
+        },
         fontSize: 12,
         fontWeight: 600,
         color: "#111827",
@@ -207,6 +211,7 @@ export function BarChart({
                       good: { fontSize: 10, fontWeight: 600, color: "#047857", padding: [3, 0, 0, 0] },
                       warn: { fontSize: 10, fontWeight: 600, color: "#d97706", padding: [3, 0, 0, 0] },
                       bad: { fontSize: 10, fontWeight: 600, color: "#e11d48", padding: [3, 0, 0, 0] },
+                      muted: { fontSize: 10, fontWeight: 600, color: "#94a3b8", padding: [3, 0, 0, 0] },
                     },
                   }
                 : { interval: 0, rotate: categories.length > 8 ? -25 : 0 },

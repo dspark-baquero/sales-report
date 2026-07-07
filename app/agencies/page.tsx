@@ -14,6 +14,7 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
+  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -194,10 +195,14 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Sea
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
   const agencyMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => t.division === "국내" && t.customerKey === "대리점",
   });
-  const agencyMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const agencyMonthlyPrevYearArr = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.category === "B2B" && r.b2bCustomerType === "대리점",
   });
 

@@ -1,7 +1,7 @@
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { ymMinusMonths, filterMonth } from "@/lib/aggregate";
-import { prevMonth, prevYearSameMonth, quarterOf, prevQuarter, quarterProgress } from "@/lib/compare";
+import { prevMonth, prevYearSameMonth, nextMonthInYear, quarterOf, prevQuarter, quarterProgress } from "@/lib/compare";
 import {
   customerProfile,
   listCustomersRanked,
@@ -467,10 +467,13 @@ export default async function AccountsPage({ searchParams }: { searchParams: Sea
   const prevYearStart = `${Number(ym.slice(0, 4)) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
-  // 거래처 선택 시: 그 거래처의 전년 매출 / 미선택 시: 전체 전년
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
+  const prevYearRowsOutlook = [...prevYearRangeRows, ...outlookPrevRows];
+  // 거래처 선택 시: 그 거래처의 전년 매출 / 미선택 시: 전체 전년. 다음 달(전망) 슬롯 포함.
   const accountsPrevYearArr = customer
-    ? ytdMonthlyPrevYear(prevYearRangeRows, ym, { rowFilter: (r) => r.customer === customer })
-    : ytdMonthlyPrevYear(prevYearRangeRows, ym);
+    ? ytdMonthlyPrevYear(prevYearRowsOutlook, ym, { outlook: true, rowFilter: (r) => r.customer === customer })
+    : ytdMonthlyPrevYear(prevYearRowsOutlook, ym, { outlook: true });
 
   return (
     <div className="space-y-6">

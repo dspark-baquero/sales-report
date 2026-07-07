@@ -14,6 +14,7 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
+  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -132,10 +133,14 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
   const exportMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => t.division === "해외",
   });
-  const exportMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const exportMonthlyPrevYearArr = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.category === "수출",
   });
 

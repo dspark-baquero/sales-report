@@ -48,6 +48,8 @@ export type SalesRepProfileDeps = {
   bhSalesPrev: BHPartnerSale[];
   dealerTargets: DealerTargetRow[];
   ytdMonths: string[];
+  // 연내 다음 달(전망). 주어지면 YTD 차트에 목표·전년만 있는 전망 칸을 하나 더 붙인다.
+  outlookMonth?: string | null;
 };
 
 export function buildSalesRepProfile(
@@ -57,7 +59,7 @@ export function buildSalesRepProfile(
   prevYM: string,
   deps: SalesRepProfileDeps,
 ): SalesRepProfile {
-  const { partnerMap, bhSalesCur, bhSalesPrev, dealerTargets, ytdMonths } = deps;
+  const { partnerMap, bhSalesCur, bhSalesPrev, dealerTargets, ytdMonths, outlookMonth } = deps;
 
   const summary =
     repSummaryRows(cube, partnerMap, bhSalesCur, bhSalesPrev, ym, prevYM).find(
@@ -116,6 +118,20 @@ export function buildSalesRepProfile(
     { name: "직거래처 실적", values: ytdActualByMonth, color: "#6366f1" },
   ];
 
+  // 전망 칸: 실매출(ytdSeries)은 그대로 두고 목표·전년 배열에만 다음 달 슬롯을 추가.
+  // 누적 달성도(ytdAchievement)는 경과월 기준 유지.
+  const ytdMonthlyTargetsOut = outlookMonth
+    ? [...ytdTargetByMonth, dealerTargetMap(dealerTargets, outlookMonth, "영업사원").get(repName) ?? 0]
+    : ytdTargetByMonth;
+  const ytdPrevYearOut = outlookMonth
+    ? [
+        ...ytdPrevYear,
+        (cube.byMonthDealer
+          .get(`${Number(outlookMonth.slice(0, 4)) - 1}-${outlookMonth.slice(5, 7)}`)
+          ?.get(repName) as { revenue: number } | undefined)?.revenue ?? 0,
+      ]
+    : ytdPrevYear;
+
   return {
     rep: repName,
     summary,
@@ -125,8 +141,8 @@ export function buildSalesRepProfile(
     linkers,
     bh,
     ytdSeries,
-    ytdMonthlyTargets: ytdTargetByMonth,
-    ytdPrevYear,
+    ytdMonthlyTargets: ytdMonthlyTargetsOut,
+    ytdPrevYear: ytdPrevYearOut,
     ytdAchievement,
   };
 }

@@ -1,7 +1,7 @@
 import { loadFactCube, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { ymMinusMonths, monthlyRevenueOf, enumerateMonths } from "@/lib/aggregate";
-import { prevMonth, prevYearSameMonth } from "@/lib/compare";
+import { prevMonth, prevYearSameMonth, nextMonthInYear } from "@/lib/compare";
 import { computeB2BSummaryInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
@@ -114,10 +114,16 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
     B2B_COMBO_KEYS,
     (r) => r.category === "B2B",
   );
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm
+    ? await loadRangeRows(prevYearSameMonth(outlookYm), prevYearSameMonth(outlookYm))
+    : [];
   const b2bComboMonthlyTargets = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => B2B_COMBO_KEYS.includes(t.customerKey),
   });
-  const b2bComboPrevYear = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const b2bComboPrevYear = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.category === "B2B",
   });
 

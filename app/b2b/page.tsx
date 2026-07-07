@@ -21,6 +21,7 @@ import { CustomerLink } from "@/components/CustomerLink";
 import {
   prevMonth,
   prevYearSameMonth,
+  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -178,11 +179,15 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const prevYearStart = `${Number(yearStr) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
   const b2bKeySet = new Set(["병원", "피부관리실", "직거래처"]);
   const b2bMonthlyTargets = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => b2bKeySet.has(t.customerKey),
   });
-  const b2bMonthlyPrevYear = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const b2bMonthlyPrevYear = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.category === "B2B" && r.b2bCustomerType !== "대리점",
   });
 

@@ -13,6 +13,7 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
+  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -234,10 +235,14 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
   const brandMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => t.brand === brand,
   });
-  const brandMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const brandMonthlyPrevYearArr = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.brand === brand,
   });
 

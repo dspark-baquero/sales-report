@@ -14,6 +14,7 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
+  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -169,10 +170,14 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
   const bhMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => t.division === "국내" && t.customerKey === "바크로하우스",
   });
-  const bhMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const bhMonthlyPrevYearArr = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.channel === "바크로하우스",
   });
 

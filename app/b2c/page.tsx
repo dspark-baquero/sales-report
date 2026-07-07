@@ -17,6 +17,7 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
+  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -178,11 +179,15 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const outlookYm = nextMonthInYear(ym);
+  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
   const b2cKeySet = new Set(b2cKeys);
   const b2cMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
+    outlook: true,
     targetFilter: (t) => t.division === "국내" && b2cKeySet.has(t.customerKey),
   });
-  const b2cMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearRangeRows, ym, {
+  const b2cMonthlyPrevYearArr = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+    outlook: true,
     rowFilter: (r) => r.category === "B2C" && r.channel !== "바크로하우스",
   });
 

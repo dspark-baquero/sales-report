@@ -6,6 +6,7 @@ import type { FactCube, FactCell } from "./facts";
 import type { Category, ChannelGroup } from "@/config/mappings";
 import type { SalesRow } from "./load";
 import { filterMonth, filterRange, enumerateMonths } from "./aggregate";
+import { nextMonthInYear } from "./compare";
 import { CATEGORY_COLOR, CHANNEL_GROUP_COLOR, BRAND_COLOR } from "./labels";
 import type { TargetRow } from "./targets";
 import { isProspectiveKey } from "./targets";
@@ -16,6 +17,14 @@ export type YTDSeries = { name: string; values: number[]; color?: string };
 export function ytdMonths(ym: string): string[] {
   const year = ym.slice(0, 4);
   return enumerateMonths(`${year}-01`, ym);
+}
+
+// ytdMonths + 연내 다음 달(전망). 12월이면 다음 달이 내년이라 전망 없음 → ytdMonths와 동일.
+// 다음 달은 실매출이 아직 없고 목표·전년 오버레이만 그리는 "전망" 칸 용도.
+export function ytdMonthsWithOutlook(ym: string): string[] {
+  const base = ytdMonths(ym);
+  const nxt = nextMonthInYear(ym);
+  return nxt ? [...base, nxt] : base;
 }
 
 // 한국식 월 라벨. ["2026-01","2026-02",…] → ["1월","2월",…]
@@ -368,12 +377,13 @@ export function ytdAchievementForCustomerKeys(
 // ytdMonths(ym)와 1:1 정렬된 number[] 반환.
 
 // 각 월의 목표 합계 배열. prospective 키 자동 제외.
+// opts.outlook=true 면 연내 다음 달(전망) 슬롯을 하나 더 붙인다(목표는 미래 월도 존재).
 export function ytdMonthlyTargets(
   targets: TargetRow[],
   ym: string,
-  opts?: { targetFilter?: (t: TargetRow) => boolean },
+  opts?: { targetFilter?: (t: TargetRow) => boolean; outlook?: boolean },
 ): number[] {
-  const months = ytdMonths(ym);
+  const months = opts?.outlook ? ytdMonthsWithOutlook(ym) : ytdMonths(ym);
   const monthIdx = new Map(months.map((m, i) => [m, i]));
   const out = months.map(() => 0);
   for (const t of targets) {
@@ -388,12 +398,14 @@ export function ytdMonthlyTargets(
 
 // 각 월의 전년 동기 매출 배열. prevYearRows = 작년 1월~작년 (ym월) 매출.
 // 작년 r.yearMonth("2025-03")를 +1년 시프트해 olympics 슬롯("2026-03")에 합산.
+// opts.outlook=true 면 전망 슬롯을 하나 더 붙인다. 이때 prevYearRows 에 작년 (ym+1)월도
+// 포함돼 있어야 전망 슬롯의 전년 값이 채워진다(없으면 0).
 export function ytdMonthlyPrevYear(
   prevYearRows: SalesRow[],
   ym: string,
-  opts?: { rowFilter?: (r: SalesRow) => boolean },
+  opts?: { rowFilter?: (r: SalesRow) => boolean; outlook?: boolean },
 ): number[] {
-  const months = ytdMonths(ym);
+  const months = opts?.outlook ? ytdMonthsWithOutlook(ym) : ytdMonths(ym);
   const monthIdx = new Map(months.map((m, i) => [m, i]));
   const out = months.map(() => 0);
   for (const r of prevYearRows) {

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BarChart, type LineOverlay, type XAxisSubLabel } from "@/components/charts/BarChart";
 import { YTDAchievementPanel } from "@/components/YTDAchievementPanel";
 import { ytdMonthLabels } from "@/lib/ytd";
+import { nextMonthInYear } from "@/lib/compare";
 import { buildAchievement, formatPctAbs } from "@/lib/format";
 import type { YTDSeries, YTDAchievement } from "@/lib/ytd";
 
@@ -40,6 +41,18 @@ export function YearToDateChart({
     labels.length === 1 ? `${firstMonth}월` : `${firstMonth}월~${lastMonth}월`;
   const heading = title ?? `${year}년 월별 매출 추이 (${range})`;
 
+  // 전망(다음 달) 칸: 목표/전년 오버레이 배열이 경과월+1 길이면 자동 활성화.
+  // 다음 달은 실매출 막대 없이 목표·전년 마커만 표시. 12월이면 다음 달이 내년이라 없음.
+  const nxt = nextMonthInYear(ym);
+  const overlayLen = Math.max(
+    monthlyTargets?.length ?? 0,
+    prevYearValues?.length ?? 0,
+  );
+  const hasOutlook = !!nxt && overlayLen === labels.length + 1;
+  const chartLabels = hasOutlook
+    ? [...labels, `${Number(nxt!.slice(5, 7))}월`]
+    : labels;
+
   const hasData = series.length > 0 && series.some((s) => s.values.some((v) => v > 0));
 
   const overlays: LineOverlay[] = [];
@@ -62,7 +75,7 @@ export function YearToDateChart({
   }
 
   // 각 월 라벨 아래 그 달의 달성률(스택 실적 합 / 그 달 목표) 표기.
-  // 목표가 있는 달만 표기, 색상은 달성 상태로 구분.
+  // 목표가 있는 달만 표기, 색상은 달성 상태로 구분. (전망 월은 달성률 대신 "전망" 표기)
   let xAxisSubLabels: (XAxisSubLabel | null)[] | undefined;
   if (monthlyTargets && monthlyTargets.some((v) => v > 0)) {
     xAxisSubLabels = labels.map((_, i) => {
@@ -75,10 +88,15 @@ export function YearToDateChart({
       return { text: formatPctAbs(ach.rate, 0), tone };
     });
   }
+  // 전망 월: 실매출이 없어 달성률(0%)이 오해를 부르므로 "전망"으로 표기.
+  if (hasOutlook) {
+    if (!xAxisSubLabels) xAxisSubLabels = labels.map(() => null);
+    xAxisSubLabels = [...xAxisSubLabels, { text: "전망", tone: "muted" }];
+  }
 
   const chart = hasData ? (
     <BarChart
-      categories={labels}
+      categories={chartLabels}
       series={series.map((s) => ({
         name: s.name,
         values: s.values,
@@ -114,7 +132,8 @@ export function YearToDateChart({
                 caption={achievementLabel}
                 prevYearActual={
                   prevYearValues && prevYearValues.some((v) => v > 0)
-                    ? prevYearValues.reduce((a, b) => a + b, 0)
+                    ? // 누적 전년 실적은 경과월까지만 합산 (전망 슬롯 제외).
+                      prevYearValues.slice(0, labels.length).reduce((a, b) => a + b, 0)
                     : undefined
                 }
               />
