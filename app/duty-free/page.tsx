@@ -78,7 +78,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
     loadMonthRows(prevMonth(ym)),
     loadMonthRows(prevYearSameMonth(ym)),
     loadRangeRows(qStart, ym),
-    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+    loadRangeRows(prevQ.qStart, ymMinusMonths(prevQ.qEnd, 3 - qProg)),
   ]);
 
   const k = kpi(dutyFreeRows(cur));
@@ -242,7 +242,7 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
           current={k.revenue}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: kPrevMo.revenue },
-            { label: COMPARE_LABEL.curQuarter, prev: kPrevQ.revenue, note: `${qProg}/3개월` },
+            { label: COMPARE_LABEL.curQuarter, current: kCurQ.revenue, prev: kPrevQ.revenue, note: `${qProg}/3개월` },
             { label: COMPARE_LABEL.prevYear, prev: kPrevYr.revenue },
           ]}
           target={{ value: dutyTarget, label: "면세점 목표 합계" }}

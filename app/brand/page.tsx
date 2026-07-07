@@ -71,7 +71,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
     loadMonthRows(prevMonth(ym)),
     loadMonthRows(prevYearSameMonth(ym)),
     loadRangeRows(qStart, ym),
-    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+    loadRangeRows(prevQ.qStart, ymMinusMonths(prevQ.qEnd, 3 - qProg)),
   ]);
   const cur = curAll.filter(isBrand);
   const prevMo = prevMoAll.filter(isBrand);
@@ -294,7 +294,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
           current={curRev}
           comparisons={[
             { label: COMPARE_LABEL.prevMonth, prev: prevMoRev },
-            { label: COMPARE_LABEL.curQuarter, prev: prevQRev, note: `${qProg}/3개월` },
+            { label: COMPARE_LABEL.curQuarter, current: curQRev, prev: prevQRev, note: `${qProg}/3개월` },
             { label: COMPARE_LABEL.prevYear, prev: prevYrRev },
           ]}
           target={{ value: brandTarget, label: "브랜드 이번달 목표 합계" }}

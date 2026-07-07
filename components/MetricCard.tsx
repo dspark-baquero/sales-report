@@ -18,6 +18,9 @@ type ComparisonInput = {
   label: string;       // "전월" / "전분기 동기간" / "전년 동월"
   prev: number;
   note?: string;
+  // 지정 시 이 행은 카드 current 대신 이 값을 기준으로 비교하고, 행에 이 값을 표시한다.
+  // (예: "이번분기 누적" — 카드 대표값은 이번달이지만 이 행은 분기 누적값을 보여줌)
+  current?: number;
 };
 
 type Target = {
@@ -103,10 +106,14 @@ export function MetricCard({
             <Separator />
             <div className="space-y-1">
               {comparisons.map((c) => {
-                const change = buildChange(current, c.prev, c.label, {
+                // c.current 가 있으면 그 값을 기준(current)으로 비교하고 행에도 그 값을 표시.
+                // 없으면 카드 대표값(current) 기준으로 비교하고 비교 대상(prev)을 표시(기존 동작).
+                const base = c.current ?? current;
+                const change = buildChange(base, c.prev, c.label, {
                   formatValue: fmt.short,
                   formatPrev: fmt.primary,
                 });
+                const shown = c.current ?? change.prev;
                 return (
                   <div key={c.label} className="flex items-start justify-between text-[11px]">
                     <div className="text-muted-foreground">
@@ -115,7 +122,7 @@ export function MetricCard({
                     </div>
                     <div className="text-right">
                       <div className="tabular-nums text-foreground">
-                        {change.prev > 0 ? fmt.primary(change.prev) : "—"}
+                        {shown > 0 ? fmt.primary(shown) : "—"}
                       </div>
                       <div
                         className={cn(

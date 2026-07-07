@@ -62,7 +62,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
     loadMonthRows(prevMonth(ym)),
     loadMonthRows(prevYearSameMonth(ym)),
     loadRangeRows(qStart, ym),
-    loadRangeRows(prevQ.qStart, prevQ.qEnd),
+    loadRangeRows(prevQ.qStart, ymMinusMonths(prevQ.qEnd, 3 - qProg)),
   ]);
 
   const k = kpi(exportRows(cur));
@@ -180,6 +180,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
             { label: COMPARE_LABEL.prevMonth, prev: kPrevMo.revenue },
             {
               label: COMPARE_LABEL.curQuarter,
+              current: kCurQ.revenue,
               prev: kPrevQ.revenue,
               note: `${qProg}/3개월 진행`,
             },
