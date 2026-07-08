@@ -214,10 +214,10 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           rangeRows,
           targets,
           ym,
-          ["공식몰", "종합몰", "소호몰", "기타", "올리브영", "링커"],
+          ["공식몰", "종합몰", "소호몰", "기타"],
           (r) => r.category === "B2C" && r.channel !== "바크로하우스",
         )}
-        achievementLabel="B2C (공식몰·종합몰·소호몰·기타·올리브영·링커)"
+        achievementLabel="B2C (공식몰·종합몰·소호몰·기타)"
         monthlyTargets={b2cMonthlyTargetsArr}
         prevYearValues={b2cMonthlyPrevYearArr}
       />
