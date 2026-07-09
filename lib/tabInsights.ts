@@ -172,7 +172,7 @@ function topMoversFromCells(
 }
 
 // 전체 매출 종합 변동 (전월/전년)
-function totalChangeBullet(curRev: number, prevRev: number, label: string, categoryLabel = "전체"): InsightBullet | null {
+function totalChangeBullet(curRev: number, prevRev: number, label: string, categoryLabel = "전체", detail?: string): InsightBullet | null {
   if (prevRev === 0 && curRev === 0) return null;
   const diff = curRev - prevRev;
   const pct = prevRev !== 0 ? diff / Math.abs(prevRev) : 0;
@@ -182,6 +182,7 @@ function totalChangeBullet(curRev: number, prevRev: number, label: string, categ
     severity: pickSeverity(pct, false, false),
     category: categoryLabel,
     text: ct.text,
+    detail,
     weight: Math.abs(diff),
   };
 }
@@ -326,7 +327,8 @@ export function computeB2CInsights(cube: FactCube, ym: string): InsightBullet[] 
 
   const curRev = cubeMonthCategoryKpi(cube, ym, "B2C").revenue;
   const prevRev = cubeMonthCategoryKpi(cube, prevYM, "B2C").revenue;
-  const tb = totalChangeBullet(curRev, prevRev, "전월", "B2C 전체");
+  // 카테고리 B2C 큐브 집계는 바크로하우스 채널을 포함(별도 탭이지만 카테고리상 B2C).
+  const tb = totalChangeBullet(curRev, prevRev, "전월", "B2C 전체", "바크로하우스 포함");
   if (tb) out.push(tb);
 
   // 채널그룹 빅 무버 (자사 공식몰 / 종합몰 / 소호몰)
