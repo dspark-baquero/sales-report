@@ -36,6 +36,8 @@ type RawRecord = Record<string, string>;
 type Cached = {
   cube: FactCube;
   byMonth: Map<string, SalesRow[]>;
+  // 스코프(국내/해외)별 필터 큐브. 최초 요청 시 캐시된 전체 행에서 재빌드해 메모.
+  scopedCubes: Map<string, FactCube>;
 };
 
 let cached: Cached | null = null;
@@ -151,8 +153,13 @@ async function ensureLoaded(): Promise<Cached> {
   }
 
   const cube = buildFactCube(rows);
-  cached = { cube, byMonth };
+  cached = { cube, byMonth, scopedCubes: new Map() };
   return cached;
+}
+
+// 스코프별 행 필터. 해외 = 수출 카테고리, 국내 = 그 외 전부. (비매출 행도 카테고리 기준 동일 적용)
+function scopeKeep(scope: "국내" | "해외"): (r: SalesRow) => boolean {
+  return scope === "해외" ? (r) => r.category === "수출" : (r) => r.category !== "수출";
 }
 
 export const bigqueryProvider = {
@@ -175,5 +182,21 @@ export const bigqueryProvider = {
 
   async availableMonths(): Promise<string[]> {
     return (await ensureLoaded()).cube.monthsAsc;
+  },
+
+  // 스코프(국내/해외) 필터 큐브. 캐시된 전체 행에서 재빌드해 메모(재요청 시 무료).
+  async loadScopedCube(scope: "국내" | "해외"): Promise<FactCube> {
+    const c = await ensureLoaded();
+    let cube = c.scopedCubes.get(scope);
+    if (!cube) {
+      const keep = scopeKeep(scope);
+      const rows: SalesRow[] = [];
+      for (const arr of c.byMonth.values()) {
+        for (const r of arr) if (keep(r)) rows.push(r);
+      }
+      cube = buildFactCube(rows);
+      c.scopedCubes.set(scope, cube);
+    }
+    return cube;
   },
 };

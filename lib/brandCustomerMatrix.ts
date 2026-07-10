@@ -184,6 +184,7 @@ export function buildBrandChannelMatrix(
   monthRowsPrevYear: SalesRow[],
   ym: string,
   brands: string[],
+  channels: ChannelKey[] = CHANNEL_KEYS,
 ): BrandChannelMatrixData {
   const brandSet = new Set(brands);
   const [y] = ym.split("-").map(Number);
@@ -191,7 +192,7 @@ export function buildBrandChannelMatrix(
 
   // (브랜드 × 채널) YTD 목표 사전 합산
   const brandChannelTarget = new Map<string, number>();
-  for (const ch of CHANNEL_KEYS) {
+  for (const ch of channels) {
     const tFilter = channelTargetFilter(ch);
     for (const t of targets) {
       if (!ytdMonthSet.has(t.yearMonth)) continue;
@@ -203,7 +204,7 @@ export function buildBrandChannelMatrix(
   }
 
   const cells = new Map<string, ChannelMatrixCell>();
-  for (const ch of CHANNEL_KEYS) {
+  for (const ch of channels) {
     const curMap = accumulateBrandChannel(monthRowsCur, brandSet, ch);
     const prevMap = accumulateBrandChannel(monthRowsPrev, brandSet, ch);
     const prevYearMap = accumulateBrandChannel(monthRowsPrevYear, brandSet, ch);
@@ -237,7 +238,7 @@ export function buildBrandChannelMatrix(
     }
   }
 
-  return { brands, channels: CHANNEL_KEYS, cells };
+  return { brands, channels, cells };
 }
 
 // ── 2뎁스: 브랜드 × 선택채널 거래처 Top N ────────────────

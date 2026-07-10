@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
+import { loadFactCube, loadScopedCube, loadMonthRows, loadRangeRows, type ReportScope } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import {
   kpi,
@@ -11,6 +11,7 @@ import {
 } from "@/lib/aggregate";
 import { computeOverviewInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
+import { ScopeTabs } from "@/components/ScopeTabs";
 import { CustomerLink } from "@/components/CustomerLink";
 import { BrandMatrix } from "@/components/BrandCustomerMatrix";
 import {
@@ -61,7 +62,7 @@ import {
   buildChange,
 } from "@/lib/format";
 
-type SearchParams = Promise<{ month?: string }>;
+type SearchParams = Promise<{ month?: string; scope?: string }>;
 
 const DETAIL_CHANNELS = [
   { key: "B2B", color: "#8b5cf6" },
@@ -79,8 +80,18 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const prevQ = prevQuarter(ym);
   const qProg = quarterProgress(ym);
 
-  const [cube, targets, cur, prevMo, prevYr, curQ, prevQRows] = await Promise.all([
-    loadFactCube(),
+  // 스코프 필터: 전체 / 국내(수출 제외) / 해외(수출만). 해외 = category "수출".
+  const scope: ReportScope =
+    sp.scope === "국내" || sp.scope === "해외" ? sp.scope : "전체";
+  const rowInScope = (r: { category: string }) =>
+    scope === "전체" ? true : scope === "해외" ? r.category === "수출" : r.category !== "수출";
+  const targetInScope = (t: { division: string }) =>
+    scope === "전체" ? true : scope === "해외" ? t.division === "해외" : t.division === "국내";
+  const scopeRows = <T extends { category: string }>(rows: T[]): T[] =>
+    scope === "전체" ? rows : rows.filter(rowInScope);
+
+  const [cube, targetsAll, curRaw, prevMoRaw, prevYrRaw, curQ, prevQRows] = await Promise.all([
+    scope === "전체" ? loadFactCube() : loadScopedCube(scope),
     loadTargets(),
     loadMonthRows(ym),
     loadMonthRows(prevMonth(ym)),
@@ -88,7 +99,27 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     loadRangeRows(qStart, ym),
     loadRangeRows(prevQ.qStart, prevQ.qEnd),
   ]);
+  const cur = scopeRows(curRaw);
+  const prevMo = scopeRows(prevMoRaw);
+  const prevYr = scopeRows(prevYrRaw);
+  const targets = scope === "전체" ? targetsAll : targetsAll.filter(targetInScope);
   const insights = computeOverviewInsights(cube, ym);
+
+  // 스코프별 표시 채널. 해외 = 수출만, 국내 = 수출 제외, 전체 = 6채널.
+  const visibleChannels: string[] =
+    scope === "해외"
+      ? ["수출"]
+      : scope === "국내"
+        ? ["B2B", "대리점", "B2C", "바크로하우스", "면세점"]
+        : ["B2B", "대리점", "B2C", "바크로하우스", "면세점", "수출"];
+  const showCh = (k: string) => visibleChannels.includes(k);
+  // 브랜드 매트릭스 채널대분류(수출=해외영업). 스코프별로 컬럼 제한.
+  const matrixChannels: ChannelKey[] =
+    scope === "해외"
+      ? ["해외영업"]
+      : scope === "국내"
+        ? ["B2B", "대리점", "바크로하우스", "B2C", "면세점"]
+        : CHANNEL_KEYS;
 
   const k = kpi(cur);
   const kPrevMo = kpi(prevMo);
@@ -130,18 +161,18 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   // YTD 달성률
   const [yearStr] = ym.split("-");
   const ytdStart = `${yearStr}-01`;
-  const ytdRangeRows = await loadRangeRows(ytdStart, ym);
+  const ytdRangeRows = scopeRows(await loadRangeRows(ytdStart, ym));
 
   // 전년 동기 (1년 전 1월 ~ 1년 전 ym월)
   const prevYearStart = `${Number(yearStr) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
-  const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
+  const prevYearRangeRows = scopeRows(await loadRangeRows(prevYearStart, prevYearEnd));
 
   // 월별 목표 (전체 국내) + 전년 동기 (전체). 다음 달(전망) 슬롯 포함.
   // prevYearRangeRows 는 브랜드 매트릭스에서도 재사용되므로 원본은 경과월까지로 유지하고,
   // 전망 슬롯용 작년 다음 달만 오버레이 계산에서 합친다.
   const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
+  const outlookPrevRows = outlookYm ? scopeRows(await loadMonthRows(prevYearSameMonth(outlookYm))) : [];
   const ytdMonthlyTargetsOverall = ytdMonthlyTargets(targets, ym, { outlook: true });
   const ytdMonthlyPrevYearOverall = ytdMonthlyPrevYear(
     [...prevYearRangeRows, ...outlookPrevRows],
@@ -160,9 +191,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     prevYr,
     ym,
     matrixBrands,
+    matrixChannels,
   );
   const depth2ByChannel = Object.fromEntries(
-    CHANNEL_KEYS.map((ch) => [
+    matrixChannels.map((ch) => [
       ch,
       buildBrandCustomerMatrixForChannel(
         cube,
@@ -177,12 +209,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         10,
       ),
     ]),
-  ) as Record<ChannelKey, BrandCustomerMatrixData>;
+  ) as Partial<Record<ChannelKey, BrandCustomerMatrixData>>;
 
   // 바크로하우스 채널만 메인 sales 거래처 대신 파트너 추천 매출(BHPartnerSale) 기준으로 교체.
   // 파트너 데이터가 사용 가능하지 않으면 빈 매트릭스로 fallback ("데이터 없음" 메시지).
-  const bhAvailable = await isBHDataAvailable();
-  if (bhAvailable) {
+  const bhAvailable = matrixChannels.includes("바크로하우스") && (await isBHDataAvailable());
+  if (matrixChannels.includes("바크로하우스") && bhAvailable) {
     const [bhYtdSales, bhPrevYearYtdSales, bhCurSales, bhPrevSales, bhPrevYearSales] =
       await Promise.all([
         loadBHSalesRange(ytdStart, ym),
@@ -200,7 +232,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       matrixBrands,
       10,
     );
-  } else {
+  } else if (matrixChannels.includes("바크로하우스")) {
     depth2ByChannel["바크로하우스"] = buildBaqueroHousePartnerMatrix(
       [], [], [], [], [],
       matrixBrands,
@@ -248,11 +280,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   return (
     <div className="space-y-6">
       {/* 1. 헤더 */}
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 종합 매출 보고서</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          이번달 실매출 {formatKRWLong(k.revenue)} · {qNumber}분기 진행률 {qProg}/3개월
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">{formatYM(ym)} 종합 매출 보고서</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            이번달 실매출 {formatKRWLong(k.revenue)} · {qNumber}분기 진행률 {qProg}/3개월
+          </p>
+        </div>
+        <ScopeTabs />
       </div>
 
       <TabInsights bullets={insights.slice(0, 5)} />
@@ -264,69 +299,81 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       <YearToDateChart
         ym={ym}
         series={ytdCategoryDetailSeries(cube, ym)}
-        caption="채널별 (B2B / 대리점 / B2C / 바크로하우스 / 면세점 / 수출)"
+        caption={`채널별 (${visibleChannels.join(" / ")})`}
         achievement={ytdAchievementOverall(ytdRangeRows, targets, ym)}
-        achievementLabel="전체"
+        achievementLabel={scope}
         monthlyTargets={ytdMonthlyTargetsOverall}
         prevYearValues={ytdMonthlyPrevYearOverall}
       />
 
       {/* 3. 채널별 KPI 카드 (목표 달성률 포함) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <MetricCard
-          label="B2B"
-          current={catCur["B2B"] - agencyCur}
-          comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2B"] - agencyPrevMo },
-            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2B"] - agencyPrevYr },
-          ]}
-          target={b2bTarget > 0 ? { value: b2bTarget, label: "B2B 목표" } : undefined}
-        />
-        <MetricCard
-          label="대리점"
-          current={agencyCur}
-          comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: agencyPrevMo },
-            { label: COMPARE_LABEL.prevYear, prev: agencyPrevYr },
-          ]}
-          target={agencyTarget > 0 ? { value: agencyTarget, label: "대리점 목표" } : undefined}
-        />
-        <MetricCard
-          label="B2C"
-          current={catCur["B2C"] - bhCur}
-          comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2C"] - bhPrevMo },
-            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2C"] - bhPrevYr },
-          ]}
-          target={b2cTarget > 0 ? { value: b2cTarget, label: "B2C 목표" } : undefined}
-        />
-        <MetricCard
-          label="바크로하우스"
-          current={bhCur}
-          comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: bhPrevMo },
-            { label: COMPARE_LABEL.prevYear, prev: bhPrevYr },
-          ]}
-          target={bhTarget > 0 ? { value: bhTarget, label: "바크로하우스 목표" } : undefined}
-        />
-        <MetricCard
-          label="면세점"
-          current={catCur["면세점"]}
-          comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["면세점"] },
-            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["면세점"] },
-          ]}
-          target={dutyTarget > 0 ? { value: dutyTarget, label: "면세점 목표" } : undefined}
-        />
-        <MetricCard
-          label="수출"
-          current={catCur["수출"]}
-          comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["수출"] },
-            { label: COMPARE_LABEL.prevYear, prev: catPrevYr["수출"] },
-          ]}
-          target={exportTarget > 0 ? { value: exportTarget, label: "수출 목표" } : undefined}
-        />
+        {showCh("B2B") && (
+          <MetricCard
+            label="B2B"
+            current={catCur["B2B"] - agencyCur}
+            comparisons={[
+              { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2B"] - agencyPrevMo },
+              { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2B"] - agencyPrevYr },
+            ]}
+            target={b2bTarget > 0 ? { value: b2bTarget, label: "B2B 목표" } : undefined}
+          />
+        )}
+        {showCh("대리점") && (
+          <MetricCard
+            label="대리점"
+            current={agencyCur}
+            comparisons={[
+              { label: COMPARE_LABEL.prevMonth, prev: agencyPrevMo },
+              { label: COMPARE_LABEL.prevYear, prev: agencyPrevYr },
+            ]}
+            target={agencyTarget > 0 ? { value: agencyTarget, label: "대리점 목표" } : undefined}
+          />
+        )}
+        {showCh("B2C") && (
+          <MetricCard
+            label="B2C"
+            current={catCur["B2C"] - bhCur}
+            comparisons={[
+              { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["B2C"] - bhPrevMo },
+              { label: COMPARE_LABEL.prevYear, prev: catPrevYr["B2C"] - bhPrevYr },
+            ]}
+            target={b2cTarget > 0 ? { value: b2cTarget, label: "B2C 목표" } : undefined}
+          />
+        )}
+        {showCh("바크로하우스") && (
+          <MetricCard
+            label="바크로하우스"
+            current={bhCur}
+            comparisons={[
+              { label: COMPARE_LABEL.prevMonth, prev: bhPrevMo },
+              { label: COMPARE_LABEL.prevYear, prev: bhPrevYr },
+            ]}
+            target={bhTarget > 0 ? { value: bhTarget, label: "바크로하우스 목표" } : undefined}
+          />
+        )}
+        {showCh("면세점") && (
+          <MetricCard
+            label="면세점"
+            current={catCur["면세점"]}
+            comparisons={[
+              { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["면세점"] },
+              { label: COMPARE_LABEL.prevYear, prev: catPrevYr["면세점"] },
+            ]}
+            target={dutyTarget > 0 ? { value: dutyTarget, label: "면세점 목표" } : undefined}
+          />
+        )}
+        {showCh("수출") && (
+          <MetricCard
+            label="수출"
+            current={catCur["수출"]}
+            comparisons={[
+              { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["수출"] },
+              { label: COMPARE_LABEL.prevYear, prev: catPrevYr["수출"] },
+            ]}
+            target={exportTarget > 0 ? { value: exportTarget, label: "수출 목표" } : undefined}
+          />
+        )}
       </div>
 
       {/* 4. 12개월 채널별 매출 추이 (6채널 분리) */}
@@ -337,7 +384,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         <CardContent>
           <BarChart
             categories={stackMonths.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
-            series={DETAIL_CHANNELS.map((ch) => ({
+            series={DETAIL_CHANNELS.filter((ch) => showCh(ch.key)).map((ch) => ({
               name: ch.key,
               values: monthlyDetail.map((d) => d[ch.key]),
               stack: "월합계",

@@ -56,14 +56,24 @@ export function BrandMatrix({
   ym,
 }: {
   depth1: BrandChannelMatrixData;
-  depth2ByChannel: Record<ChannelKey, BrandCustomerMatrixData>;
+  depth2ByChannel: Partial<Record<ChannelKey, BrandCustomerMatrixData>>;
   ym: string;
 }) {
-  const [selectedChannel, setSelectedChannel] = useState<ChannelKey>("해외영업");
+  // 디폴트 선택 채널: 해외영업이 있으면 그것, 없으면(스코프 필터) 첫 채널.
+  const defaultChannel: ChannelKey = depth1.channels.includes("해외영업")
+    ? "해외영업"
+    : depth1.channels[0];
+  const [selectedChannel, setSelectedChannel] = useState<ChannelKey>(defaultChannel);
   const [selectedDepth1Key, setSelectedDepth1Key] = useState<string | null>(null);
   const [selectedDepth2Key, setSelectedDepth2Key] = useState<string | null>(null);
 
-  const depth2 = depth2ByChannel[selectedChannel];
+  // 스코프 전환 등으로 선택 채널이 현재 컬럼 목록에 없으면 첫 채널로 폴백.
+  const activeChannel: ChannelKey = depth1.channels.includes(selectedChannel)
+    ? selectedChannel
+    : depth1.channels[0];
+  const depth2: BrandCustomerMatrixData =
+    depth2ByChannel[activeChannel] ??
+    (Object.values(depth2ByChannel).find(Boolean) as BrandCustomerMatrixData);
 
   const handleDepth1Click = (brand: string, channel: ChannelKey) => {
     const key = `${brand}|${channel}`;
@@ -87,7 +97,7 @@ export function BrandMatrix({
     ? depth1.cells.get(selectedDepth1Key) ?? null
     : null;
   const selectedDepth2Cell: CustomerMatrixCell | null = selectedDepth2Key
-    ? depth2.cells.get(selectedDepth2Key) ?? null
+    ? depth2?.cells.get(selectedDepth2Key) ?? null
     : null;
 
   return (
@@ -95,7 +105,7 @@ export function BrandMatrix({
       <ChannelMatrixCard
         data={depth1}
         selectedKey={selectedDepth1Key}
-        selectedChannel={selectedChannel}
+        selectedChannel={activeChannel}
         selectedCell={selectedDepth1Cell}
         onCellClick={handleDepth1Click}
         onClosePanel={() => setSelectedDepth1Key(null)}
