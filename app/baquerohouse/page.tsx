@@ -39,7 +39,6 @@ import {
 } from "@/lib/format";
 import {
   loadBHPartnerMap,
-  loadBHPartners,
   loadBHSales,
   loadBHSalesRange,
   isBHDataAvailable,
@@ -59,9 +58,9 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
     isBHDataAvailable(),
   ]);
 
-  const [partnerMap, bhPartners, bhSalesCur, bhSalesPrev] = bhAvailable
-    ? await Promise.all([loadBHPartnerMap(), loadBHPartners(), loadBHSales(ym), loadBHSales(prevYM)])
-    : [new Map(), [], [] as BHPartnerSale[], [] as BHPartnerSale[]];
+  const [partnerMap, bhSalesCur, bhSalesPrev] = bhAvailable
+    ? await Promise.all([loadBHPartnerMap(), loadBHSales(ym), loadBHSales(prevYM)])
+    : [new Map(), [] as BHPartnerSale[], [] as BHPartnerSale[]];
 
   const insights = computeBaqueroHouseInsights(cube, ym, bhAvailable ? {
     salesCur: bhSalesCur,
@@ -280,7 +279,7 @@ export default async function BaqueroHousePage({ searchParams }: { searchParams:
         />
         <MetricCard
           label="등록 파트너"
-          current={bhAvailable ? bhPartners.length : shops.length}
+          current={bhAvailable ? partnerMap.size : shops.length}
           comparisons={[]}
           unit="qty"
           unitSuffix="개"
