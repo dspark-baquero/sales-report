@@ -16,12 +16,12 @@ import {
   ytdAchievementForCustomerKeys,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  outlookPrevYearMonths,
 } from "@/lib/ytd";
 import { CustomerLink } from "@/components/CustomerLink";
 import {
   prevMonth,
   prevYearSameMonth,
-  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -179,8 +179,9 @@ export default async function B2BPage({ searchParams }: { searchParams: SearchPa
   const prevYearStart = `${Number(yearStr) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
-  const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
+  const outlookPrevRows = (
+    await Promise.all(outlookPrevYearMonths(ym).map((m) => loadMonthRows(m)))
+  ).flat();
   const b2bKeySet = new Set(["병원", "피부관리실", "직거래처"]);
   const b2bMonthlyTargets = ytdMonthlyTargets(targets, ym, {
     outlook: true,

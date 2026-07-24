@@ -1,7 +1,8 @@
 import { loadFactCube } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { enumerateMonths } from "@/lib/aggregate";
-import { prevMonth, nextMonthInYear } from "@/lib/compare";
+import { prevMonth, nextMonthsInYear } from "@/lib/compare";
+import { OUTLOOK_MONTHS } from "@/lib/ytd";
 import {
   loadBHPartnerMap,
   loadBHSales,
@@ -80,7 +81,7 @@ export default async function SalesRepPage({ searchParams }: { searchParams: Sea
         bhSalesPrev,
         dealerTargets,
         ytdMonths,
-        outlookMonth: nextMonthInYear(ym),
+        outlookMonths: nextMonthsInYear(ym, OUTLOOK_MONTHS),
       })
     : null;
   const hasData =

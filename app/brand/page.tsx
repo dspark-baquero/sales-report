@@ -13,7 +13,6 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
-  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -32,6 +31,7 @@ import {
   ytdAchievementForBrand,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  outlookPrevYearMonths,
 } from "@/lib/ytd";
 import { BarChart } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
@@ -235,8 +235,9 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
-  const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
+  const outlookPrevRows = (
+    await Promise.all(outlookPrevYearMonths(ym).map((m) => loadMonthRows(m)))
+  ).flat();
   const brandMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
     outlook: true,
     targetFilter: (t) => t.brand === brand,

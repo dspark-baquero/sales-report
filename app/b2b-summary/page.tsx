@@ -1,7 +1,7 @@
 import { loadFactCube, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { ymMinusMonths, monthlyRevenueOf, enumerateMonths } from "@/lib/aggregate";
-import { prevMonth, prevYearSameMonth, nextMonthInYear } from "@/lib/compare";
+import { prevMonth, prevYearSameMonth } from "@/lib/compare";
 import { computeB2BSummaryInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { YearToDateChart } from "@/components/YearToDateChart";
@@ -11,6 +11,7 @@ import {
   ytdAchievementForCustomerKeys,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  outlookPrevYearMonths,
 } from "@/lib/ytd";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,10 +115,9 @@ export default async function B2BSummaryPage({ searchParams }: { searchParams: S
     B2B_COMBO_KEYS,
     (r) => r.category === "B2B",
   );
-  const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm
-    ? await loadRangeRows(prevYearSameMonth(outlookYm), prevYearSameMonth(outlookYm))
-    : [];
+  const outlookPrevRows = (
+    await Promise.all(outlookPrevYearMonths(ym).map((m) => loadRangeRows(m, m)))
+  ).flat();
   const b2bComboMonthlyTargets = ytdMonthlyTargets(targets, ym, {
     outlook: true,
     targetFilter: (t) => B2B_COMBO_KEYS.includes(t.customerKey),

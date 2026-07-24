@@ -5,8 +5,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BarChart, type LineOverlay, type XAxisSubLabel } from "@/components/charts/BarChart";
 import { YTDAchievementPanel } from "@/components/YTDAchievementPanel";
-import { ytdMonthLabels } from "@/lib/ytd";
-import { nextMonthInYear } from "@/lib/compare";
+import { ytdMonthLabels, OUTLOOK_MONTHS } from "@/lib/ytd";
+import { nextMonthsInYear } from "@/lib/compare";
 import { buildAchievement, formatPctAbs } from "@/lib/format";
 import type { YTDSeries, YTDAchievement } from "@/lib/ytd";
 
@@ -41,17 +41,22 @@ export function YearToDateChart({
     labels.length === 1 ? `${firstMonth}월` : `${firstMonth}월~${lastMonth}월`;
   const heading = title ?? `${year}년 월별 매출 추이 (${range})`;
 
-  // 전망(다음 달) 칸: 목표/전년 오버레이 배열이 경과월+1 길이면 자동 활성화.
-  // 다음 달은 실매출 막대 없이 목표·전년 마커만 표시. 12월이면 다음 달이 내년이라 없음.
-  const nxt = nextMonthInYear(ym);
+  // 전망(미래 달) 칸: 목표/전년 오버레이 배열이 경과월보다 길면 그 초과분만큼 자동 활성화.
+  // 전망 월은 실매출 막대 없이 목표·전년 마커만 표시. 연말이라 연내 남은 달이 부족하면 그만큼만.
+  const outlookMonths = nextMonthsInYear(ym, OUTLOOK_MONTHS);
   const overlayLen = Math.max(
     monthlyTargets?.length ?? 0,
     prevYearValues?.length ?? 0,
   );
-  const hasOutlook = !!nxt && overlayLen === labels.length + 1;
-  const chartLabels = hasOutlook
-    ? [...labels, `${Number(nxt!.slice(5, 7))}월`]
-    : labels;
+  const outlookCount = Math.max(
+    0,
+    Math.min(outlookMonths.length, overlayLen - labels.length),
+  );
+  const outlookLabels = outlookMonths
+    .slice(0, outlookCount)
+    .map((m) => `${Number(m.slice(5, 7))}월`);
+  const hasOutlook = outlookCount > 0;
+  const chartLabels = [...labels, ...outlookLabels];
 
   const hasData = series.length > 0 && series.some((s) => s.values.some((v) => v > 0));
 
@@ -91,7 +96,10 @@ export function YearToDateChart({
   // 전망 월: 실매출이 없어 달성률(0%)이 오해를 부르므로 "전망"으로 표기.
   if (hasOutlook) {
     if (!xAxisSubLabels) xAxisSubLabels = labels.map(() => null);
-    xAxisSubLabels = [...xAxisSubLabels, { text: "전망", tone: "muted" }];
+    xAxisSubLabels = [
+      ...xAxisSubLabels,
+      ...outlookLabels.map(() => ({ text: "전망", tone: "muted" as const })),
+    ];
   }
 
   const chart = hasData ? (

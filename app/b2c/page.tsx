@@ -8,6 +8,7 @@ import {
   ytdAchievementForCustomerKeys,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  outlookPrevYearMonths,
 } from "@/lib/ytd";
 import {
   kpi,
@@ -17,7 +18,6 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
-  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -179,8 +179,9 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
-  const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
+  const outlookPrevRows = (
+    await Promise.all(outlookPrevYearMonths(ym).map((m) => loadMonthRows(m)))
+  ).flat();
   const b2cKeySet = new Set(b2cKeys);
   const b2cMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
     outlook: true,

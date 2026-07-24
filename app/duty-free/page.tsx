@@ -28,11 +28,11 @@ import {
   ytdAchievementForCustomerKeys,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  outlookPrevYearMonths,
 } from "@/lib/ytd";
 import {
   prevMonth,
   prevYearSameMonth,
-  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -156,8 +156,9 @@ export default async function DutyFreePage({ searchParams }: { searchParams: Sea
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
   const prevYearEnd = prevYearSameMonth(ym);
   const prevYearRangeRows = await loadRangeRows(prevYearStart, prevYearEnd);
-  const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm ? await loadMonthRows(prevYearSameMonth(outlookYm)) : [];
+  const outlookPrevRows = (
+    await Promise.all(outlookPrevYearMonths(ym).map((m) => loadMonthRows(m)))
+  ).flat();
   const dutyMonthlyTargetsArr = ytdMonthlyTargets(targets, ym, {
     outlook: true,
     targetFilter: (t) => t.division === "국내" && t.customerKey === "면세점",

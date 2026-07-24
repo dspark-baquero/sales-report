@@ -33,6 +33,7 @@ import {
   ytdAchievementOverall,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  outlookPrevYearMonths,
 } from "@/lib/ytd";
 import {
   topMovers,
@@ -43,7 +44,6 @@ import {
 import {
   prevMonth,
   prevYearSameMonth,
-  nextMonthInYear,
   quarterOf,
   prevQuarter,
   quarterProgress,
@@ -171,8 +171,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   // 월별 목표 (전체 국내) + 전년 동기 (전체). 다음 달(전망) 슬롯 포함.
   // prevYearRangeRows 는 브랜드 매트릭스에서도 재사용되므로 원본은 경과월까지로 유지하고,
   // 전망 슬롯용 작년 다음 달만 오버레이 계산에서 합친다.
-  const outlookYm = nextMonthInYear(ym);
-  const outlookPrevRows = outlookYm ? scopeRows(await loadMonthRows(prevYearSameMonth(outlookYm))) : [];
+  const outlookPrevRows = scopeRows(
+    (await Promise.all(outlookPrevYearMonths(ym).map((m) => loadMonthRows(m)))).flat(),
+  );
   const ytdMonthlyTargetsOverall = ytdMonthlyTargets(targets, ym, { outlook: true });
   const ytdMonthlyPrevYearOverall = ytdMonthlyPrevYear(
     [...prevYearRangeRows, ...outlookPrevRows],

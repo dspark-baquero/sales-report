@@ -20,6 +20,21 @@ export function nextMonthInYear(yearMonth: string): string | null {
   return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
+// 같은 해 안에서의 다음 N개월(전망). 연말이면 12월까지 남은 달만큼만 반환.
+// nextMonthsInYear("2026-04", 2) → ["2026-05","2026-06"]
+// nextMonthsInYear("2026-11", 2) → ["2026-12"]  /  nextMonthsInYear("2026-12", 2) → []
+export function nextMonthsInYear(yearMonth: string, count: number): string[] {
+  const out: string[] = [];
+  let cur = yearMonth;
+  for (let i = 0; i < count; i++) {
+    const nxt = nextMonthInYear(cur);
+    if (!nxt) break;
+    out.push(nxt);
+    cur = nxt;
+  }
+  return out;
+}
+
 // 분기 = 1~3 / 4~6 / 7~9 / 10~12
 export function quarterOf(yearMonth: string): { qStart: string; qEnd: string; qNumber: number } {
   const [y, m] = yearMonth.split("-").map(Number);

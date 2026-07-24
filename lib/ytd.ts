@@ -6,7 +6,7 @@ import type { FactCube, FactCell } from "./facts";
 import type { Category, ChannelGroup } from "@/config/mappings";
 import type { SalesRow } from "./load";
 import { filterMonth, filterRange, enumerateMonths } from "./aggregate";
-import { nextMonthInYear } from "./compare";
+import { nextMonthsInYear, prevYearSameMonth } from "./compare";
 import { CATEGORY_COLOR, CHANNEL_GROUP_COLOR, BRAND_COLOR } from "./labels";
 import type { TargetRow } from "./targets";
 import { isProspectiveKey } from "./targets";
@@ -19,12 +19,21 @@ export function ytdMonths(ym: string): string[] {
   return enumerateMonths(`${year}-01`, ym);
 }
 
-// ytdMonths + 연내 다음 달(전망). 12월이면 다음 달이 내년이라 전망 없음 → ytdMonths와 동일.
-// 다음 달은 실매출이 아직 없고 목표·전년 오버레이만 그리는 "전망" 칸 용도.
+// 월별 추이 차트에 붙일 전망(미래) 슬롯 개월 수. 연내 남은 달이 부족하면 그만큼만.
+export const OUTLOOK_MONTHS = 2;
+
+// ytdMonths + 연내 다음 N개월(전망). 연말이라 남은 달이 부족하면 남은 만큼만 붙는다.
+// 전망 월들은 실매출이 아직 없고 목표·전년 오버레이만 그리는 "전망" 칸 용도.
 export function ytdMonthsWithOutlook(ym: string): string[] {
-  const base = ytdMonths(ym);
-  const nxt = nextMonthInYear(ym);
-  return nxt ? [...base, nxt] : base;
+  return [...ytdMonths(ym), ...nextMonthsInYear(ym, OUTLOOK_MONTHS)];
+}
+
+// 전망 슬롯의 전년 값 계산에 필요한 "작년 동월" ym 리스트.
+// nextMonthsInYear(ym, OUTLOOK_MONTHS) 각각의 작년 동월을 반환한다.
+// 페이지에서 이 월들의 매출을 로드해 ytdMonthlyPrevYear 의 prevYearRows 에 합쳐야
+// 전망 슬롯의 전년 라인이 채워진다.
+export function outlookPrevYearMonths(ym: string): string[] {
+  return nextMonthsInYear(ym, OUTLOOK_MONTHS).map(prevYearSameMonth);
 }
 
 // 한국식 월 라벨. ["2026-01","2026-02",…] → ["1월","2월",…]
