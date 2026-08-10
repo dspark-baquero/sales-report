@@ -1,8 +1,6 @@
 import { loadFactCube, loadMonthRows, loadRangeRows } from "@/lib/load";
 import { resolveMonth } from "@/lib/months";
 import { kpi, ymMinusMonths, monthlyRevenueOf, topNProductsEnhanced } from "@/lib/aggregate";
-import { computeExportInsights } from "@/lib/tabInsights";
-import { TabInsights } from "@/components/TabInsights";
 import { CustomerLink } from "@/components/CustomerLink";
 import { YearToDateChart } from "@/components/YearToDateChart";
 import {
@@ -51,7 +49,6 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
   const sp = await searchParams;
   const ym = await resolveMonth(sp.month);
   const [cube, targets] = await Promise.all([loadFactCube(), loadTargets()]);
-  const insights = computeExportInsights(cube, ym);
 
   const { qStart } = quarterOf(ym);
   const prevQ = prevQuarter(ym);
@@ -160,8 +157,6 @@ export default async function ExportPage({ searchParams }: { searchParams: Searc
           {countries.length}개 국가 · 이번달 수출 {formatInt(k.qty)}개
         </p>
       </div>
-
-      <TabInsights bullets={insights} />
 
       <YearToDateChart
         ym={ym}
