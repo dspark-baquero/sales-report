@@ -4,6 +4,8 @@ import { DataTable } from "@/components/DataTable";
 import { CustomerLink } from "@/components/CustomerLink";
 import { SalesRepLink } from "@/components/SalesRepLink";
 import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { formatKRWShort, formatYMShort } from "@/lib/format";
 
 // 서버에서 넘기는 flat DTO — Map/Set/Date 금지(직렬화 대상).
@@ -36,14 +38,78 @@ const STATUS_VARIANT: Record<string, "positive" | "muted" | "warn"> = {
   승인전: "warn",
 };
 
+// 엑셀에서 바로 열리도록 UTF-8 BOM을 붙인 CSV로 내보낸다.
+// 금액·개월 수는 서식 없는 raw 숫자로 넣어야 엑셀에서 계산·정렬이 된다.
+const CSV_HEADERS = [
+  "거래처",
+  "우선순위 등급",
+  "상태",
+  "담당자",
+  "이전 담당",
+  "무매출 구간",
+  "무매출 개월",
+  "마지막 거래월",
+  "최근 12개월 매출",
+  "누적 매출",
+  "지역",
+  "사업형태",
+  "회원 등급",
+];
+
+function csvCell(v: string | number | null): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildCsv(rows: MemberTableRow[]): string {
+  const lines = [CSV_HEADERS.join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        r.client,
+        r.tier === "-" ? "" : r.tier,
+        r.status,
+        r.salesRep,
+        r.prevDealer ?? "",
+        r.gapBucket,
+        r.silentMonths ?? "",
+        r.lastActiveMonth ?? "",
+        Math.round(r.last12mRevenue),
+        Math.round(r.lifetimeRevenue),
+        r.region,
+        r.bizTypeLeaf,
+        r.grade,
+      ]
+        .map(csvCell)
+        .join(","),
+    );
+  }
+  return "\uFEFF" + lines.join("\r\n");
+}
+
+function downloadCsv(rows: MemberTableRow[], filename: string): void {
+  const blob = new Blob([buildCsv(rows)], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function MemberTable({
   rows,
   ym,
   emptyText,
+  downloadName,
 }: {
   rows: MemberTableRow[];
   ym: string;
   emptyText?: string;
+  downloadName?: string;
 }) {
   const columns: ColumnDef<MemberTableRow>[] = [
     {
@@ -129,7 +195,20 @@ export function MemberTable({
   ];
 
   return (
-    <DataTable
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={rows.length === 0}
+          onClick={() => downloadCsv(rows, downloadName ?? `재영업목록_${ym}.csv`)}
+        >
+          <Download className="h-3.5 w-3.5 mr-1.5" />
+          엑셀 내려받기 ({rows.length}개)
+        </Button>
+      </div>
+      <DataTable
       columns={columns}
       data={rows}
       pageSize={25}
@@ -137,6 +216,7 @@ export function MemberTable({
       searchPlaceholder="거래처명 · 담당자 검색"
       searchAccessor={(r) => `${r.client} ${r.salesRep} ${r.region} ${r.bizTypeLeaf}`}
       emptyText={emptyText ?? "해당 조건의 거래처가 없습니다"}
-    />
+      />
+    </div>
   );
 }

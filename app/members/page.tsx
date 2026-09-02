@@ -23,6 +23,7 @@ import { computeMembersInsights } from "@/lib/tabInsights";
 import { TabInsights } from "@/components/TabInsights";
 import { MetricCard } from "@/components/MetricCard";
 import { MemberTable, type MemberTableRow } from "@/components/MemberTable";
+import { SalesRepFilter } from "@/components/SalesRepFilter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart } from "@/components/charts/BarChart";
@@ -47,7 +48,8 @@ type SearchParams = Promise<{
 }>;
 
 // 목록에 넘길 최대 행 수 — DataTable은 client라 행이 그대로 직렬화된다.
-const TABLE_LIMIT = 300;
+// 엑셀 내려받기가 필터 조건 전체를 담아야 해서 상한을 넉넉히 둔다(활성 전체가 2,461개 수준).
+const TABLE_LIMIT = 3000;
 
 function toTableRows(rows: MemberJoined[], limit = TABLE_LIMIT): MemberTableRow[] {
   return rows.slice(0, limit).map((r) => ({
@@ -159,6 +161,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
             거래가 끊긴 거래처를 담당자별로 추려 재영업에 쓰는 탭입니다 · 수출 거래처 제외
           </p>
         </div>
+        <SalesRepFilter
+          options={board.map((r) => ({
+            salesRep: r.salesRep,
+            activeCount: r.activeCount,
+            dormantCount: r.dormantCount,
+          }))}
+          current={rep ?? null}
+        />
       </div>
 
       <TabInsights bullets={insights} />
@@ -284,7 +294,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
         </CardHeader>
         <CardContent className="p-0">
           <div className="px-4 pb-4">
-            <MemberTable rows={toTableRows(targets)} ym={ym} />
+            <MemberTable
+              rows={toTableRows(targets)}
+              ym={ym}
+              downloadName={`재영업목록_${ym}${rep ? `_${rep}` : ""}${bucket ? `_${bucket}` : `_${months}개월이상`}.csv`}
+            />
           </div>
         </CardContent>
       </Card>
