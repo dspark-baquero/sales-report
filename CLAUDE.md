@@ -40,6 +40,16 @@
 
 `bigquery-provider.ts`의 `BQ_COL_MAP`에서 한국어로 매핑 → `parsers.ts`에서 `SalesRow`로 변환.
 
+### 거래처 회원 목록 (BigQuery `members` 외부 테이블 — Google Sheets)
+
+`member_id, client, status, sales_rep, grade, biz_type, region1, joined_at, interest_brands, ceo_name`
+
+`lib/members-data.ts`가 로드. 매출에 안 잡히는 "가입만 하고 주문 없음 / 거래 끊김"을 채우는 소스로 `/members` 탭에서만 쓴다. 조인 키는 `client`(상호명) — 정규화 없이 그대로 매칭(B2B몰 96% 일치). 괄호 안 지점명은 지우지 말 것(`OO의원(강남)` ≠ `OO의원(분당)`).
+
+- 상태: 활성 / 비활성 / 승인전 / 삭제 / 거래중단 / 기타 일시중지 / 미결제 일시중지
+- 영업담당 정규화는 `config/mappings.ts`의 `normalizeMemberSalesRep` — 빈칸·`비활성 거래처`·`관리자2`는 "미지정", 링커는 담당 직원으로 귀속
+- Drive 스코프가 없는 환경(로컬 dev)에서는 `available: false`로 떨어지고 탭이 안내 카드만 렌더한다. 원본 `member.csv`는 PII(이메일·휴대폰·사업자번호) 때문에 커밋 금지(`.gitignore`)
+
 ### 정제 규칙 (`lib/parsers.ts`)
 
 | 케이스 | 처리 |
@@ -70,6 +80,7 @@
 8. **목표 달성**: 매칭 데이터 없는 키는 "신규 추진 채널"로 표시 (0% 달성 아님)
 9. **거래처 분석**: 단순 Top-N 금지. 동면 복귀 / 분기 절벽 / 상실된 핵심 / 신규 진입 포함. 거래처명 클릭 → `/accounts?customer=XXX&month=YYYY-MM`
 10. **바크로하우스 자체매출**: 바크로하우스 몰 매출 중 파트너 추천(`bh_partner_sales`)으로 잡히지 않은 몫은 B2C 자사 공식몰에 `바크로하우스(자체매출)`로 합산(2026-09 확정). 추천분은 영업사원 실적(`/sales-rep`, `/baquerohouse`)으로만 계상. 목표는 `바크로하우스` 키를 그대로 두고 B2C 목표에 더하지 않는다(실적만 포함). → `lib/bhSelfRevenue.ts`
+11. **재영업 대상**: `/members` 탭의 재영업 목록은 상태 `활성` + 수출 거래처 제외. `삭제`/`거래중단`/`일시중지`는 상태 분포에서만 집계(2026-09 확정). 우선순위는 단순 매출순이 아니라 회수 기대값(활성기 월평균 × 3개월 × 이탈 기간별 회복계수), 등급 S/A/B/C는 고정 금액이 아닌 런타임 분위수. → `lib/memberAnalysis.ts`
 
 ---
 
@@ -80,7 +91,7 @@
 - **차트**: `components/charts/ChartBase.tsx` wrapper 통과. 사전 정의 wrapper 패턴 따라 추가
 - **데이터 로드**: 모든 load 함수는 async. BigQuery → FactCube 인메모리 캐시
 - **분석 함수**: 큐브 직접 사용 (`await loadFactCube()`). raw rows 전체 스캔 금지. 큐브에 없는 분해는 `loadMonthRows(ym)` 한 달치만 스캔
-- **거래처/딜러 분석**: `lib/accountAnalysis.ts`, `lib/dealerAnalysis.ts`에 추가. 페이지에서 직접 분석 로직 작성 금지
+- **거래처/딜러 분석**: `lib/accountAnalysis.ts`, `lib/dealerAnalysis.ts`에 추가. 회원 목록 결합 분석은 `lib/memberAnalysis.ts`. 페이지에서 직접 분석 로직 작성 금지
 - **인사이트**: 모든 탭 상단 `<TabInsights bullets={computeXxxInsights(...)} />`. 함수는 `lib/tabInsights.ts`
 - **비교 카드**: 양수=녹색▲, 음수=빨강▼, ±2%이내=회색●
 - **라우트**: 새 라우트 추가 시 `loading.tsx` 함께 생성

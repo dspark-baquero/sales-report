@@ -25,8 +25,12 @@ npm-debug.log*
 .vscode/
 .idea/
 
-# 매출 데이터 (BigQuery가 유일한 소스)
+# 원본 데이터 (BigQuery가 유일한 소스)
 sales.csv
+target.csv
+
+# 거래처 회원 목록 — 이메일/휴대폰/사업자등록번호 포함, 커밋 금지
+member.csv
 
 # 임시 분석 파일
 /analysis*.txt

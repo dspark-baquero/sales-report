@@ -18,6 +18,7 @@ const TABS = [
   { href: "/duty-free", label: "면세점", group: "report" },
   { href: "/brand", label: "브랜드 분석", group: "analysis" },
   { href: "/accounts", label: "거래처 분석", group: "analysis" },
+  { href: "/members", label: "거래처 관리", group: "analysis" },
   { href: "/products", label: "제품 분석", group: "analysis" },
   { href: "/insights", label: "심층 분석", group: "analysis" },
   { href: "/non-revenue", label: "비매출 출고", group: "analysis" },
@@ -38,6 +39,7 @@ export function TabNav({ lockedTabs }: { lockedTabs?: string[] }) {
           pathname === tab.href ||
           (tab.href === "/brand" && pathname.startsWith("/brand")) ||
           (tab.href === "/accounts" && pathname.startsWith("/accounts")) ||
+          (tab.href === "/members" && pathname.startsWith("/members")) ||
           (tab.href === "/products" && pathname.startsWith("/products"));
         const locked = lockedSet.has(tab.href);
         const isAnalysis = tab.group === "analysis";

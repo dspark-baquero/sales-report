@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { invalidateCache } from "@/lib/load";
+import { invalidateMemberCache } from "@/lib/members-data";
 
 // 항상 동적 실행 — 응답을 캐시하지 않는다.
 export const dynamic = "force-dynamic";
@@ -35,6 +36,8 @@ function handle(req: NextRequest): NextResponse {
   }
 
   invalidateCache();
+  // 회원 상태값은 재영업 목록의 핵심 필터라 시트를 고치면 바로 반영돼야 한다.
+  invalidateMemberCache();
   return NextResponse.json({
     ok: true,
     message: "캐시를 비웠습니다. 다음 요청 시 BigQuery에서 다시 로드합니다.",

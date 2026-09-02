@@ -161,6 +161,19 @@ export function linkerManager(name: string | null | undefined): string | null {
   return LINKER_MANAGER_MAP.get(name) ?? null;
 }
 
+// ── 거래처 회원 목록(members)의 영업담당 정규화 ─────────────
+// 회원 목록의 영업담당 칸에는 사람 이름 외의 값이 섞여 있고(빈칸/"비활성 거래처"/"관리자2"),
+// 링커명이 직원명과 같은 레벨로 들어오기도 한다. 담당자별 집계가 /sales-rep 탭과
+// 어긋나지 않도록 링커는 담당 내부직원으로 귀속시키고 나머지는 "미지정"으로 통합한다.
+export const UNASSIGNED_REP = "미지정";
+const MEMBER_NON_REP_VALUES = new Set(["", "-", "비활성 거래처", "관리자", "관리자2"]);
+
+export function normalizeMemberSalesRep(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim();
+  if (MEMBER_NON_REP_VALUES.has(s)) return UNASSIGNED_REP;
+  return linkerManager(s) ?? s;
+}
+
 // ── 알려진 모든 키 (검증 스크립트용) ──────────────────────
 export const KNOWN_CHANNELS = new Set(Object.keys(CHANNEL_TO_GROUP));
 export const KNOWN_BRANDS = new Set(Object.keys(BRAND_TO_HOUSE));

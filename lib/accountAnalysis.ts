@@ -488,3 +488,47 @@ export function categoryTopCustomers(
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, n);
 }
+
+// ── 거래처별 활동 요약 (전체 거래처 단일 패스) ──────────────────
+// 거래처마다 뒤에서부터 스캔하면 O(거래처수 × 월수)가 된다. 전체 거래처가 대상일 때는
+// monthsAsc를 오름차순으로 1회 순회하는 편이 훨씬 싸다(O(총 셀 수)).
+// 비매출 출고는 큐브에 없고 반품 등으로 revenue <= 0 인 셀이 있으므로 revenue > 0 만 인정.
+export type CustomerActivity = {
+  firstActiveMonth: string;
+  lastActiveMonth: string;
+  activeMonths: number; // 실매출이 발생한 월 수
+  totalRevenue: number;
+  last12mRevenue: number;
+};
+
+export function customerActivityStats(
+  cube: FactCube,
+  untilYM: string,
+): Map<string, CustomerActivity> {
+  const from12m = ymMinusMonths(untilYM, 11);
+  const out = new Map<string, CustomerActivity>();
+  for (const ym of cube.monthsAsc) {
+    if (ym > untilYM) break;
+    const cells = cube.byMonthCustomer.get(ym);
+    if (!cells) continue;
+    for (const [customer, cell] of cells) {
+      if (cell.revenue <= 0) continue;
+      const cur = out.get(customer);
+      if (cur) {
+        cur.lastActiveMonth = ym;
+        cur.activeMonths += 1;
+        cur.totalRevenue += cell.revenue;
+        if (ym >= from12m) cur.last12mRevenue += cell.revenue;
+      } else {
+        out.set(customer, {
+          firstActiveMonth: ym,
+          lastActiveMonth: ym,
+          activeMonths: 1,
+          totalRevenue: cell.revenue,
+          last12mRevenue: ym >= from12m ? cell.revenue : 0,
+        });
+      }
+    }
+  }
+  return out;
+}
