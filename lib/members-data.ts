@@ -8,7 +8,11 @@
 // graceful degradation(로컬 dev에서 권한이 없어도 앱이 죽지 않는다).
 
 import { BigQuery } from "@google-cloud/bigquery";
-import { normalizeMemberSalesRep, UNASSIGNED_REP } from "@/config/mappings";
+import {
+  normalizeMemberSalesRep,
+  isNonAccountMember,
+  UNASSIGNED_REP,
+} from "@/config/mappings";
 
 // 재영업 대상은 "활성"만. 나머지는 상태 분포 섹션에서만 집계한다(사용자 확정).
 export const MEMBER_STATUSES = [
@@ -129,11 +133,16 @@ async function ensureLoaded(): Promise<MemberData> {
       maxResults: 50_000,
     });
 
-    const members = rows
+    const parsed = rows
       .map((r: Record<string, unknown>) => toMember(r))
       .filter((m) => m.client);
+    // 행사용 계정 등 실거래처가 아닌 항목은 진입점에서 걸러 모든 집계에서 빠지게 한다.
+    const members = parsed.filter((m) => !isNonAccountMember(m.client));
+    const excluded = parsed.length - members.length;
 
-    console.log(`[members-data] 거래처 ${members.length}곳 로드`);
+    console.log(
+      `[members-data] 거래처 ${members.length}개 로드${excluded > 0 ? ` (실거래처 아님 ${excluded}개 제외)` : ""}`,
+    );
     cached = { members, available: true };
   } catch (e) {
     console.warn(

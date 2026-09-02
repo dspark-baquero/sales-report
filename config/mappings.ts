@@ -174,6 +174,28 @@ export function normalizeMemberSalesRep(raw: string | null | undefined): string 
   return linkerManager(s) ?? s;
 }
 
+// ── 실거래처가 아닌 회원 계정 ─────────────────────────────
+// 행사·이벤트용으로 잠깐 만들었다가 남은 계정처럼, 회원 목록에는 있지만 영업 대상이
+// 아닌 상호명. /members 탭의 모든 집계에서 제외한다(매출 데이터 자체는 건드리지 않는다 —
+// 실제로 발생한 매출이므로 채널·브랜드 집계에는 그대로 남는다).
+// 새로 발견하면 여기에만 추가하면 된다.
+export const NON_ACCOUNT_MEMBERS = new Set<string>([
+  "2024 하우스파티", // 2024-08 행사용
+  "2023뷰티콘퍼런스", // 2023-07 행사용
+  "쿠팡 로켓그로스", // 채널 계정 (실거래처 아님)
+  "쿠팡 로켓", // 채널 계정
+  "RD-면세대행-지코주식회사", // 면세 대행
+  "RD-면세대행-지코주식회사(신세계/HDC)", // 면세 대행
+  "네이버3PL", // 물류 계정
+  "성원글로벌_백화점대행", // 백화점 대행
+  "전문가몰 확인용", // 테스트 계정
+  "바크로", // 자사 계정
+]);
+
+export function isNonAccountMember(client: string | null | undefined): boolean {
+  return NON_ACCOUNT_MEMBERS.has((client ?? "").trim());
+}
+
 // ── 알려진 모든 키 (검증 스크립트용) ──────────────────────
 export const KNOWN_CHANNELS = new Set(Object.keys(CHANNEL_TO_GROUP));
 export const KNOWN_BRANDS = new Set(Object.keys(BRAND_TO_HOUSE));

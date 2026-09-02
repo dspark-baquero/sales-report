@@ -18,7 +18,6 @@ export type MemberTableRow = {
   lastActiveMonth: string | null;
   last12mRevenue: number;
   lifetimeRevenue: number;
-  recoveryValue: number;
   region: string;
   bizTypeLeaf: string;
   grade: string;
@@ -110,15 +109,6 @@ export function MemberTable({
         (a.original.silentMonths ?? 9999) - (b.original.silentMonths ?? 9999),
     },
     {
-      accessorKey: "recoveryValue",
-      header: "회수 기대값",
-      cell: ({ row }) => (
-        <span className="tabular-nums font-medium">
-          {row.original.recoveryValue > 0 ? formatKRWShort(row.original.recoveryValue) : "—"}
-        </span>
-      ),
-    },
-    {
       accessorKey: "last12mRevenue",
       header: "최근 12개월",
       cell: ({ row }) => (
@@ -131,7 +121,7 @@ export function MemberTable({
       accessorKey: "lifetimeRevenue",
       header: "누적 매출",
       cell: ({ row }) => (
-        <span className="tabular-nums">
+        <span className="tabular-nums font-medium">
           {row.original.lifetimeRevenue > 0 ? formatKRWShort(row.original.lifetimeRevenue) : "—"}
         </span>
       ),

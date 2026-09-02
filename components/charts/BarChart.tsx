@@ -56,7 +56,9 @@ export function BarChart({
   xAxisSubLabels,
 }: BarChartProps) {
   const fmt = formatter ?? formatKRWLong;
-  const axisFmt = formatKRWShort;
+  // formatter를 주면 축·값 라벨까지 그 포맷을 따른다
+  // (금액이 아닌 차트 — 거래처 수 등 — 에서 축이 "원"으로 찍히지 않도록).
+  const axisFmt = formatter ?? formatKRWShort;
 
   const TOTAL_KEY = "__stack_total__";
   const stack0 = series[0]?.stack;

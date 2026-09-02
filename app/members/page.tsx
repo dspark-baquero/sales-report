@@ -61,7 +61,6 @@ function toTableRows(rows: MemberJoined[], limit = TABLE_LIMIT): MemberTableRow[
     lastActiveMonth: r.lastActiveMonth,
     last12mRevenue: r.last12mRevenue,
     lifetimeRevenue: r.lifetimeRevenue,
-    recoveryValue: r.recoveryValue,
     region: r.region,
     bizTypeLeaf: r.bizTypeLeaf,
     grade: r.grade,
@@ -153,7 +152,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
           <h2 className="text-xl font-semibold tracking-tight">
             {formatYM(ym)} 거래처 관리{" "}
             <span className="text-xs text-muted-foreground font-normal ml-1">
-              (B2B몰 회원 {formatCount(members.length)}곳 기준)
+              (B2B몰 회원 {formatCount(members.length)}개 기준)
             </span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -169,27 +168,27 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
           label="재영업 대상 (3개월 이상 무매출)"
           current={k.dormant3m}
           unit="raw"
-          unitSuffix="곳"
-          hint={`활성 ${formatCount(k.activeCount)}곳 중 ${formatPctAbs(k.activeCount ? k.dormant3m / k.activeCount : 0)}`}
+          unitSuffix="개"
+          hint={`활성 ${formatCount(k.activeCount)}개 중 ${formatPctAbs(k.activeCount ? k.dormant3m / k.activeCount : 0)}`}
           highlight
         />
         <MetricCard
-          label="회수 기대값"
-          current={k.recoveryValue}
-          hint="활성기 월평균 매출 × 3개월 × 이탈 기간별 회복계수"
+          label="휴면 거래처 누적 매출"
+          current={k.dormantLifetimeRevenue}
+          hint="3개월 이상 무매출 거래처들이 과거에 올린 매출 합계"
         />
         <MetricCard
           label="이번달 거래 발생"
           current={k.tradedThisMonth}
           unit="raw"
-          unitSuffix="곳"
-          hint={`매출 이력이 한 번도 없는 활성 거래처 ${formatCount(k.neverTraded)}곳`}
+          unitSuffix="개"
+          hint={`매출 이력이 한 번도 없는 활성 거래처 ${formatCount(k.neverTraded)}개`}
         />
         <MetricCard
           label="이탈 회수 대상"
           current={k.churnedRecoverable}
           unit="raw"
-          unitSuffix="곳"
+          unitSuffix="개"
           hint="비활성이지만 과거 매출 보유 (재가입 완료 제외)"
         />
       </div>
@@ -217,9 +216,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
                   }`}
                 >
                   <div className="text-[11px] text-muted-foreground">{b.bucket}</div>
-                  <div className="text-lg font-semibold tabular-nums">{formatInt(b.count)}곳</div>
+                  <div className="text-lg font-semibold tabular-nums">{formatInt(b.count)}개</div>
                   <div className="text-[10px] text-muted-foreground">
-                    {normal ? "정상 주기" : `회수기대 ${formatKRWShort(b.recoveryValue)}`}
+                    {normal ? "정상 주기" : `누적 ${formatKRWShort(b.lifetimeRevenue)}`}
                   </div>
                 </Link>
               );
@@ -234,7 +233,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
                   <th className="py-2 text-right">거래처 수</th>
                   <th className="py-2 text-right">과거 매출 보유</th>
                   <th className="py-2 text-right">거래 이력 없음</th>
-                  <th className="py-2 text-right">회수 기대값</th>
+                  <th className="py-2 text-right">과거 누적 매출</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,7 +253,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
                       {formatInt(c.neverTraded)}
                     </td>
                     <td className="py-2 text-right tabular-nums">
-                      {formatKRWLong(c.recoveryValue)}
+                      {formatKRWLong(c.lifetimeRevenue)}
                     </td>
                   </tr>
                 ))}
@@ -276,11 +275,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
             )}
           </div>
           <div className="text-[11px] text-muted-foreground">
-            {filterLabel} · 조건 충족 {formatCount(targets.length)}곳
-            {targets.length > TABLE_LIMIT && ` 중 회수 기대값 상위 ${TABLE_LIMIT}곳 표시`}
+            {filterLabel} · 조건 충족 {formatCount(targets.length)}개
+            {targets.length > TABLE_LIMIT && ` 중 누적 매출 상위 ${TABLE_LIMIT}개 표시`}
             {" · "}
             등급 S ≥ {formatKRWShort(tierThresholds.s)} · A ≥ {formatKRWShort(tierThresholds.a)} · B
-            ≥ {formatKRWShort(tierThresholds.b)} (회수 기대값 기준 상위 5%/20%/50%)
+            ≥ {formatKRWShort(tierThresholds.b)} (누적 매출 기준 상위 5%/20%/50%)
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -336,6 +335,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
             height={Math.max(260, board.length * 34)}
             horizontal
             yLabel="거래처 수"
+            formatter={(v) => `${formatInt(v)}개`}
           />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -346,7 +346,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
                   <th className="py-2 text-right">무매출</th>
                   <th className="py-2 text-right">무매출 비율</th>
                   <th className="py-2 text-right">우선 연락(S·A)</th>
-                  <th className="py-2 text-right">회수 기대값</th>
+                  <th className="py-2 text-right">휴면 누적 매출</th>
                 </tr>
               </thead>
               <tbody>
@@ -368,7 +368,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
                       {formatInt(r.tierSA)}
                     </td>
                     <td className="py-2 text-right tabular-nums">
-                      {formatKRWLong(r.recoveryValue)}
+                      {formatKRWLong(r.dormantLifetimeRevenue)}
                     </td>
                   </tr>
                 ))}
@@ -406,10 +406,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
             ]}
             height={260}
             yLabel="가입 거래처 수"
+            formatter={(v) => `${formatInt(v)}개`}
             showStackTotals
           />
           <div className="text-[11px] text-muted-foreground">
-            전환 실패 대기열 {formatCount(stalled.length)}곳 — 가입 후 다음 달까지 첫 주문이 없는
+            전환 실패 대기열 {formatCount(stalled.length)}개 — 가입 후 다음 달까지 첫 주문이 없는
             활성·승인전 거래처
           </div>
           <div className="overflow-x-auto">
@@ -454,8 +455,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
         <CardHeader>
           <CardTitle>이탈 고객 회수 후보</CardTitle>
           <div className="text-[11px] text-muted-foreground">
-            비활성 상태지만 과거 매출이 있던 거래처 {formatCount(churned.length)}곳 · 같은 상호로
-            활성 계정이 이미 있는 곳은 &quot;재가입 완료&quot;로 표시
+            비활성 상태지만 과거 매출이 있던 거래처 {formatCount(churned.length)}개 · 같은 상호로
+            활성 계정이 이미 있으면 &quot;재가입 완료&quot;로 표시
           </div>
         </CardHeader>
         <CardContent className="p-0">

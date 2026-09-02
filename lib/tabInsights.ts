@@ -1340,14 +1340,14 @@ export function computeMembersInsights(
     out.push({
       severity: "critical",
       category: "재영업 대상",
-      text: `활성 거래처 ${formatCount(k.activeCount)}곳 중 ${formatCount(k.dormant3m)}곳이 3개월 이상 무매출 (${formatPctAbs(k.dormant3m / k.activeCount)})`,
-      detail: `회수 기대값 합계 ${formatKRWShort(k.recoveryValue)} · 이번달 거래 발생 ${formatCount(k.tradedThisMonth)}곳`,
+      text: `활성 거래처 ${formatCount(k.activeCount)}개 중 ${formatCount(k.dormant3m)}개가 3개월 이상 무매출 (${formatPctAbs(k.dormant3m / k.activeCount)})`,
+      detail: `이 거래처들의 과거 누적 매출 ${formatKRWShort(k.dormantLifetimeRevenue)} · 이번달 거래 발생 ${formatCount(k.tradedThisMonth)}개`,
       href,
-      weight: k.recoveryValue,
+      weight: k.dormantLifetimeRevenue,
     });
   }
 
-  // 담당자 편중 — 1인이 수백 곳을 재영업하는 건 물리적으로 불가능하다.
+  // 담당자 편중 — 1인이 수백 개를 재영업하는 건 물리적으로 불가능하다.
   const board = dormantByRep(rows);
   const staffed = board.filter((r) => r.salesRep !== UNASSIGNED_REP);
   const top = staffed[0];
@@ -1356,10 +1356,10 @@ export function computeMembersInsights(
     out.push({
       severity: "critical",
       category: "담당 편중",
-      text: `${top.salesRep} 담당 휴면 ${formatCount(top.dormantCount)}곳 — 전체 휴면의 ${formatPctAbs(top.dormantCount / totalDormant)}`,
-      detail: `우선 연락 대상(S·A등급) ${formatCount(top.tierSA)}곳부터 · 담당 재배분 검토`,
+      text: `${top.salesRep} 담당 휴면 ${formatCount(top.dormantCount)}개 — 전체 휴면의 ${formatPctAbs(top.dormantCount / totalDormant)}`,
+      detail: `우선 연락 대상(S·A등급) ${formatCount(top.tierSA)}개부터 · 담당 재배분 검토`,
       href: `${href}&rep=${encodeURIComponent(top.salesRep)}`,
-      weight: top.recoveryValue,
+      weight: top.dormantLifetimeRevenue,
     });
   }
 
@@ -1369,10 +1369,10 @@ export function computeMembersInsights(
     out.push({
       severity: "warn",
       category: "최근 이탈",
-      text: `3~5개월 무매출 ${formatCount(fresh.count)}곳 — 회수 기대값 ${formatKRWShort(fresh.recoveryValue)}`,
+      text: `3~5개월 무매출 ${formatCount(fresh.count)}개 — 과거 누적 매출 ${formatKRWShort(fresh.lifetimeRevenue)}`,
       detail: "관계가 살아 있는 구간. 12개월 이상 이탈보다 우선 연락",
       href: `${href}&bucket=${encodeURIComponent("3~5개월")}`,
-      weight: fresh.recoveryValue,
+      weight: fresh.lifetimeRevenue,
     });
   }
 
@@ -1385,7 +1385,7 @@ export function computeMembersInsights(
     out.push({
       severity: "warn",
       category: "승인 적체",
-      text: `90일 넘게 승인전인 거래처 중 ${formatCount(stalePending)}곳은 과거 매출 이력 보유`,
+      text: `90일 넘게 승인전인 거래처 중 ${formatCount(stalePending)}개는 과거 매출 이력 보유`,
       detail: "재가입 건으로 추정 — 승인 처리만으로 거래 재개 가능",
       href: `${href}&status=${encodeURIComponent("승인전")}`,
       weight: stalePending * 1_000_000,
@@ -1396,7 +1396,7 @@ export function computeMembersInsights(
     out.push({
       severity: "warn",
       category: "온보딩 미전환",
-      text: `활성인데 매출 이력이 한 번도 없는 거래처 ${formatCount(k.neverTraded)}곳`,
+      text: `활성인데 매출 이력이 한 번도 없는 거래처 ${formatCount(k.neverTraded)}개`,
       detail: "가입월 또는 익월 안에 첫 주문이 없으면 전환 실패로 굳는 경향",
       href: `${href}&bucket=${encodeURIComponent("이력없음")}`,
       weight: k.neverTraded * 500_000,
@@ -1407,7 +1407,7 @@ export function computeMembersInsights(
     out.push({
       severity: "info",
       category: "이탈 회수",
-      text: `비활성이지만 과거 매출이 있는 거래처 ${formatCount(k.churnedRecoverable)}곳`,
+      text: `비활성이지만 과거 매출이 있는 거래처 ${formatCount(k.churnedRecoverable)}개`,
       detail: "재가입이 이미 끝난 계정은 제외한 수치",
       href,
       weight: k.churnedRecoverable * 300_000,

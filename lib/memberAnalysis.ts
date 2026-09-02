@@ -36,16 +36,6 @@ export const GAP_BUCKETS = [
 ] as const;
 export type GapBucket = (typeof GAP_BUCKETS)[number];
 
-// 마지막 거래로부터 멀어질수록 회수 확률이 낮다는 가정의 계수.
-const RECOVERY_FACTOR: Record<GapBucket, number> = {
-  거래중: 0,
-  "1~2개월": 1,
-  "3~5개월": 0.8,
-  "6~11개월": 0.5,
-  "12개월+": 0.25,
-  이력없음: 0,
-};
-
 export type PriorityTier = "S" | "A" | "B" | "C" | "-";
 
 export type MemberJoined = Member & {
@@ -56,8 +46,6 @@ export type MemberJoined = Member & {
   activeMonths: number;
   lifetimeRevenue: number;
   last12mRevenue: number;
-  avgMonthlyWhenActive: number; // 매출이 있었던 달만 분모
-  recoveryValue: number; // 3개월치 기대 회수액 × 회복계수
   tier: PriorityTier;
   prevDealer: string | null; // 매출 데이터상 최근 딜러가 현재 담당과 다를 때만
   b2bType: string | null;
@@ -85,7 +73,7 @@ function bucketOf(silentMonths: number | null): GapBucket {
   return "12개월+";
 }
 
-// 상위 5% / 20% / 50% 분위수. 고정 금액을 박으면 데이터가 바뀔 때 어긋나므로
+// 누적 매출 상위 5% / 20% / 50% 분위수. 고정 금액을 박으면 데이터가 바뀔 때 어긋나므로
 // 런타임 분위수로 두고 범례에 실제 금액을 표기한다.
 function quantiles(values: number[]): { s: number; a: number; b: number } {
   const sorted = values.filter((v) => v > 0).sort((x, y) => y - x);
@@ -112,7 +100,6 @@ export function joinMembers(
     const silentMonths = last ? monthDiff(last, ym) : null;
     const activeMonths = st?.activeMonths ?? 0;
     const lifetimeRevenue = st?.totalRevenue ?? 0;
-    const avgMonthlyWhenActive = activeMonths > 0 ? lifetimeRevenue / activeMonths : 0;
     const gapBucket = bucketOf(silentMonths);
     const dealer = cube.customerToLatestDealer.get(m.client) ?? null;
     return {
@@ -124,8 +111,6 @@ export function joinMembers(
       activeMonths,
       lifetimeRevenue,
       last12mRevenue: st?.last12mRevenue ?? 0,
-      avgMonthlyWhenActive,
-      recoveryValue: avgMonthlyWhenActive * 3 * RECOVERY_FACTOR[gapBucket],
       tier: "-" as PriorityTier,
       prevDealer: dealer && dealer !== m.salesRep ? dealer : null,
       b2bType: cube.customerToB2bType.get(m.client) ?? null,
@@ -134,16 +119,22 @@ export function joinMembers(
     };
   });
 
-  // 등급은 재영업 대상(활성·국내·회수 기대값 > 0) 안에서의 상대 순위로 매긴다.
+  // 등급은 재영업 대상(활성·국내·누적 매출 > 0) 안에서의 상대 순위로 매긴다.
   const th = quantiles(
     base
       .filter((r) => r.status === REACTIVATION_STATUS && r.salesCategory !== "수출")
-      .map((r) => r.recoveryValue),
+      .map((r) => r.lifetimeRevenue),
   );
   for (const r of base) {
-    if (r.recoveryValue <= 0) continue;
+    if (r.lifetimeRevenue <= 0) continue;
     r.tier =
-      r.recoveryValue >= th.s ? "S" : r.recoveryValue >= th.a ? "A" : r.recoveryValue >= th.b ? "B" : "C";
+      r.lifetimeRevenue >= th.s
+        ? "S"
+        : r.lifetimeRevenue >= th.a
+          ? "A"
+          : r.lifetimeRevenue >= th.b
+            ? "B"
+            : "C";
   }
 
   return { rows: base, tierThresholds: th };
@@ -154,7 +145,6 @@ export type GapBucketRow = {
   bucket: GapBucket;
   count: number;
   lifetimeRevenue: number;
-  recoveryValue: number;
 };
 
 export function gapBuckets(
@@ -168,7 +158,6 @@ export function gapBuckets(
       bucket,
       count: g.length,
       lifetimeRevenue: g.reduce((s, r) => s + r.lifetimeRevenue, 0),
-      recoveryValue: g.reduce((s, r) => s + r.recoveryValue, 0),
     };
   });
 }
@@ -183,7 +172,6 @@ export type CumulativeRow = {
   withHistory: number;
   neverTraded: number;
   lifetimeRevenue: number;
-  recoveryValue: number;
 };
 
 export function dormantCumulative(
@@ -200,13 +188,12 @@ export function dormantCumulative(
       withHistory: g.filter((r) => r.lastActiveMonth !== null).length,
       neverTraded: g.filter((r) => r.lastActiveMonth === null).length,
       lifetimeRevenue: g.reduce((s, r) => s + r.lifetimeRevenue, 0),
-      recoveryValue: g.reduce((s, r) => s + r.recoveryValue, 0),
     };
   });
 }
 
-// 재영업 우선순위 목록 — 회수 기대값 큰 순.
-// 활성·3개월 무매출 1,102곳 중 상위 50곳이 누적의 절반을 차지한다. 정렬이 곧 실행 순서다.
+// 재영업 우선순위 목록 — 누적 매출 큰 순.
+// 활성·3개월 무매출 1,102개 중 상위 50개가 누적의 절반을 차지한다. 정렬이 곧 실행 순서다.
 export function reactivationTargets(
   rows: MemberJoined[],
   opts?: {
@@ -229,7 +216,7 @@ export function reactivationTargets(
         ? r.gapBucket === opts.bucket
         : r.silentMonths === null || r.silentMonths >= months,
     )
-    .sort((a, b) => b.recoveryValue - a.recoveryValue || b.lifetimeRevenue - a.lifetimeRevenue);
+    .sort((a, b) => b.lifetimeRevenue - a.lifetimeRevenue || b.last12mRevenue - a.last12mRevenue);
 }
 
 // ── 담당자별 재영업 보드 ─────────────────────────────────
@@ -238,7 +225,7 @@ export type RepDormantRow = {
   activeCount: number;
   dormantCount: number;
   dormantRate: number;
-  recoveryValue: number;
+  dormantLifetimeRevenue: number; // 휴면 거래처들의 과거 누적 매출 합
   tierSA: number; // S+A 등급 건수 — 실제로 먼저 연락할 대상 수
   tradedRecently: number;
   buckets: Record<GapBucket, number>;
@@ -255,7 +242,7 @@ export function dormantByRep(rows: MemberJoined[], months = 3): RepDormantRow[] 
         activeCount: 0,
         dormantCount: 0,
         dormantRate: 0,
-        recoveryValue: 0,
+        dormantLifetimeRevenue: 0,
         tierSA: 0,
         tradedRecently: 0,
         buckets: Object.fromEntries(GAP_BUCKETS.map((b) => [b, 0])) as Record<GapBucket, number>,
@@ -267,7 +254,7 @@ export function dormantByRep(rows: MemberJoined[], months = 3): RepDormantRow[] 
     const dormant = r.silentMonths === null || r.silentMonths >= months;
     if (dormant) {
       cur.dormantCount += 1;
-      cur.recoveryValue += r.recoveryValue;
+      cur.dormantLifetimeRevenue += r.lifetimeRevenue;
       if (r.tier === "S" || r.tier === "A") cur.tierSA += 1;
     } else {
       cur.tradedRecently += 1;
@@ -462,7 +449,7 @@ export type MemberKpi = {
   activeCount: number;
   tradedThisMonth: number;
   dormant3m: number;
-  recoveryValue: number;
+  dormantLifetimeRevenue: number;
   neverTraded: number;
   churnedRecoverable: number;
 };
@@ -474,7 +461,7 @@ export function memberKpi(rows: MemberJoined[], months = 3): MemberKpi {
     activeCount: active.length,
     tradedThisMonth: active.filter((r) => r.silentMonths === 0).length,
     dormant3m: dormant.length,
-    recoveryValue: dormant.reduce((s, r) => s + r.recoveryValue, 0),
+    dormantLifetimeRevenue: dormant.reduce((s, r) => s + r.lifetimeRevenue, 0),
     neverTraded: active.filter((r) => r.lastActiveMonth === null).length,
     churnedRecoverable: rows.filter(
       (r) => r.status === "비활성" && r.lastActiveMonth !== null && !r.hasActiveDuplicate,
