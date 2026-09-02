@@ -112,19 +112,24 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
   const status = (sp.status as MemberStatus) || "활성";
   const rep = sp.rep && rows.some((r) => r.salesRep === sp.rep) ? sp.rep : undefined;
 
-  const k = memberKpi(rows);
-  const insights = computeMembersInsights(rows, ym);
-  const buckets = gapBuckets(rows);
-  const cumulative = dormantCumulative(rows);
+  // 담당자를 고르면 탭 전체가 그 담당자 범위로 좁혀진다(요약 카드·구간·온보딩·커버리지 포함).
+  // 담당자별 비교 표/차트와 필터 목록만 전체(rows) 기준을 유지한다 — 좁힌 상태에서도
+  // 다른 담당자로 바로 갈아탈 수 있어야 하고, 1명만 남으면 비교 자체가 의미를 잃는다.
+  const scoped = rep ? rows.filter((r) => r.salesRep === rep) : rows;
+
+  const k = memberKpi(scoped);
+  const insights = computeMembersInsights(scoped, ym);
+  const buckets = gapBuckets(scoped);
+  const cumulative = dormantCumulative(scoped);
   const board = dormantByRep(rows);
-  const targets = reactivationTargets(rows, { months, bucket, status, salesRep: rep });
-  const churned = churnedWithHistory(rows);
-  const stalled = onboardingStalled(rows, ym);
-  const cohorts = onboardingCohorts(rows, ym, 24);
-  const approvals = pendingApprovalAging(rows, ym);
-  const regions = coverageBreakdown(rows, "region");
-  const bizTypes = coverageBreakdown(rows, "bizType");
-  const statuses = statusBreakdown(rows);
+  const targets = reactivationTargets(scoped, { months, bucket, status });
+  const churned = churnedWithHistory(scoped);
+  const stalled = onboardingStalled(scoped, ym);
+  const cohorts = onboardingCohorts(scoped, ym, 24);
+  const approvals = pendingApprovalAging(scoped, ym);
+  const regions = coverageBreakdown(scoped, "region");
+  const bizTypes = coverageBreakdown(scoped, "bizType");
+  const statuses = statusBreakdown(scoped);
 
   const qs = (extra: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
@@ -153,12 +158,20 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
         <div>
           <h2 className="text-xl font-semibold tracking-tight">
             {formatYM(ym)} 거래처 관리{" "}
-            <span className="text-xs text-muted-foreground font-normal ml-1">
-              (B2B몰 회원 {formatCount(members.length)}개 기준)
-            </span>
+            {rep ? (
+              <span className="text-xs text-muted-foreground font-normal ml-1">
+                ({rep} 담당 {formatCount(scoped.length)}개 · B2B몰 회원 전체{" "}
+                {formatCount(members.length)}개)
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground font-normal ml-1">
+                (B2B몰 회원 {formatCount(members.length)}개 기준)
+              </span>
+            )}
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             거래가 끊긴 거래처를 담당자별로 추려 재영업에 쓰는 탭입니다 · 수출 거래처 제외
+            {rep && " · 담당자별 재영업 현황을 뺀 이 탭 전체가 선택한 담당자 기준입니다"}
           </p>
         </div>
         <SalesRepFilter
@@ -308,7 +321,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
         <CardHeader>
           <CardTitle>담당자별 재영업 현황</CardTitle>
           <div className="text-[11px] text-muted-foreground">
-            담당자명을 누르면 목록이 해당 담당자로 좁혀집니다 · 3개월 이상 무매출 기준
+            담당자명을 누르면 탭 전체가 해당 담당자로 좁혀집니다 · 3개월 이상 무매출 기준 · 이
+            표만 항상 전체 담당자를 보여줍니다(담당자 전환용)
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -365,9 +379,15 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
               </thead>
               <tbody>
                 {board.map((r) => (
-                  <tr key={r.salesRep} className="border-b last:border-0">
+                  <tr
+                    key={r.salesRep}
+                    className={`border-b last:border-0 ${rep === r.salesRep ? "bg-muted" : ""}`}
+                  >
                     <td className="py-2 font-medium">
-                      <Link href={qs({ rep: rep === r.salesRep ? undefined : r.salesRep })} className="hover:underline">
+                      <Link
+                        href={qs({ rep: rep === r.salesRep ? undefined : r.salesRep })}
+                        className={`hover:underline ${rep === r.salesRep ? "font-semibold text-primary" : ""}`}
+                      >
                         {r.salesRep}
                       </Link>
                     </td>

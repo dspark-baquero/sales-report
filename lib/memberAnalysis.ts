@@ -200,17 +200,16 @@ export function reactivationTargets(
     months?: number; // 기본 3개월 이상 무매출
     bucket?: GapBucket;
     status?: MemberStatus;
-    salesRep?: string;
   },
 ): MemberJoined[] {
   const months = opts?.months ?? 3;
   const status = opts?.status ?? REACTIVATION_STATUS;
+  // 담당자 범위는 호출부에서 rows를 좁혀 넘긴다(페이지 전체가 같은 범위를 써야 하므로).
   return rows
     .filter((r) => r.status === status)
     // 회원 목록은 B2B몰 가입 거래처다. 수출 거래처가 상호명으로 조인되는 경우가 있는데
     // 해외 영업 대상이라 재영업 목록에 섞이면 안 된다(매출 이력이 없어 분류 불명인 곳은 유지).
     .filter((r) => r.salesCategory !== "수출")
-    .filter((r) => !opts?.salesRep || r.salesRep === opts.salesRep)
     .filter((r) =>
       opts?.bucket
         ? r.gapBucket === opts.bucket

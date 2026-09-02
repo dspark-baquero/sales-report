@@ -1352,7 +1352,8 @@ export function computeMembersInsights(
   const staffed = board.filter((r) => r.salesRep !== UNASSIGNED_REP);
   const top = staffed[0];
   const totalDormant = staffed.reduce((s, r) => s + r.dormantCount, 0);
-  if (top && totalDormant > 0 && top.dormantCount / totalDormant >= 0.3) {
+  // 담당자 1명으로 좁혀진 화면에서는 "전체 휴면의 100%"가 되어 의미가 없다.
+  if (staffed.length > 1 && top && totalDormant > 0 && top.dormantCount / totalDormant >= 0.3) {
     out.push({
       severity: "critical",
       category: "담당 편중",
