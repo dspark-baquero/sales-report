@@ -349,7 +349,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
             height={Math.max(260, board.length * 34)}
             horizontal
             yLabel="거래처 수"
-            formatter={(v) => `${formatInt(v)}개`}
+            valueFormat="count"
           />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -420,7 +420,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Sear
             ]}
             height={260}
             yLabel="가입 거래처 수"
-            formatter={(v) => `${formatInt(v)}개`}
+            valueFormat="count"
             showStackTotals
           />
           <div className="text-[11px] text-muted-foreground">

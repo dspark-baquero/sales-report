@@ -1,13 +1,15 @@
 "use client";
 import { Chart } from "./ChartBase";
-import { formatKRWLong, formatKRWShort } from "@/lib/format";
+import { axisFormatter, fullFormatter, type ValueFormat } from "./valueFormat";
 
 type HeatmapChartProps = {
   xCategories: string[];
   yCategories: string[];
   data: { x: number; y: number; value: number }[];
   height?: number;
-  formatter?: (v: number) => string;
+  // 값 서식. 함수를 받으면 서버 컴포넌트에서 넘길 수 없으므로 종류만 받는다(./valueFormat).
+  valueFormat?: ValueFormat;
+  unitSuffix?: string;         // valueFormat="count" 일 때 단위 (기본 "개")
   colorRange?: [string, string];
 };
 
@@ -16,10 +18,12 @@ export function HeatmapChart({
   yCategories,
   data,
   height = 360,
-  formatter,
+  valueFormat,
+  unitSuffix,
   colorRange = ["#f1f5f9", "#0f172a"],
 }: HeatmapChartProps) {
-  const fmt = formatter ?? formatKRWLong;
+  const fmt = fullFormatter(valueFormat, unitSuffix);
+  const axisFmt = axisFormatter(valueFormat, unitSuffix);
   const max = data.reduce((m, d) => Math.max(m, d.value), 0);
   const points = data.map((d) => [d.x, d.y, d.value]);
   return (
@@ -44,7 +48,7 @@ export function HeatmapChart({
           bottom: 0,
           inRange: { color: colorRange },
           textStyle: { fontSize: 11 },
-          formatter: ((v: number | string) => formatKRWShort(typeof v === "number" ? v : Number(v))) as any,
+          formatter: ((v: number | string) => axisFmt(typeof v === "number" ? v : Number(v))) as any,
         },
         series: [
           {

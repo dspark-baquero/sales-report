@@ -90,6 +90,7 @@
 - **매핑**: `config/mappings.ts` 한 곳에. 하드코딩 금지
 - **새 분류**: 코드 수정 전 사용자에게 확인. 임의 "기타" 분류 금지
 - **차트**: `components/charts/ChartBase.tsx` wrapper 통과. 사전 정의 wrapper 패턴 따라 추가
+- **클라이언트 컴포넌트에 함수 prop 금지**: 페이지는 서버 컴포넌트라 함수를 넘기면 직렬화 단계에서 렌더가 죽는다(빌드·타입체크로는 안 잡히고 런타임 500). 서식은 `components/charts/valueFormat.ts`의 `valueFormat="won" | "count"` + `unitSuffix`처럼 **값**으로 넘긴다
 - **데이터 로드**: 모든 load 함수는 async. BigQuery → FactCube 인메모리 캐시
 - **분석 함수**: 큐브 직접 사용 (`await loadFactCube()`). raw rows 전체 스캔 금지. 큐브에 없는 분해는 `loadMonthRows(ym)` 한 달치만 스캔
 - **거래처/딜러 분석**: `lib/accountAnalysis.ts`, `lib/dealerAnalysis.ts`에 추가. 회원 목록 결합 분석은 `lib/memberAnalysis.ts`. 페이지에서 직접 분석 로직 작성 금지

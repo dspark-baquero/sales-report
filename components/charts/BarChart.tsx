@@ -2,8 +2,8 @@
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { Chart } from "./ChartBase";
-import { formatKRWLong, formatKRWShort } from "@/lib/format";
 import { customerHref } from "@/components/CustomerLink";
+import { axisFormatter, fullFormatter, type ValueFormat } from "./valueFormat";
 
 export type BarSeries = {
   name: string;
@@ -31,7 +31,9 @@ type BarChartProps = {
   height?: number;
   showLegend?: boolean;
   yLabel?: string;
-  formatter?: (v: number) => string;
+  // 값 서식. 함수를 받으면 서버 컴포넌트에서 넘길 수 없으므로 종류만 받는다(./valueFormat).
+  valueFormat?: ValueFormat;
+  unitSuffix?: string;         // valueFormat="count" 일 때 단위 (기본 "개")
   showValueLabels?: boolean;
   showStackTotals?: boolean;   // 스택 막대의 합계를 막대 최상단에 표기
   lineOverlays?: LineOverlay[]; // 막대 위에 겹쳐 그리는 라인 (vertical only)
@@ -48,17 +50,18 @@ export function BarChart({
   height = 300,
   showLegend = true,
   yLabel,
-  formatter,
+  valueFormat,
+  unitSuffix,
   showValueLabels,
   showStackTotals,
   lineOverlays,
   customerLinkMonth,
   xAxisSubLabels,
 }: BarChartProps) {
-  const fmt = formatter ?? formatKRWLong;
-  // formatter를 주면 축·값 라벨까지 그 포맷을 따른다
-  // (금액이 아닌 차트 — 거래처 수 등 — 에서 축이 "원"으로 찍히지 않도록).
-  const axisFmt = formatter ?? formatKRWShort;
+  const fmt = fullFormatter(valueFormat, unitSuffix);
+  // 축·값 라벨은 좁은 자리라 짧은 표기를 쓴다. valueFormat="count" 면 축도 "개"로 찍혀
+  // 금액이 아닌 차트(거래처 수 등)에 "원"이 붙지 않는다.
+  const axisFmt = axisFormatter(valueFormat, unitSuffix);
 
   const TOTAL_KEY = "__stack_total__";
   const stack0 = series[0]?.stack;

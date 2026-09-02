@@ -1,6 +1,6 @@
 "use client";
 import { Chart } from "./ChartBase";
-import { formatKRWLong, formatKRWShort } from "@/lib/format";
+import { axisFormatter, fullFormatter, type ValueFormat } from "./valueFormat";
 
 export type LineSeries = {
   name: string;
@@ -17,7 +17,9 @@ type LineChartProps = {
   height?: number;
   showLegend?: boolean;
   yLabel?: string;
-  formatter?: (v: number) => string;
+  // 값 서식. 함수를 받으면 서버 컴포넌트에서 넘길 수 없으므로 종류만 받는다(./valueFormat).
+  valueFormat?: ValueFormat;
+  unitSuffix?: string;         // valueFormat="count" 일 때 단위 (기본 "개")
 };
 
 export function LineChart({
@@ -26,12 +28,13 @@ export function LineChart({
   height = 300,
   showLegend = true,
   yLabel,
-  formatter,
+  valueFormat,
+  unitSuffix,
 }: LineChartProps) {
-  const fmt = formatter ?? formatKRWLong;
-  // formatter를 주면 축·값 라벨까지 그 포맷을 따른다
-  // (금액이 아닌 차트 — 거래처 수 등 — 에서 축이 "원"으로 찍히지 않도록).
-  const axisFmt = formatter ?? formatKRWShort;
+  const fmt = fullFormatter(valueFormat, unitSuffix);
+  // 축·값 라벨은 좁은 자리라 짧은 표기를 쓴다. valueFormat="count" 면 축도 "개"로 찍혀
+  // 금액이 아닌 차트(거래처 수 등)에 "원"이 붙지 않는다.
+  const axisFmt = axisFormatter(valueFormat, unitSuffix);
 
   return (
     <Chart
