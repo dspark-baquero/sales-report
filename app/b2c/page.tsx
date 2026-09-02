@@ -8,6 +8,8 @@ import {
   ytdAchievementForCustomerKeys,
   ytdMonthlyTargets,
   ytdMonthlyPrevYear,
+  ytdMonthsWithOutlook,
+  ytdAchievementWithExtra,
   outlookPrevYearMonths,
 } from "@/lib/ytd";
 import {
@@ -33,6 +35,12 @@ import {
   staffChannels,
 } from "@/lib/dimensions";
 import { attributeChange } from "@/lib/changeAttribution";
+import {
+  bhSelfRevenue,
+  BH_SELF_CHANNEL,
+  withSelfChannelContribution,
+  withSelfBrandContributions,
+} from "@/lib/bhSelfRevenue";
 import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
 import { COMPARE_LABEL, BRAND_COLOR, CHANNEL_GROUP_COLOR } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
@@ -77,6 +85,21 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const kCurQ = kpi(b2cRows(curQ));
   const kPrevQ = kpi(b2cRows(prevQRows));
 
+  // 바크로하우스 자체매출 — 파트너 추천으로 잡히지 않은 몫만 B2C(자사 공식몰)에 합산.
+  // 추천분은 영업사원 실적(/sales-rep, /baquerohouse)으로 따로 관리하므로 여기서 제외된다.
+  const [bhSelfCur, bhSelfPrevMo, bhSelfPrevYr, bhSelfCurQ, bhSelfPrevQ] = await Promise.all([
+    bhSelfRevenue(cur, ym, ym),
+    bhSelfRevenue(prevMo, prevMonth(ym), prevMonth(ym)),
+    bhSelfRevenue(prevYr, prevYearSameMonth(ym), prevYearSameMonth(ym)),
+    bhSelfRevenue(curQ, qStart, ym),
+    bhSelfRevenue(prevQRows, prevQ.qStart, ymMinusMonths(prevQ.qEnd, 3 - qProg)),
+  ]);
+  const b2cRevenue = k.revenue + bhSelfCur.revenue;
+  const b2cRevenuePrevMo = kPrevMo.revenue + bhSelfPrevMo.revenue;
+  const b2cRevenuePrevYr = kPrevYr.revenue + bhSelfPrevYr.revenue;
+  const b2cRevenueCurQ = kCurQ.revenue + bhSelfCurQ.revenue;
+  const b2cRevenuePrevQ = kPrevQ.revenue + bhSelfPrevQ.revenue;
+
   // B2C 목표 합계 (공식몰+종합몰+소호몰+기타+올리브영(추진)+링커(추진)) — 바크로하우스는 별도 탭
   const ta = targetsForMonthWithProspective(targets, ym);
   const b2cKeys = ["공식몰", "종합몰", "소호몰", "기타", "올리브영", "링커"];
@@ -84,27 +107,20 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
     .filter((t) => t.division === "국내" && b2cKeys.includes(t.customerKey))
     .reduce((s, t) => s + t.target, 0);
 
-  // 채널 그룹별 합계
-  const groupTotals = (() => {
+  // 채널 그룹별 합계 — 바크로하우스 메인몰은 자체매출만 자사 공식몰에 합산
+  const groupTotalsOf = (rows: typeof cur, bhSelf: number): Record<string, number> => {
     const out: Record<string, number> = {};
-    for (const r of cur) {
+    for (const r of rows) {
       if (r.category !== "B2C") continue;
       if (r.isNonRevenue) continue;
       if (r.channel === "바크로하우스") continue;
       out[r.channelGroup] = (out[r.channelGroup] ?? 0) + r.realRevenue;
     }
+    if (bhSelf > 0) out["자사 공식몰"] = (out["자사 공식몰"] ?? 0) + bhSelf;
     return out;
-  })();
-  const groupTotalsPrev = (() => {
-    const out: Record<string, number> = {};
-    for (const r of prevMo) {
-      if (r.category !== "B2C") continue;
-      if (r.isNonRevenue) continue;
-      if (r.channel === "바크로하우스") continue;
-      out[r.channelGroup] = (out[r.channelGroup] ?? 0) + r.realRevenue;
-    }
-    return out;
-  })();
+  };
+  const groupTotals = groupTotalsOf(cur, bhSelfCur.revenue);
+  const groupTotalsPrev = groupTotalsOf(prevMo, bhSelfPrevMo.revenue);
 
   // 채널그룹 → target key
   const groupToKey: Record<string, string> = {
@@ -121,21 +137,30 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   }
 
   // 브랜드별
-  const brandRev = b2cBrandRevenue(cur);
-  const brandRevPrev = new Map(b2cBrandRevenue(prevMo).map((b) => [b.brand, b.revenue]));
+  const brandRev = b2cBrandRevenue(cur, false, bhSelfCur.byBrand);
+  const brandRevPrev = new Map(
+    b2cBrandRevenue(prevMo, false, bhSelfPrevMo.byBrand).map((b) => [b.brand, b.revenue]),
+  );
 
   // 브랜드 × 채널그룹
-  const breakdown = brandChannelGroupBreakdown(cur);
+  const breakdown = brandChannelGroupBreakdown(cur, bhSelfCur.byBrand);
 
   // 자사 공식몰 12개월 추이
   const fromYM = ymMinusMonths(ym, 11);
   const rangeRows = await loadRangeRows(fromYM, ym);
+  // 바크로하우스 자체매출 — 12개월 추이용 + YTD(연초~이번달) 스택/달성률 보정용
+  const [bhSelfRange, bhSelfYtd] = await Promise.all([
+    bhSelfRevenue(rangeRows, fromYM, ym),
+    bhSelfRevenue(rangeRows, `${ym.slice(0, 4)}-01`, ym),
+  ]);
   const officialTrends = brandOfficialTrend(rangeRows, fromYM, ym);
   const trendMonths = officialTrends[0]?.months ?? [];
 
   // 자사 공식몰 채널별
-  const offMall = officialMallChannels(cur);
-  const offMallPrev = new Map(officialMallChannels(prevMo).map((g) => [g.channel, g]));
+  const offMall = officialMallChannels(cur, bhSelfCur);
+  const offMallPrev = new Map(
+    officialMallChannels(prevMo, bhSelfPrevMo).map((g) => [g.channel, g]),
+  );
 
   // 공식몰 채널별 12개월 추이
   const officialChannelNames = [...new Set(
@@ -170,10 +195,18 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const ytdB2c = b2cRows(rangeRows.filter((r) => r.yearMonth >= ytdStart));
   const topProducts = topNProductsEnhanced(b2cRows(cur), b2cRows(prevMo), ytdB2c, 20);
 
-  // 변화 요인 — 채널 단위
-  const channelContribs = attributeChange(b2cRows(cur), b2cRows(prevMo), (r) => r.channel || null);
-  // 변화 요인 — 브랜드 단위
-  const brandContribs = attributeChange(b2cRows(cur), b2cRows(prevMo), (r) => r.brand || null);
+  // 변화 요인 — 채널 단위 (바크로하우스 자체매출은 별도 항목으로 덧붙임)
+  const channelContribs = withSelfChannelContribution(
+    attributeChange(b2cRows(cur), b2cRows(prevMo), (r) => r.channel || null),
+    bhSelfCur.revenue,
+    bhSelfPrevMo.revenue,
+  );
+  // 변화 요인 — 브랜드 단위 (자체매출을 각 브랜드에 합산)
+  const brandContribs = withSelfBrandContributions(
+    attributeChange(b2cRows(cur), b2cRows(prevMo), (r) => r.brand || null),
+    bhSelfCur.byBrand,
+    bhSelfPrevMo.byBrand,
+  );
 
   // 전년 동기 + 월별 목표 (B2C — 바크로하우스 제외)
   const prevYearStart = `${Number(ym.split("-")[0]) - 1}-01`;
@@ -187,9 +220,21 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
     outlook: true,
     targetFilter: (t) => t.division === "국내" && b2cKeySet.has(t.customerKey),
   });
-  const b2cMonthlyPrevYearArr = ytdMonthlyPrevYear([...prevYearRangeRows, ...outlookPrevRows], ym, {
+  const prevYearAll = [...prevYearRangeRows, ...outlookPrevRows];
+  // 전년 라인도 올해와 같은 기준(바크로하우스 자체매출 포함)으로 맞춘다.
+  const bhSelfPrevYearRange = await bhSelfRevenue(
+    prevYearAll,
+    prevYearStart,
+    `${Number(ym.slice(0, 4)) - 1}-12`,
+  );
+  const b2cMonthlyPrevYearArr = ytdMonthlyPrevYear(prevYearAll, ym, {
     outlook: true,
     rowFilter: (r) => r.category === "B2C" && r.channel !== "바크로하우스",
+  }).map((v, i) => {
+    const m = ytdMonthsWithOutlook(ym)[i];
+    if (!m) return v;
+    const [y, mm] = m.split("-");
+    return v + (bhSelfPrevYearRange.byMonth.get(`${Number(y) - 1}-${mm}`) ?? 0);
   });
 
   return (
@@ -197,7 +242,10 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       <div className="flex items-baseline justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">
-            {formatYM(ym)} B2C <span className="text-xs text-muted-foreground font-normal ml-1">(면세점 제외)</span>
+            {formatYM(ym)} B2C{" "}
+            <span className="text-xs text-muted-foreground font-normal ml-1">
+              {bhSelfCur.available ? "(면세점 제외 · 바크로하우스 자체매출 포함)" : "(면세점 제외)"}
+            </span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             {brandRev.length}개 브랜드 · {Object.keys(groupTotals).length}개 채널그룹
@@ -209,14 +257,17 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
 
       <YearToDateChart
         ym={ym}
-        series={ytdChannelGroupSeries(cube, ym)}
+        series={ytdChannelGroupSeries(cube, ym, bhSelfYtd.byMonth)}
         caption="채널그룹별 (자사 공식몰 / 종합몰 / 소호몰 / 백화점 / 임직원·패밀리 / 기타)"
-        achievement={ytdAchievementForCustomerKeys(
-          rangeRows,
-          targets,
-          ym,
-          ["공식몰", "종합몰", "소호몰", "기타"],
-          (r) => r.category === "B2C" && r.channel !== "바크로하우스",
+        achievement={ytdAchievementWithExtra(
+          ytdAchievementForCustomerKeys(
+            rangeRows,
+            targets,
+            ym,
+            ["공식몰", "종합몰", "소호몰", "기타"],
+            (r) => r.category === "B2C" && r.channel !== "바크로하우스",
+          ),
+          bhSelfYtd.revenue,
         )}
         achievementLabel="B2C (공식몰·종합몰·소호몰·기타)"
         monthlyTargets={b2cMonthlyTargetsArr}
@@ -226,11 +277,11 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="B2C 실매출"
-          current={k.revenue}
+          current={b2cRevenue}
           comparisons={[
-            { label: COMPARE_LABEL.prevMonth, prev: kPrevMo.revenue },
-            { label: COMPARE_LABEL.curQuarter, current: kCurQ.revenue, prev: kPrevQ.revenue, note: `${qProg}/3개월` },
-            { label: COMPARE_LABEL.prevYear, prev: kPrevYr.revenue },
+            { label: COMPARE_LABEL.prevMonth, prev: b2cRevenuePrevMo },
+            { label: COMPARE_LABEL.curQuarter, current: b2cRevenueCurQ, prev: b2cRevenuePrevQ, note: `${qProg}/3개월` },
+            { label: COMPARE_LABEL.prevYear, prev: b2cRevenuePrevYr },
           ]}
           target={{ value: b2cTarget, label: "B2C 목표 합계" }}
           highlight
@@ -260,8 +311,8 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       {/* 채널그룹 변화 요인 */}
       <ChangeBreakdown
         title="전월 대비 채널 변화 요인"
-        prevTotal={kPrevMo.revenue}
-        curTotal={k.revenue}
+        prevTotal={b2cRevenuePrevMo}
+        curTotal={b2cRevenue}
         contribs={channelContribs}
         topN={5}
         prevLabel={COMPARE_LABEL.prevMonth}
@@ -344,8 +395,8 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       {/* 브랜드 변화 요인 */}
       <ChangeBreakdown
         title="전월 대비 브랜드 변화 요인"
-        prevTotal={kPrevMo.revenue}
-        curTotal={k.revenue}
+        prevTotal={b2cRevenuePrevMo}
+        curTotal={b2cRevenue}
         contribs={brandContribs}
         topN={6}
         prevLabel={COMPARE_LABEL.prevMonth}
@@ -406,6 +457,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           <CardTitle>자사 공식몰 채널별 (이번달)</CardTitle>
           <div className="text-[11px] text-muted-foreground">
             브랜드별 공식몰/스마트스토어 개별 실적
+            {bhSelfCur.available && " · 바크로하우스(자체매출) = 몰 매출 − 파트너 추천 매출"}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -482,18 +534,28 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
           <CardContent>
             <BarChart
               categories={trendMonths.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
-              series={officialChannelNames.map((ch, i) => ({
-                name: ch,
-                values: trendMonths.map((m) => {
-                  let sum = 0;
-                  for (const r of rangeRows) {
-                    if (r.channel === ch && r.yearMonth === m && !r.isNonRevenue) sum += r.realRevenue;
-                  }
-                  return sum;
-                }),
-                stack: "official",
-                color: ["#8b5cf6", "#6366f1", "#a855f7", "#c084fc", "#818cf8", "#e879f9", "#d946ef"][i % 7],
-              }))}
+              series={[
+                ...officialChannelNames.map((ch, i) => ({
+                  name: ch,
+                  values: trendMonths.map((m) => {
+                    let sum = 0;
+                    for (const r of rangeRows) {
+                      if (r.channel === ch && r.yearMonth === m && !r.isNonRevenue) sum += r.realRevenue;
+                    }
+                    return sum;
+                  }),
+                  stack: "official",
+                  color: ["#8b5cf6", "#6366f1", "#a855f7", "#c084fc", "#818cf8", "#e879f9", "#d946ef"][i % 7],
+                })),
+                ...(bhSelfRange.revenue > 0
+                  ? [{
+                      name: BH_SELF_CHANNEL,
+                      values: trendMonths.map((m) => bhSelfRange.byMonth.get(m) ?? 0),
+                      stack: "official",
+                      color: "#f0abfc",
+                    }]
+                  : []),
+              ]}
               height={320}
               yLabel="실매출"
               showStackTotals

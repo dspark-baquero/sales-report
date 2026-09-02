@@ -1,7 +1,8 @@
 // 차원별 집계 — 수출 국가, B2B 영업사원/거래처유형, B2C 브랜드/채널 등
 import type { SalesRow } from "./load";
 import { revenueRows, filterRange, enumerateMonths } from "./aggregate";
-import { BRAND_OFFICIAL_CHANNELS } from "@/config/mappings";
+import { BRAND_OFFICIAL_CHANNELS, brandHouse } from "@/config/mappings";
+import { BH_SELF_CHANNEL } from "./bhSelfRevenue";
 
 // ── 수출 ───────────────────────────────────────────────
 export function exportRows(rows: SalesRow[]): SalesRow[] {
@@ -250,12 +251,24 @@ export function b2cRows(rows: SalesRow[], includeDutyFree = false): SalesRow[] {
   );
 }
 
-export function b2cBrandRevenue(rows: SalesRow[], includeDutyFree = false) {
+// bhSelfByBrand: 바크로하우스 자체매출(브랜드별) — b2cRows가 메인몰을 제외하므로 별도로 주입한다.
+export function b2cBrandRevenue(
+  rows: SalesRow[],
+  includeDutyFree = false,
+  bhSelfByBrand?: Map<string, number>,
+) {
   const m = new Map<string, { revenue: number; house: string }>();
   for (const r of revenueRows(b2cRows(rows, includeDutyFree))) {
     const cur = m.get(r.brand) ?? { revenue: 0, house: r.brandHouse };
     cur.revenue += r.realRevenue;
     m.set(r.brand, cur);
+  }
+  if (bhSelfByBrand) {
+    for (const [brand, v] of bhSelfByBrand) {
+      const cur = m.get(brand) ?? { revenue: 0, house: brandHouse(brand) };
+      cur.revenue += v;
+      m.set(brand, cur);
+    }
   }
   return [...m.entries()]
     .map(([brand, v]) => ({ brand, ...v }))
@@ -263,14 +276,26 @@ export function b2cBrandRevenue(rows: SalesRow[], includeDutyFree = false) {
 }
 
 // 브랜드 × 채널그룹 분해
-export function brandChannelGroupBreakdown(rows: SalesRow[]) {
+export function brandChannelGroupBreakdown(
+  rows: SalesRow[],
+  bhSelfByBrand?: Map<string, number>,
+) {
   const groups = ["자사 공식몰", "종합몰", "소호몰", "백화점", "임직원/패밀리", "기타"] as const;
   const m = new Map<string, Record<string, number>>();
+  const ensure = (brand: string) => {
+    if (!m.has(brand)) m.set(brand, Object.fromEntries(groups.map((g) => [g, 0])));
+    return m.get(brand)!;
+  };
   for (const r of revenueRows(b2cRows(rows))) {
-    if (!m.has(r.brand)) {
-      m.set(r.brand, Object.fromEntries(groups.map((g) => [g, 0])));
+    const rec = ensure(r.brand);
+    rec[r.channelGroup] = (rec[r.channelGroup] ?? 0) + r.realRevenue;
+  }
+  // 바크로하우스 자체매출은 자사 공식몰에 합산
+  if (bhSelfByBrand) {
+    for (const [brand, v] of bhSelfByBrand) {
+      const rec = ensure(brand);
+      rec["자사 공식몰"] = (rec["자사 공식몰"] ?? 0) + v;
     }
-    m.get(r.brand)![r.channelGroup] = (m.get(r.brand)![r.channelGroup] ?? 0) + r.realRevenue;
   }
   return [...m.entries()]
     .map(([brand, vals]) => ({ brand, ...vals, total: groups.reduce((s, g) => s + (vals[g] ?? 0), 0) }))
@@ -324,7 +349,12 @@ export function generalMallChannels(rows: SalesRow[]) {
 }
 
 // 자사 공식몰 채널별 표 (바크로하우스는 별도 탭이므로 제외)
-export function officialMallChannels(rows: SalesRow[]) {
+// bhSelf: 바크로하우스 자체매출 — "바크로하우스(자체매출)" 한 줄로 덧붙인다.
+// 정산/수량은 자체매출 비율로 안분된 값이라 주문금액·수수료는 0으로 둔다.
+export function officialMallChannels(
+  rows: SalesRow[],
+  bhSelf?: { revenue: number; settlement: number; qty: number },
+) {
   const m = new Map<string, { revenue: number; qty: number; orderAmount: number; settlement: number; fee: number }>();
   for (const r of revenueRows(rows.filter((x) => x.channelGroup === "자사 공식몰" && x.channel !== "바크로하우스"))) {
     const cur = m.get(r.channel) ?? { revenue: 0, qty: 0, orderAmount: 0, settlement: 0, fee: 0 };
@@ -334,6 +364,15 @@ export function officialMallChannels(rows: SalesRow[]) {
     cur.settlement += r.settlement;
     cur.fee += r.fee;
     m.set(r.channel, cur);
+  }
+  if (bhSelf && bhSelf.revenue > 0) {
+    m.set(BH_SELF_CHANNEL, {
+      revenue: bhSelf.revenue,
+      qty: bhSelf.qty,
+      orderAmount: 0,
+      settlement: bhSelf.settlement,
+      fee: 0,
+    });
   }
   return [...m.entries()]
     .map(([channel, v]) => ({

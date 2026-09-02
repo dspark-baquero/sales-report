@@ -109,13 +109,19 @@ const CHANNEL_GROUP_ORDER: ChannelGroup[] = [
   "기타",
 ];
 
-export function ytdChannelGroupSeries(cube: FactCube, ym: string): YTDSeries[] {
+export function ytdChannelGroupSeries(
+  cube: FactCube,
+  ym: string,
+  bhSelfByMonth?: Map<string, number>,
+): YTDSeries[] {
   const months = ytdMonths(ym);
 
-  // 바크로하우스 메인몰만 자사 공식몰에서 차감. 스마트스토어는 B2C에 포함.
-  const bhValues = months.map((m) =>
-    cube.byMonthChannel.get(m)?.get("바크로하우스")?.revenue ?? 0,
-  );
+  // 바크로하우스 메인몰은 자사 공식몰에서 차감하되, 파트너 추천으로 잡히지 않은
+  // 자체매출(bhSelfByMonth)은 B2C에 남긴다. 스마트스토어는 원래부터 B2C에 포함.
+  const bhValues = months.map((m) => {
+    const total = cube.byMonthChannel.get(m)?.get("바크로하우스")?.revenue ?? 0;
+    return Math.max(0, total - (bhSelfByMonth?.get(m) ?? 0));
+  });
 
   return CHANNEL_GROUP_ORDER.map((g) => ({
     name: g,
@@ -342,6 +348,21 @@ export function buildYTDAchievement(
     rate: ytdTarget > 0 ? ytdActual / ytdTarget : null,
     diff: ytdActual - ytdTarget,
     monthsElapsed: Number(ym.slice(5, 7)),
+  };
+}
+
+// 행 단위로 나눌 수 없는 실적(바크로하우스 자체매출 등)을 YTD 달성에 더한다.
+export function ytdAchievementWithExtra(
+  a: YTDAchievement,
+  extraActual: number,
+): YTDAchievement {
+  if (!extraActual) return a;
+  const ytdActual = a.ytdActual + extraActual;
+  return {
+    ...a,
+    ytdActual,
+    rate: a.ytdTarget > 0 ? ytdActual / a.ytdTarget : null,
+    diff: ytdActual - a.ytdTarget,
   };
 }
 
