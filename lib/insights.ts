@@ -127,7 +127,7 @@ export function brandChannelGroupHeatmap(rows: SalesRow[], ym: string) {
     const sb = [...(m.get(b)?.values() ?? [])].reduce((s, v) => s + v, 0);
     return sb - sa;
   });
-  const groupList = ["수출", "B2B", "면세점", "자사 공식몰", "종합몰", "소호몰", "임직원/패밀리", "기타"]
+  const groupList = ["수출", "B2B", "면세점", "자사 공식몰", "종합몰", "소호몰", "백화점", "임직원/패밀리", "기타"]
     .filter((g) => groups.has(g as ChannelGroup));
   const values = brandList.map((b) =>
     groupList.map((g) => m.get(b)?.get(g) ?? 0),

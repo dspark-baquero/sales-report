@@ -102,6 +102,7 @@ export const CHANNEL_GROUP_COLOR: Record<string, string> = {
   "자사 공식몰": "#10b981",
   종합몰: "#3b82f6",
   소호몰: "#f59e0b",
+  백화점: "#ec4899",
   "임직원/패밀리": "#9ca3af",
   기타: "#737373",
 };

@@ -104,6 +104,7 @@ const CHANNEL_GROUP_ORDER: ChannelGroup[] = [
   "자사 공식몰",
   "종합몰",
   "소호몰",
+  "백화점",
   "임직원/패밀리",
   "기타",
 ];

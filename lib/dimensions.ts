@@ -264,7 +264,7 @@ export function b2cBrandRevenue(rows: SalesRow[], includeDutyFree = false) {
 
 // 브랜드 × 채널그룹 분해
 export function brandChannelGroupBreakdown(rows: SalesRow[]) {
-  const groups = ["자사 공식몰", "종합몰", "소호몰", "임직원/패밀리", "기타"] as const;
+  const groups = ["자사 공식몰", "종합몰", "소호몰", "백화점", "임직원/패밀리", "기타"] as const;
   const m = new Map<string, Record<string, number>>();
   for (const r of revenueRows(b2cRows(rows))) {
     if (!m.has(r.brand)) {

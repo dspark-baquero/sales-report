@@ -331,10 +331,10 @@ export function computeB2CInsights(cube: FactCube, ym: string): InsightBullet[] 
   const tb = totalChangeBullet(curRev, prevRev, "전월", "B2C 전체", "바크로하우스 포함");
   if (tb) out.push(tb);
 
-  // 채널그룹 빅 무버 (자사 공식몰 / 종합몰 / 소호몰)
+  // 채널그룹 빅 무버 (자사 공식몰 / 종합몰 / 소호몰 / 백화점)
   const groupCur = cubeMonthChannelGroupCells(cube, ym);
   const groupPrev = cubeMonthChannelGroupCells(cube, prevYM);
-  for (const g of ["자사 공식몰", "종합몰", "소호몰"] as const) {
+  for (const g of ["자사 공식몰", "종합몰", "소호몰", "백화점"] as const) {
     const c = groupCur.get(g)?.revenue ?? 0;
     const p = groupPrev.get(g)?.revenue ?? 0;
     if (c === 0 && p === 0) continue;

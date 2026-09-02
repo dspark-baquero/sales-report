@@ -163,7 +163,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
   const staff = staffChannels(cur);
   const staffPrev = new Map(staffChannels(prevMo).map((s) => [s.channel, s.revenue]));
 
-  const groupKeys = ["자사 공식몰", "종합몰", "소호몰", "임직원/패밀리", "기타"];
+  const groupKeys = ["자사 공식몰", "종합몰", "소호몰", "백화점", "임직원/패밀리", "기타"];
 
   // Top 제품
   const ytdStart = `${ym.split("-")[0]}-01`;
@@ -210,7 +210,7 @@ export default async function B2CPage({ searchParams }: { searchParams: SearchPa
       <YearToDateChart
         ym={ym}
         series={ytdChannelGroupSeries(cube, ym)}
-        caption="채널그룹별 (자사 공식몰 / 종합몰 / 소호몰 / 임직원·패밀리 / 기타)"
+        caption="채널그룹별 (자사 공식몰 / 종합몰 / 소호몰 / 백화점 / 임직원·패밀리 / 기타)"
         achievement={ytdAchievementForCustomerKeys(
           rangeRows,
           targets,
