@@ -30,6 +30,8 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 export type Member = {
   memberId: string;
   client: string; // 상호명 — 매출 데이터 거래처명과 조인
+  phone: string; // 대표전화 — 하이픈 정규화. 미입력은 ""
+  mobile: string; // 주문담당자휴대폰 — 하이픈 정규화. 미입력은 ""
   status: MemberStatus;
   salesRep: string;
   grade: string;
@@ -68,6 +70,25 @@ function parseDate(v: unknown): string | null {
   return null;
 }
 
+// 전화번호는 하이픈을 넣어 텍스트로 만든다. "01012345678"을 그대로 내보내면
+// 엑셀이 숫자로 읽어 앞자리 0을 날려버려 전화를 걸 수 없게 된다.
+// "032-"처럼 국번만 남은 미입력 잔재는 빈값으로 버린다.
+function normalizePhone(v: unknown): string {
+  const raw = str(v).trim();
+  const d = raw.replace(/\D/g, "");
+  if (!d) return "";
+  if (/^1[5678]\d{6}$/.test(d)) return `${d.slice(0, 4)}-${d.slice(4)}`; // 1588-0000 대표번호
+  if (d.length < 9) return "";
+  if (d.startsWith("02")) {
+    if (d.length === 9) return `02-${d.slice(2, 5)}-${d.slice(5)}`;
+    if (d.length === 10) return `02-${d.slice(2, 6)}-${d.slice(6)}`;
+    return raw;
+  }
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  return raw;
+}
+
 function normStatus(v: unknown): MemberStatus {
   const s = str(v).trim();
   return (MEMBER_STATUSES as readonly string[]).includes(s)
@@ -96,6 +117,9 @@ export function toMember(r: Record<string, unknown>): Member {
   return {
     memberId: str(pick(r, "member_id", "아이디")).trim(),
     client: str(pick(r, "client", "상호명")).trim(),
+    // 시트에 전화번호 열이 아직 없으면 undefined → "" 로 떨어진다(탭은 그대로 동작).
+    phone: normalizePhone(pick(r, "phone", "대표전화")),
+    mobile: normalizePhone(pick(r, "mobile", "주문담당자휴대폰")),
     status: normStatus(pick(r, "status", "상태")),
     salesRep: normRep(pick(r, "sales_rep", "영업담당")),
     grade: str(pick(r, "grade", "등급")).trim(),

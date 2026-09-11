@@ -54,6 +54,8 @@ const TABLE_LIMIT = 3000;
 function toTableRows(rows: MemberJoined[], limit = TABLE_LIMIT): MemberTableRow[] {
   return rows.slice(0, limit).map((r) => ({
     client: r.client,
+    phone: r.phone,
+    mobile: r.mobile,
     tier: r.tier,
     status: r.status,
     salesRep: r.salesRep,

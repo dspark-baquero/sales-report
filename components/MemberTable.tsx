@@ -6,11 +6,13 @@ import { SalesRepLink } from "@/components/SalesRepLink";
 import { Badge } from "@/components/ui/badge";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatKRWShort, formatYMShort } from "@/lib/format";
+import { formatKRWShort, formatYM, formatYMShort } from "@/lib/format";
 
 // 서버에서 넘기는 flat DTO — Map/Set/Date 금지(직렬화 대상).
 export type MemberTableRow = {
   client: string;
+  phone: string;
+  mobile: string;
   tier: string;
   status: string;
   salesRep: string;
@@ -40,8 +42,12 @@ const STATUS_VARIANT: Record<string, "positive" | "muted" | "warn"> = {
 
 // 엑셀에서 바로 열리도록 UTF-8 BOM을 붙인 CSV로 내보낸다.
 // 금액·개월 수는 서식 없는 raw 숫자로 넣어야 엑셀에서 계산·정렬이 된다.
+// 전화번호는 members-data.ts에서 하이픈을 넣어 내려온다 — 엑셀이 숫자로 읽어
+// 앞자리 0을 날리는 것을 막기 위한 것이므로 여기서 다시 손대지 않는다.
 const CSV_HEADERS = [
   "거래처",
+  "대표전화",
+  "주문담당자휴대폰",
   "우선순위 등급",
   "상태",
   "담당자",
@@ -68,13 +74,15 @@ function buildCsv(rows: MemberTableRow[]): string {
     lines.push(
       [
         r.client,
+        r.phone,
+        r.mobile,
         r.tier === "-" ? "" : r.tier,
         r.status,
         r.salesRep,
         r.prevDealer ?? "",
         r.gapBucket,
         r.silentMonths ?? "",
-        r.lastActiveMonth ?? "",
+        r.lastActiveMonth ? formatYM(r.lastActiveMonth) : "거래 이력 없음",
         Math.round(r.last12mRevenue),
         Math.round(r.lifetimeRevenue),
         r.region,

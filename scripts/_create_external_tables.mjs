@@ -28,6 +28,8 @@ const TABLES = {
     schema: strFields([
       "member_id",
       "client", // 상호명 — 매출 데이터 거래처명과 조인하는 키
+      "phone", // 대표전화
+      "mobile", // 주문담당자휴대폰
       "region1",
       "joined_at",
       "grade",

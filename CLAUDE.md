@@ -42,7 +42,9 @@
 
 ### 거래처 회원 목록 (BigQuery `members` 외부 테이블 — Google Sheets)
 
-`member_id, client, status, sales_rep, grade, biz_type, region1, joined_at, interest_brands, ceo_name`
+`member_id, client, phone, mobile, region1, joined_at, grade, biz_type, interest_brands, status, sales_rep, ceo_name`
+
+> 외부 테이블 스키마는 **시트 열 순서**로 매핑된다(`scripts/_create_external_tables.mjs`). 시트 `회원리스트` 탭에서 열을 추가·이동하면 스크립트의 순서도 같이 고치고 `node scripts/_create_external_tables.mjs members`로 다시 만들어야 한다.
 
 `lib/members-data.ts`가 로드. 매출에 안 잡히는 "가입만 하고 주문 없음 / 거래 끊김"을 채우는 소스로 `/members` 탭에서만 쓴다. 조인 키는 `client`(상호명) — 정규화 없이 그대로 매칭(B2B몰 96% 일치). 괄호 안 지점명은 지우지 말 것(`OO의원(강남)` ≠ `OO의원(분당)`).
 
