@@ -25,7 +25,7 @@ export const METRIC_LABEL = {
 } as const;
 
 export const CATEGORY_LABEL = {
-  수출: "수출",
+  수출: "해외영업",
   B2B: "B2B (전문가용)",
   B2C: "B2C",
   면세점: "면세점",
@@ -34,7 +34,7 @@ export const CATEGORY_LABEL = {
 export const TAB_LABEL = {
   home: "종합",
   targets: "목표 달성",
-  export: "수출",
+  export: "해외영업",
   b2b: "B2B",
   b2c: "B2C",
   duty: "면세점",
@@ -88,6 +88,11 @@ export const BRAND_COLOR: Record<string, string> = {
   기타: "#9ca3af",
 };
 
+// 화면 표시용 대분류명. 내부 키 "수출"은 해외영업(수출 + 해외 직영몰)을 뜻한다.
+export function categoryName(c: string): string {
+  return c === "수출" ? "해외영업" : c;
+}
+
 export const CATEGORY_COLOR: Record<string, string> = {
   수출: "#0ea5e9",
   B2B: "#8b5cf6",
@@ -97,6 +102,7 @@ export const CATEGORY_COLOR: Record<string, string> = {
 
 export const CHANNEL_GROUP_COLOR: Record<string, string> = {
   수출: "#0ea5e9",
+  "해외 직영몰": "#38bdf8",
   B2B: "#8b5cf6",
   면세점: "#f59e0b",
   "자사 공식몰": "#10b981",

@@ -7,6 +7,7 @@ import {
   topNCustomersWithPrev,
   nonRevenueSummary,
   categoryRevenue,
+  channelGroupRevenue,
   enumerateMonths,
 } from "@/lib/aggregate";
 import { computeOverviewInsights } from "@/lib/tabInsights";
@@ -70,7 +71,7 @@ const DETAIL_CHANNELS = [
   { key: "B2C", color: "#10b981" },
   { key: "바크로하우스", color: "#6ee7b7" },
   { key: "면세점", color: "#f59e0b" },
-  { key: "수출", color: "#0ea5e9" },
+  { key: "해외영업", color: "#0ea5e9" },
 ] as const;
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
@@ -80,7 +81,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const prevQ = prevQuarter(ym);
   const qProg = quarterProgress(ym);
 
-  // 스코프 필터: 전체 / 국내(수출 제외) / 해외(수출만). 해외 = category "수출".
+  // 스코프 필터: 전체 / 국내(해외영업 제외) / 해외(해외영업만). 해외 = category "수출"(수출 + 해외 직영몰).
   const scope: ReportScope =
     sp.scope === "국내" || sp.scope === "해외" ? sp.scope : "전체";
   const rowInScope = (r: { category: string }) =>
@@ -108,10 +109,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   // 스코프별 표시 채널. 해외 = 수출만, 국내 = 수출 제외, 전체 = 6채널.
   const visibleChannels: string[] =
     scope === "해외"
-      ? ["수출"]
+      ? ["해외영업"]
       : scope === "국내"
         ? ["B2B", "대리점", "B2C", "바크로하우스", "면세점"]
-        : ["B2B", "대리점", "B2C", "바크로하우스", "면세점", "수출"];
+        : ["B2B", "대리점", "B2C", "바크로하우스", "면세점", "해외영업"];
   const showCh = (k: string) => visibleChannels.includes(k);
   // 브랜드 매트릭스 채널대분류(수출=해외영업). 스코프별로 컬럼 제한.
   const matrixChannels: ChannelKey[] =
@@ -127,6 +128,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const catCur = categoryRevenue(cur);
   const catPrevMo = categoryRevenue(prevMo);
   const catPrevYr = categoryRevenue(prevYr);
+  // 해외영업 = 수출 + 해외 직영몰(큐텐 2026-09~). 카드에 내역 표시용.
+  const overseasMallCur = channelGroupRevenue(cur).get("해외 직영몰") ?? 0;
 
   const totalTarget = targets
     .filter((t) => t.yearMonth === ym)
@@ -259,7 +262,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       B2C: b2cTotal - bh,
       바크로하우스: bh,
       면세점: cube.byMonthCategory.get(m)?.get("면세점")?.revenue ?? 0,
-      수출: cube.byMonthCategory.get(m)?.get("수출")?.revenue ?? 0,
+      해외영업: cube.byMonthCategory.get(m)?.get("수출")?.revenue ?? 0,
     };
   });
 
@@ -364,15 +367,16 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             target={dutyTarget > 0 ? { value: dutyTarget, label: "면세점 목표" } : undefined}
           />
         )}
-        {showCh("수출") && (
+        {showCh("해외영업") && (
           <MetricCard
-            label="수출"
+            label="해외영업"
+            hint={overseasMallCur > 0 ? `수출 ${formatKRWShort(catCur["수출"] - overseasMallCur)} · 해외 직영몰 ${formatKRWShort(overseasMallCur)}` : undefined}
             current={catCur["수출"]}
             comparisons={[
               { label: COMPARE_LABEL.prevMonth, prev: catPrevMo["수출"] },
               { label: COMPARE_LABEL.prevYear, prev: catPrevYr["수출"] },
             ]}
-            target={exportTarget > 0 ? { value: exportTarget, label: "수출 목표" } : undefined}
+            target={exportTarget > 0 ? { value: exportTarget, label: "해외영업 목표" } : undefined}
           />
         )}
       </div>

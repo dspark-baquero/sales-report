@@ -91,7 +91,7 @@ export function ytdCategoryDetailSeries(cube: FactCube, ym: string): YTDSeries[]
       values: months.map((m) => cube.byMonthCategory.get(m)?.get("면세점")?.revenue ?? 0),
     },
     {
-      name: "수출",
+      name: "해외영업",
       color: CATEGORY_COLOR["수출"],
       values: months.map((m) => cube.byMonthCategory.get(m)?.get("수출")?.revenue ?? 0),
     },
@@ -176,10 +176,16 @@ function topNStackSeries(
   return series.filter((s) => s.values.some((v) => v > 0));
 }
 
+// 해외영업 YTD — 수출 국가 Top N + 기타, 그리고 해외 직영몰을 별도 시리즈로 붙여 합계가 해외영업 전체와 맞도록.
 export function ytdCountrySeries(cube: FactCube, ym: string, topN = 5): YTDSeries[] {
   const months = ytdMonths(ym);
   const cells = months.map((m) => cube.byMonthCountry.get(m) ?? new Map());
-  return topNStackSeries(months, cells, topN);
+  const series = topNStackSeries(months, cells, topN);
+  const mall = months.map((m) => cube.byMonthChannelGroup.get(m)?.get("해외 직영몰")?.revenue ?? 0);
+  if (mall.some((v) => v > 0)) {
+    series.push({ name: "해외 직영몰", color: CHANNEL_GROUP_COLOR["해외 직영몰"], values: mall });
+  }
+  return series;
 }
 
 export function ytdDealerSeries(cube: FactCube, ym: string, topN = 5): YTDSeries[] {

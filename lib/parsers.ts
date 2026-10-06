@@ -5,6 +5,7 @@ import {
   isNonRevenueBiz,
   b2bCustomerType,
   extractCountry,
+  overseasDirectMall,
   type Category,
   type ChannelGroup,
   type BrandHouse,
@@ -73,6 +74,13 @@ export function ym(d: Date): string {
   return `${y}-${m}`;
 }
 
+// 수출 국가. 해외 직영몰은 사업형태에서 국가를 못 뽑으면 몰의 기본 국가로 폴백.
+function exportCountry(channel: string, yearMonth: string, bizType: string): string {
+  const c = extractCountry(bizType);
+  if (c !== "기타") return c;
+  return overseasDirectMall(channel, yearMonth)?.country ?? c;
+}
+
 export function parseRow(r: Record<string, string>): SalesRow | null {
   const date = parseDate(r["날짜"]);
   if (!date) return null;
@@ -82,7 +90,8 @@ export function parseRow(r: Record<string, string>): SalesRow | null {
   const bizType = (r["거래처 사업형태"] || "").trim();
   const dealer = (r["딜러"] || "").trim() || "미지정";
   const realRevenue = parseNum(r["실 매출"]);
-  const cat = category(channel);
+  const yearMonth = ym(date);
+  const cat = category(channel, yearMonth);
   // 사업형태 '임직원'이라도 B2B몰 채널의 실판매(실매출>0)는 매출로 집계 (사용자 정책 2026-07).
   // 그 외 채널의 임직원 및 나머지 비매출 사업형태(증정/직원/마케팅용 등)는 종전대로 제외.
   const nonRevByBiz = isNonRevenueBiz(bizType) && !(cat === "B2B" && bizType === "임직원");
@@ -107,12 +116,12 @@ export function parseRow(r: Record<string, string>): SalesRow | null {
     bizType,
     cost: costVal,
     brand,
-    yearMonth: ym(date),
+    yearMonth,
     category: cat,
-    channelGroup: channelGroup(channel),
+    channelGroup: channelGroup(channel, yearMonth),
     brandHouse: brandHouse(brand),
     isNonRevenue: isNonRev,
-    country: cat === "수출" ? extractCountry(bizType) : null,
+    country: cat === "수출" ? exportCountry(channel, yearMonth, bizType) : null,
     b2bCustomerType: cat === "B2B" ? b2bCustomerType(bizType) : null,
     gp: costVal !== null ? realRevenue - costVal : null,
   };

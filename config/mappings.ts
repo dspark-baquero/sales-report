@@ -4,6 +4,7 @@
 export type Category = "수출" | "B2B" | "B2C" | "면세점";
 export type ChannelGroup =
   | "수출"
+  | "해외 직영몰"
   | "B2B"
   | "면세점"
   | "자사 공식몰"
@@ -51,12 +52,32 @@ export const CHANNEL_TO_GROUP: Record<string, ChannelGroup> = {
   "헤메코랩": "임직원/패밀리",
 };
 
-export function channelGroup(channel: string): ChannelGroup {
+// ── 해외 직영몰 (해외영업팀 직접 운영 쇼핑몰) ──────────────────
+// from(YYYY-MM) 이후 매출은 B2C가 아닌 해외영업(Category "수출", 그룹 "해외 직영몰")으로 집계.
+// 그 이전 매출은 CHANNEL_TO_GROUP의 원래 그룹(예: 큐텐 → 종합몰)에 그대로 남는다.
+// country: 사업형태에서 국가를 못 뽑을 때의 폴백.
+export const OVERSEAS_DIRECT_MALLS: { channel: string; from: string; country: string }[] = [
+  { channel: "큐텐", from: "2026-09", country: "일본" }, // 2026-09 해외영업팀 이관 (사용자 정책 #12)
+];
+
+export function overseasDirectMall(channel: string, ym?: string) {
+  if (!ym) return null;
+  return OVERSEAS_DIRECT_MALLS.find((m) => m.channel === channel && ym >= m.from) ?? null;
+}
+
+export function isOverseasDirectMall(channel: string, ym?: string): boolean {
+  return overseasDirectMall(channel, ym) !== null;
+}
+
+// ym을 넘기면 해외 직영몰 이관 시점을 반영한다.
+export function channelGroup(channel: string, ym?: string): ChannelGroup {
+  if (isOverseasDirectMall(channel, ym)) return "해외 직영몰";
   return CHANNEL_TO_GROUP[channel] ?? "기타";
 }
 
-export function category(channel: string): Category {
+export function category(channel: string, ym?: string): Category {
   if (channel === "수출") return "수출";
+  if (isOverseasDirectMall(channel, ym)) return "수출";
   if (channel === "B2B몰") return "B2B";
   if (channel === "면세점") return "면세점";
   return "B2C";

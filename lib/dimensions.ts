@@ -1,17 +1,109 @@
 // 차원별 집계 — 수출 국가, B2B 영업사원/거래처유형, B2C 브랜드/채널 등
 import type { SalesRow } from "./load";
 import { revenueRows, filterRange, enumerateMonths } from "./aggregate";
-import { BRAND_OFFICIAL_CHANNELS, brandHouse } from "@/config/mappings";
+import { BRAND_OFFICIAL_CHANNELS, OVERSEAS_DIRECT_MALLS, brandHouse, isOverseasDirectMall } from "@/config/mappings";
 import { BH_SELF_CHANNEL } from "./bhSelfRevenue";
 
-// ── 수출 ───────────────────────────────────────────────
+// ── 해외영업 (수출 + 해외 직영몰) ─────────────────────────
+// 해외영업 전체 (Category "수출" = 수출 출고 + 해외 직영몰)
 export function exportRows(rows: SalesRow[]): SalesRow[] {
   return rows.filter((r) => r.category === "수출");
 }
 
+// 수출 출고만 (해외 직영몰 제외). 국가·거래처 분해와 국가 목표는 이 기준.
+export function exportShipmentRows(rows: SalesRow[]): SalesRow[] {
+  return rows.filter((r) => r.category === "수출" && r.channelGroup !== "해외 직영몰");
+}
+
+// 해외 직영몰 (해외영업팀 직접 운영 쇼핑몰 — 큐텐 2026-09~)
+export function overseasMallRows(rows: SalesRow[]): SalesRow[] {
+  return rows.filter((r) => r.channelGroup === "해외 직영몰");
+}
+
+// 해외 직영몰 몰별 실적 (이번달 / 전월 / 전년 동월)
+export function overseasMallSummary(
+  cur: SalesRow[],
+  prev: SalesRow[],
+  prevYear: SalesRow[],
+): { channel: string; revenue: number; qty: number; orders: number; prev: number; prevYear: number }[] {
+  const sumBy = (rows: SalesRow[]) => {
+    const m = new Map<string, { revenue: number; qty: number; orders: Set<string> }>();
+    for (const r of revenueRows(overseasMallRows(rows))) {
+      const c = m.get(r.channel) ?? { revenue: 0, qty: 0, orders: new Set<string>() };
+      c.revenue += r.realRevenue;
+      c.qty += r.qty;
+      if (r.orderNo) c.orders.add(r.orderNo);
+      m.set(r.channel, c);
+    }
+    return m;
+  };
+  const c = sumBy(cur);
+  const p = sumBy(prev);
+  const y = sumBy(prevYear);
+  const channels = new Set([...c.keys(), ...p.keys()]);
+  return [...channels]
+    .map((channel) => ({
+      channel,
+      revenue: c.get(channel)?.revenue ?? 0,
+      qty: c.get(channel)?.qty ?? 0,
+      orders: c.get(channel)?.orders.size ?? 0,
+      prev: p.get(channel)?.revenue ?? 0,
+      prevYear: y.get(channel)?.revenue ?? 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+// 해외 직영몰 채널의 월별 매출 — 이관 전(국내 B2C 시기)과 이관 후(해외 직영몰)를 나눠서.
+// 이관 전후 흐름을 한 차트로 보기 위함. 대상 채널은 OVERSEAS_DIRECT_MALLS.
+export function overseasMallMonthlyTrend(
+  rows: SalesRow[],
+  fromYM: string,
+  toYM: string,
+): { months: string[]; before: number[]; after: number[] } {
+  const mallChannels = new Set(OVERSEAS_DIRECT_MALLS.map((m) => m.channel));
+  const months = enumerateMonths(fromYM, toYM);
+  const before = new Map<string, number>();
+  const after = new Map<string, number>();
+  for (const r of revenueRows(filterRange(rows, fromYM, toYM))) {
+    if (!mallChannels.has(r.channel)) continue;
+    const target = isOverseasDirectMall(r.channel, r.yearMonth) ? after : before;
+    target.set(r.yearMonth, (target.get(r.yearMonth) ?? 0) + r.realRevenue);
+  }
+  return {
+    months,
+    before: months.map((m) => before.get(m) ?? 0),
+    after: months.map((m) => after.get(m) ?? 0),
+  };
+}
+
+// 해외 직영몰 몰 × 브랜드 (이번달 / 전월)
+export function overseasMallBrandRows(
+  cur: SalesRow[],
+  prev: SalesRow[],
+): { channel: string; brand: string; revenue: number; qty: number; prev: number }[] {
+  const key = (r: SalesRow) => `${r.channel}|${r.brand}`;
+  const c = new Map<string, { revenue: number; qty: number }>();
+  for (const r of revenueRows(overseasMallRows(cur))) {
+    const v = c.get(key(r)) ?? { revenue: 0, qty: 0 };
+    v.revenue += r.realRevenue;
+    v.qty += r.qty;
+    c.set(key(r), v);
+  }
+  const p = new Map<string, number>();
+  for (const r of revenueRows(overseasMallRows(prev))) {
+    p.set(key(r), (p.get(key(r)) ?? 0) + r.realRevenue);
+  }
+  return [...new Set([...c.keys(), ...p.keys()])]
+    .map((k) => {
+      const [channel, brand] = k.split("|");
+      return { channel, brand, revenue: c.get(k)?.revenue ?? 0, qty: c.get(k)?.qty ?? 0, prev: p.get(k) ?? 0 };
+    })
+    .sort((a, b) => b.revenue - a.revenue || b.prev - a.prev);
+}
+
 export function revenueByCountry(rows: SalesRow[]): { country: string; revenue: number; qty: number }[] {
   const m = new Map<string, { revenue: number; qty: number }>();
-  for (const r of revenueRows(exportRows(rows))) {
+  for (const r of revenueRows(exportShipmentRows(rows))) {
     const k = r.country ?? "기타";
     const cur = m.get(k) ?? { revenue: 0, qty: 0 };
     cur.revenue += r.realRevenue;
@@ -31,7 +123,7 @@ export function countryBrandMatrix(rows: SalesRow[]): {
 } {
   const cMap = new Map<string, Map<string, number>>();
   const brandSet = new Set<string>();
-  for (const r of revenueRows(exportRows(rows))) {
+  for (const r of revenueRows(exportShipmentRows(rows))) {
     const c = r.country ?? "기타";
     brandSet.add(r.brand);
     if (!cMap.has(c)) cMap.set(c, new Map());
@@ -56,7 +148,7 @@ export function countryMonthlyTrend(
   fromYM: string,
   toYM: string,
 ): { country: string; months: string[]; values: number[] }[] {
-  const exp = revenueRows(exportRows(filterRange(rows, fromYM, toYM)));
+  const exp = revenueRows(exportShipmentRows(filterRange(rows, fromYM, toYM)));
   const cMap = new Map<string, Map<string, number>>();
   for (const r of exp) {
     const c = r.country ?? "기타";
@@ -84,7 +176,7 @@ export function exportCustomers(rows: SalesRow[]): {
   qty: number;
 }[] {
   const m = new Map<string, { country: string; revenue: number; qty: number }>();
-  for (const r of revenueRows(exportRows(rows))) {
+  for (const r of revenueRows(exportShipmentRows(rows))) {
     const cur = m.get(r.customer) ?? { country: r.country ?? "기타", revenue: 0, qty: 0 };
     cur.revenue += r.realRevenue;
     cur.qty += r.qty;

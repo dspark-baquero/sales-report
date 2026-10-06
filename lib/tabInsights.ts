@@ -20,6 +20,8 @@ import {
 import { ymMinusMonths, enumerateMonths } from "./aggregate";
 import { prevMonth, prevYearSameMonth } from "./compare";
 import type { Category } from "@/config/mappings";
+import { isOverseasDirectMall } from "@/config/mappings";
+import { categoryName } from "./labels";
 import { formatKRWShort, formatPct, formatPctAbs, formatCount } from "./format";
 import {
   sleepingReturned,
@@ -224,7 +226,7 @@ export function computeOverviewInsights(cube: FactCube, ym: string): InsightBull
     if (Math.abs(m.pct) < 0.05) continue;
     const c = cubeMonthCategoryKpi(cube, ym, m.label as never).revenue;
     const p = cubeMonthCategoryKpi(cube, prevYM, m.label as never).revenue;
-    const ct = changeText(`${m.label}`, c, p);
+    const ct = changeText(categoryName(m.label), c, p);
     const yc = categoryYtdCompare(cube, ym, m.label as Category);
     // 월 변동과 YTD 누적이 반대 방향이면 단발성 노이즈일 가능성 → info로 격하
     const monthlyDown = m.diff < 0;
@@ -358,16 +360,17 @@ export function computeB2CInsights(cube: FactCube, ym: string): InsightBullet[] 
     });
   }
 
-  // 채널 빅 무버 — B2B몰/수출/면세점 채널 제외 (B2C 채널만)
+  // 채널 빅 무버 — B2B몰/수출/면세점 채널 제외 (B2C 채널만).
+  // 해외 직영몰로 이관된 채널(큐텐 2026-09~)도 해당 월부터는 B2C가 아니므로 제외.
   const EXCLUDE_CHANNELS = new Set(["B2B몰", "수출", "면세점"]);
   const filteredCur = new Map<string, { revenue: number }>();
   const filteredPrev = new Map<string, { revenue: number }>();
   for (const [ch, cell] of cubeMonthChannelCells(cube, ym)) {
-    if (EXCLUDE_CHANNELS.has(ch)) continue;
+    if (EXCLUDE_CHANNELS.has(ch) || isOverseasDirectMall(ch, ym)) continue;
     filteredCur.set(ch, { revenue: cell.revenue });
   }
   for (const [ch, cell] of cubeMonthChannelCells(cube, prevYM)) {
-    if (EXCLUDE_CHANNELS.has(ch)) continue;
+    if (EXCLUDE_CHANNELS.has(ch) || isOverseasDirectMall(ch, prevYM)) continue;
     filteredPrev.set(ch, { revenue: cell.revenue });
   }
   out.push(...topMoversFromCells(filteredCur, filteredPrev, {
@@ -601,7 +604,7 @@ export function computeSalesRepInsights(profile: SalesRepProfile): InsightBullet
   return rankBullets(out).slice(0, 6);
 }
 
-// ── 수출 탭 ────────────────────────────────────────────
+// ── 해외영업 탭 (수출 + 해외 직영몰) ──────────────────────
 export function computeExportInsights(cube: FactCube, ym: string): InsightBullet[] {
   const prevYM = prevMonth(ym);
   const prevYearYM = prevYearSameMonth(ym);
@@ -610,10 +613,24 @@ export function computeExportInsights(cube: FactCube, ym: string): InsightBullet
   const curRev = cubeMonthCategoryKpi(cube, ym, "수출").revenue;
   const prevRev = cubeMonthCategoryKpi(cube, prevYM, "수출").revenue;
   const prevYearRev = cubeMonthCategoryKpi(cube, prevYearYM, "수출").revenue;
-  const tb = totalChangeBullet(curRev, prevRev, "전월", "수출 전체");
+  const tb = totalChangeBullet(curRev, prevRev, "전월", "해외영업 전체");
   if (tb) out.push(tb);
-  const yb = totalChangeBullet(curRev, prevYearRev, "전년 동월", "수출 전체");
+  const yb = totalChangeBullet(curRev, prevYearRev, "전년 동월", "해외영업 전체");
   if (yb) out.push(yb);
+
+  // 해외 직영몰 (해외영업팀 직접 운영 쇼핑몰) 전월 대비 — 금액이 작아도 순위에서 밀리지 않게 한 자리 확보
+  const mallCur = cubeMonthChannelGroupKpi(cube, ym, "해외 직영몰").revenue;
+  const mallPrev = cubeMonthChannelGroupKpi(cube, prevYM, "해외 직영몰").revenue;
+  let mallBullet: InsightBullet | null = null;
+  if (mallCur > 0 || mallPrev > 0) {
+    const ct = changeText("해외 직영몰", mallCur, mallPrev);
+    mallBullet = {
+      severity: pickSeverity(ct.pct, mallPrev === 0, mallCur === 0),
+      category: mallPrev === 0 ? "신규 진입" : "해외 직영몰",
+      text: ct.text,
+      weight: Math.max(Math.abs(ct.diff), mallCur),
+    };
+  }
 
   // 국가 빅 무버
   const countryCur = cubeMonthCountryCells(cube, ym);
@@ -648,7 +665,8 @@ export function computeExportInsights(cube: FactCube, ym: string): InsightBullet
     }
   }
 
-  return rankBullets(out).slice(0, 6);
+  if (!mallBullet) return rankBullets(out).slice(0, 6);
+  return rankBullets([...rankBullets(out).slice(0, 5), mallBullet]);
 }
 
 // ── 바크로하우스 탭 ──────────────────────────────────────

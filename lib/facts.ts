@@ -133,7 +133,7 @@ export type FactCube = {
   byMonthBrandHouse: Map<string, Map<BrandHouse, FactCell>>;
   byMonthCustomer: Map<string, Map<string, FactCell>>;
   byMonthDealer: Map<string, Map<string, FactCell>>;            // B2B만
-  byMonthCountry: Map<string, Map<string, FactCell>>;           // 수출만
+  byMonthCountry: Map<string, Map<string, FactCell>>;           // 수출 출고만 (해외 직영몰 제외)
   byMonthB2bType: Map<string, Map<string, FactCell>>;           // B2B만
   // 2D 인덱스
   byMonthDealerType: Map<string, Map<string, Map<string, FactCell>>>;
@@ -249,7 +249,8 @@ export function buildFactCube(rows: SalesRow[]): FactCube {
       const set = ensure(dCustMap, r.dealer, () => new Set<string>());
       if (r.customer) set.add(r.customer);
     }
-    if (r.category === "수출") {
+    // 국가 분해는 수출 출고만. 해외 직영몰(큐텐 등)은 byMonthChannelGroup "해외 직영몰"로 본다.
+    if (r.category === "수출" && r.channelGroup !== "해외 직영몰") {
       const c = r.country ?? "기타";
       addRow(ensure(ensure(cube.byMonthCountry, ym, () => new Map()), c, newCell), r);
       const cMap = ensure(cube.byMonthCountryBrand, ym, () => new Map<string, Map<string, FactCell>>());

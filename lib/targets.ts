@@ -256,14 +256,30 @@ function isDonkiSale(r: SalesRow): boolean {
   return (r.country === "일본" && isDonkiName) || isVendor;
 }
 
+// 국가 목표는 수출 출고(B2B 수출)만 매칭. 해외 직영몰(큐텐 등) 매출은 별도 키 "해외 직영몰"로만 잡는다.
+function isExportShipment(r: SalesRow): boolean {
+  return r.category === "수출" && r.channelGroup !== "해외 직영몰";
+}
+
+export const OVERSEAS_MALL_TARGET_KEY = "해외 직영몰";
+
 export function exportMatchRule(customerKey: string): MatchRule {
+  if (customerKey === OVERSEAS_MALL_TARGET_KEY) {
+    return {
+      customerKey,
+      division: "해외",
+      match: (brand) => (r) => r.brand === brand && r.channelGroup === "해외 직영몰",
+      prospective: false,
+      description: "해외 직영몰 (해외영업팀 직접 운영 — 큐텐 2026-09~)",
+    };
+  }
   if (customerKey === "동남아") {
     return {
       customerKey,
       division: "해외",
       match: (brand) => (r) =>
         r.brand === brand &&
-        r.category === "수출" &&
+        isExportShipment(r) &&
         SOUTHEAST_ASIA_EXCL_VN.has(r.country ?? ""),
       prospective: false,
       description: "동남아시아 (베트남 제외 — 태국·말레이시아·인도네시아 등)",
@@ -274,7 +290,7 @@ export function exportMatchRule(customerKey: string): MatchRule {
       customerKey,
       division: "해외",
       match: (brand) => (r) =>
-        r.brand === brand && r.category === "수출" && isDonkiSale(r),
+        r.brand === brand && isExportShipment(r) && isDonkiSale(r),
       prospective: false,
       description: "일본 돈키호테 (벤더사 K-Labo(제이랩) 경유 — 거래처명으로 매칭)",
     };
@@ -285,7 +301,7 @@ export function exportMatchRule(customerKey: string): MatchRule {
       division: "해외",
       match: (brand) => (r) =>
         r.brand === brand &&
-        r.category === "수출" &&
+        isExportShipment(r) &&
         (r.country === "기타" || !r.country),
       prospective: false,
       description: "기타 국가",
@@ -297,7 +313,7 @@ export function exportMatchRule(customerKey: string): MatchRule {
       customerKey,
       division: "해외",
       match: (brand) => (r) =>
-        r.brand === brand && r.category === "수출" && r.country === "일본" && !isDonkiSale(r),
+        r.brand === brand && isExportShipment(r) && r.country === "일본" && !isDonkiSale(r),
       prospective: false,
       description: "수출 일본 (돈키호테 제외)",
     };
@@ -306,7 +322,7 @@ export function exportMatchRule(customerKey: string): MatchRule {
     customerKey,
     division: "해외",
     match: (brand) => (r) =>
-      r.brand === brand && r.category === "수출" && r.country === customerKey,
+      r.brand === brand && isExportShipment(r) && r.country === customerKey,
     prospective: false,
     description: `수출 ${customerKey}`,
   };

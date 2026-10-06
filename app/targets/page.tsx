@@ -164,7 +164,7 @@ export default async function TargetsPage({ searchParams }: { searchParams: Sear
       annualTarget: sumAnnualTarget((t) => t.customerKey === "면세점"),
     },
     {
-      title: "수출",
+      title: "해외영업",
       ytdActual: exp.ytdActual,
       prevYearActual: exp.prevYearActual,
       annualTarget: sumAnnualTarget((t) => t.division === "해외"),

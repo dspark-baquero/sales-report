@@ -19,7 +19,7 @@ import {
 } from "@/lib/compare";
 import { attributeChange } from "@/lib/changeAttribution";
 import { loadTargets, targetsForMonthWithProspective } from "@/lib/targets";
-import { COMPARE_LABEL, CATEGORY_COLOR, BRAND_COLOR } from "@/lib/labels";
+import { COMPARE_LABEL, CATEGORY_COLOR, BRAND_COLOR, categoryName } from "@/lib/labels";
 import { MetricCard } from "@/components/MetricCard";
 import { ChangeBreakdown } from "@/components/ChangeBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,7 +141,9 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         ? `B2B · ${r.b2bCustomerType ?? "기타"}`
         : r.category === "면세점"
           ? `면세점 · ${r.customer || "기타"}`
-          : r.category === "수출"
+          : r.channelGroup === "해외 직영몰"
+            ? `해외 직영몰 · ${r.channel}`
+            : r.category === "수출"
             ? `수출 · ${r.country || "기타"}`
             : `B2C · ${r.channel || "기타"}`;
       const c = curMap.get(key) ?? { revenue: 0, qty: 0 };
@@ -155,7 +157,9 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
         ? `B2B · ${r.b2bCustomerType ?? "기타"}`
         : r.category === "면세점"
           ? `면세점 · ${r.customer || "기타"}`
-          : r.category === "수출"
+          : r.channelGroup === "해외 직영몰"
+            ? `해외 직영몰 · ${r.channel}`
+            : r.category === "수출"
             ? `수출 · ${r.country || "기타"}`
             : `B2C · ${r.channel || "기타"}`;
       prevMap.set(key, (prevMap.get(key) ?? 0) + r.realRevenue);
@@ -330,7 +334,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
           <BarChart
             categories={monthsList.map((m) => formatYM(m).replace("년 ", "/").replace("월", ""))}
             series={categories.map((c) => ({
-              name: c,
+              name: categoryName(c),
               values: stack.map((s) => s.values[c]),
               stack: "월합계",
               color: CATEGORY_COLOR[c],
@@ -352,7 +356,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
               items={categories
                 .filter((c) => catDistribution[c] > 0)
                 .map((c) => ({
-                  name: c,
+                  name: categoryName(c),
                   value: catDistribution[c],
                   color: CATEGORY_COLOR[c],
                 }))}
@@ -407,7 +411,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Search
                         <tr key={c} className="border-b last:border-0">
                           <td className="py-2 font-medium">
                             <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: CATEGORY_COLOR[c] ?? "#9ca3af" }} />
-                            {c}
+                            {categoryName(c)}
                           </td>
                           <td className="py-2 text-right tabular-nums">{formatKRWLong(rev)}</td>
                           <td className="py-2 text-right tabular-nums text-muted-foreground">
